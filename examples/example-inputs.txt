@@ -1,0 +1,58 @@
+(x:{'a,'b})-> Int <: (x:{'b})->Int
+
+(x:{'a,'b})-> case x of {'a : Int, 'b : Unit} <: (x:{'a,'b})->case x of {'a : Int, 'b:Unit}
+
+(x:{'a,'b})-> case x of {'a : Int, 'b : Unit} <: (x:{'a})->case x of {'a : Int, 'b:Unit}
+
+(x:{'a,'b})-> case x of {'a : Int, 'b : Unit} <: (x:{'a})->case x of {'a : Int}
+
+{'a} <: {'a,'b}
+
+[ x : {'a}] |- case x of {'a : Int, 'b : Unit} <: case x of {'a : Int}
+
+(x:{'a,'b}) -> Unit <: (x:{'a}) -> case x of { 'a : Unit , 'b : Int }
+
+
+{'a} \/ {'b}
+
+(x:Int)->{'a} \/ (x:Int)->{'b}
+
+(x:{'a,'b})-> Int \/ (x:{'b,'c})-> Int
+
+(x:{'a,'b})-> Int \/ (x:{'b,'c})-> case x of {'b : Int , 'c : Unit }
+
+(x:{'a,'b}) -> Unit \/ (x:{'a}) -> case x of { 'a : Unit , 'b : Int }
+
+(x:{'a,'b}) -> case x of { 'a : Unit , 'b : Int } \/ (x:{'a}) -> Unit
+
+----
+
+# consider type inference for
+# case x of {'a : (), 'b : 42}
+# the branches return types Unit and Int, respectively.
+# To type check this, we need to introduce a case with bottom types
+# (type variables?) in the unused branches --- conversion can just
+# guess the correct types for the other branches.
+
+x : {'a,'b}
+case x of { 'a : Unit, 'b : Bot} \/ case x of {'b : Int, 'a: Bot}
+
+-Left2->
+
+#case x='a
+x : {'a,'b}
+z : {{ x='a : {'a,'b} }}
+Unit \/ case x of {'b : Int, 'a: Bot}
+
+-Right1->
+
+Unit \/ Bot
+
+#case x='b
+x : {'a,'b}
+z : {{ x='b : {'a,'b} }}
+Bot \/ case x of {'b : Int, 'a: Bot}
+
+-Right1->
+Bot \/ Int
+

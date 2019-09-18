@@ -1,0 +1,2 @@
+Right (TFun MMany "c" (TName True "NodeC") (TPair MMany "tag" (TLab ["'Empty","'Node"]) (TCase (Var "tag") [("'Empty",TUnit),("'Node",TInt)])),[])
+Right (TFun MMany "n" (TName False "Node") (TFun MMany "c" (TName False "NodeC") (TName False "Close")),[])

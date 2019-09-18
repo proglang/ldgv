@@ -1,0 +1,13 @@
+type BOOL : ~un = {'True,'False}
+
+type T1 : ~un = (b : BOOL) ->
+  case b of
+  { 'True : {'False}
+  , 'False : {'True}
+  }
+
+type T2 : ~un = (b : BOOL) -> BOOL
+
+T1 <: T2
+
+T2 <: T1

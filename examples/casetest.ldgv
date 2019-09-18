@@ -1,0 +1,5 @@
+val negate (b : {'True,'False}) =
+  case b of
+  { 'True : 'False
+  , 'False : 'True
+  }

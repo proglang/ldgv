@@ -1,0 +1,31 @@
+type Close : ~unit = Unit
+
+type Node : ~un =
+  [ tag : {'Empty, 'Node},
+    case tag of { 'Empty: Unit
+                , 'Node : [ Int, Node ] }
+  ]
+
+type NodeC :! ~ssn =
+  !( tag : {'Empty, 'Node})
+  case tag of
+  { 'Empty : !Unit . Close
+  , 'Node  : !Int . NodeC }
+
+val recvList (c : dualof NodeC) : Node =
+  let <tag,c> = recv c in
+  let <payload,c> = recv c in
+  case tag of
+  { 'Empty : <tag = tag , payload>
+  , 'Node  : <tag = tag , <elem = payload , recvList c> >
+  }
+
+val recvListb (c : dualof NodeC) : Node =
+  let <tag,c> = recv c in
+  let <payload,c> = recv c in
+  <tag = tag, 
+    case tag of
+    { 'Empty : payload
+    , 'Node  : <elem = payload , recvListb c>
+    }
+  >

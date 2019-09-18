@@ -1,0 +1,1 @@
+Right (TFun MMany "d" (TName False "TClient") (TFun MMany "x" TInt TInt),[])

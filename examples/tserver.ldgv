@@ -1,0 +1,20 @@
+type TServer : ! ~ssn =
+  ? ( x : { 'neg, 'add })
+  case x of
+    { 'neg : ?Int. !Int. !{'EOS}. Unit
+    , 'add : ?Int. ?Int. !Int. !{'EOS}. Unit
+    }
+
+
+val lServer1 (c : TServer) =
+	let < l , c > = recv c in
+	let < x , c > = recv c in
+	case l of
+	{ 'neg :
+	  let c = (send c) (-x) in
+	  (send c) 'EOS
+	, 'add :
+	  let < y , c > = recv c in
+	  let c = (send c) (x + y) in
+	  (send c) 'EOS
+	}

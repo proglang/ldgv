@@ -1,0 +1,21 @@
+type End : ~unit = Unit
+
+type SUMC : ~ssn =
+  ?(n : Nat)
+  natrec n
+  { !Int. End
+  , A. ?Int. A
+  }
+
+type SUM : ~un =
+  (ch : SUMC) -> End
+
+val sum (ch_in : SUMC) =
+  let <n, ch> = recv ch_in in
+  ((natrec n 
+  { fn (m : Int) fn (c : !Int.End) (send c) m
+  , n1 . A . (y : (m : Int) -> (a:A) -> End) .
+         fn (m: Int) fn (c : ?Int. A)
+       let <k,c> = recv c in
+       (y (k + m)) c
+  }) 0) ch

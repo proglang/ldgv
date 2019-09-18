@@ -1,0 +1,80 @@
+## Mutually recursive type definitions ##
+
+TID --- type identifier, starts with uppercase letter
+
+# Declarations
+
+The top-level accepts a *sequence* of declarations as follows:
+
+* type declaration with multiplicity and kind (accumulates assumptions)
+* variable declaration with multiplicity (accumulates assumptions)
+* function definition (runs type checker with assumptions)
+* run subtyping (runs subtyping with assumptions)
+* run type equivalence
+* (obsolete) compute least upper bound of types
+* (obsolete) compute greatest lower bound of types
+
+D ::= "type" TID ":" m K "=" T
+  | "val" id ":" m T
+  | "val" id { m "(" id ":" T ")" } "=" M
+  | T "<:" T
+  | T "=:" T
+  | T "\/" T
+  | T "/\" T
+
+# Multiplicities: unrestricted (nothing) or single-use
+
+m ::=  | "!"
+
+# Kinds
+
+K ::= "~" K'
+K' ::= "un" | "lin" | "unit" | "ssn" | "idx"
+
+# labels
+
+lab ::= "'" id
+
+# Types
+
+T ::= "Unit"
+  | "Int"
+  | "Bot"
+  | TID
+  | "{" lab { "," lab } "}"
+  | "case" M "of" "{" lab ":" T { "," lab ":" T } "}"
+  | "(" id ":" T ")" m "->" T
+  | "[" m id ":" T "," T "]"
+  | "!" "(" id ":" T ")" T
+  | "?" "(" id ":" T ")" T
+  | "[" m T "," T "]"
+  | "!" T "." T
+  | "?" T "." T
+  | "{{" M "=" M ":" T "}}"
+  | "dualof" T
+
+
+M ::= "()"
+  | lab
+  | id
+  | "fun" m "(" id ":" T ")" M
+  | "rec" id "(" id ":" T ")" ":" T "=" M
+  | M M
+  | "let" id "=" M "in" M
+  | "<" m id "=" M "," M ">" m
+  | "let" "<" id "," id ">" "=" M "in" M
+  | "fst" M
+  | "snd" M
+  | "fork" M
+  | "new" T
+  | "send" M
+  | "recv" M
+  | "case" M "of"  "{" lab ":" M { "," lab ":" M } "}"
+  | "(" M ")"
+
+## later:
+
+  | "select" lab
+  | "rcase" M "of"  "{" lab ":" M { "," lab ":" M } "}"
+  | "close" M
+  | "wait" M

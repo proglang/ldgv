@@ -1,0 +1,22 @@
+type Close : ~unit = Unit
+
+type NodeC :! ~ssn =
+  !( tag : {'Empty, 'Node})
+  case tag of
+  { 'Empty : !Unit. Close
+  , 'Node  : !Int. Close
+  }
+
+type Node : ~un =
+  [ tag : {'Empty, 'Node} , case tag of { 'Empty: Unit, 'Node: Int } ]
+
+val recvNode (c : dualof NodeC) =
+  let <tag,c> = recv c in
+  let <v,c> = recv c in
+  < tag = tag , v >
+
+val sendNode (n : Node) (c : NodeC) =
+  let < tag , v > = n in
+  (let c = (send c) tag in
+  (send c) v)
+  

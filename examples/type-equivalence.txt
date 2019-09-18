@@ -1,0 +1,42 @@
+(x:{'a,'b})-> Int =: (x:{'b,'a})->Int
+
+(x:{'a,'b})-> case x of {'a : Int, 'b : Unit} =: (y:{'b,'a})->case y of { 'b:Unit, 'a : Int}
+
+(x:{'a,'b})-> case x of {'a : Int, 'b : Int} =: (y:{'b,'a})-> Int
+
+type TServerRec : ! ~ssn =
+  ? ( x : { 'neg, 'add })
+  case x of
+    { 'neg : ?Int. !Int. TServerRec
+    , 'add : ?Int. ?Int. !Int. TServerRec
+    }
+
+TServerRec =: TServerRec
+
+type TServerRecSkewed : ! ~ssn =
+  ? ( x : { 'neg, 'add })
+  ?Int.
+  case x of
+    { 'neg : !Int. TServerRecSkewed
+    , 'add : ?Int. !Int. TServerRecSkewed
+    }
+
+TServerRec =: TServerRecSkewed
+
+type TServerStrange :! ~ssn =
+  !Int.
+  ? ( x : { 'neg, 'add })
+  ?Int.
+  case x of
+    { 'neg : TServerStrange
+    , 'add : ?Int. TServerStrange
+    }
+
+type TServerHead :! ~ssn =
+  ? ( x : { 'neg, 'add })
+  case x of
+    { 'neg : ?Int. TServerStrange
+    , 'add : ?Int. ?Int. TServerStrange
+    }
+
+TServerRec =: TServerHead
