@@ -191,6 +191,69 @@ eqvtype' tenv ty1 (TCase val@(Var x) cases) =
                 labs
      return $ foldr1 klub results
 
+-- workzone
+eqvtype' tenv ty1@(TNatRec e1 tz1 tv1 ts1) ty2
+  | Just (v, TNat) <- valueEquiv tenv e1 =
+      case v of
+        Nat 0 ->
+          eqvtype tenv tz1 ty2
+        Nat n | n > 0 ->
+          eqvtype tenv (tsubst tv1 (TNatRec (Nat (n-1)) tz1 tv1 ts1) ts1) ty2
+        Succ var ->
+          eqvtype tenv (tsubst tv1 (TNatRec var tz1 tv1 ts1) ts1) ty2
+        _ ->
+          TC.mfail ("eqvtype: type mismatch")
+  -- need to do something about tv1: unfolding should be ok as we have a constant
+
+eqvtype' tenv ty1@(TNatRec val@(Var n) tz1 tv1 ts1) ty2 = 
+  do varlookupNat n tenv
+     let n' = freshvar n (fv ty1)
+     eqvtype (("*nlft*", (Many, TEqn val (Nat 0) TNat)) : tenv) tz1 ty2
+     eqvtype (("*nlft*", (Many, TEqn val (Succ (Var n')) TNat)) :
+              (n', (Many, TNat)): tenv)
+       (tsubst tv1 (TNatRec (Var n') tz1 tv1 ts1) ts1)
+       ty2
+     -- seriously need to do something about tv1 in ts1
+     -- unfolding may lead to nontermination
+
+eqvtype' tenv ty1 ty2@(TNatRec e tz tv ts)
+  | Just (v, TNat) <- valueEquiv tenv e =
+      case v of
+        Nat 0 ->
+          eqvtype tenv ty1 tz
+        Nat n | n > 0 ->
+          eqvtype tenv ty1 (tsubst tv (TNatRec (Nat (n-1)) tz tv ts) ts)
+        Succ var -> do
+          let ty2'= tsubst tv (TNatRec var tz tv ts) ts
+              ty1c = complete (fv ty1) tenv ty1
+              ty2c = complete (fv ty2') tenv ty2'
+              centry = (ty1c, ty2c)
+          incache <- eqvCacheLookup centry
+          if incache then
+            return Kunit        -- TODO!! unhack
+            else
+            eqvtype tenv ty1 ty2'
+  -- need to do something about tv1: unfolding should be ok as we have a constant
+
+eqvtype' tenv ty1 ty2@(TNatRec val@(Var n) tz tv ts) = 
+  do varlookupNat n tenv
+     let n' = freshvar n (fv ty2)
+         tenv' = (("*nrgt*", (Many, TEqn val (Succ (Var n')) TNat)) :
+                  (n', (Many, TNat)):
+                  tenv)
+         ty2' = (tsubst tv (TNatRec (Var n') tz tv ts) ts)
+         ty1c = complete (fv ty1) tenv ty1
+         ty2c = complete (fv ty2') tenv ty2'
+         centry = (ty1c, ty2c)
+     eqvtype (("*nrgt*", (Many, TEqn val (Nat 0) TNat)) : tenv) ty1 tz
+     incache <- eqvCacheLookup centry
+     if incache then
+       return Kunit             -- TODO!! unhack
+       else
+       eqvtype tenv' ty1 ty2'
+     -- seriously need to do something about tv in ts
+     -- unfolding may lead to nontermination
+
 -- catchall
 eqvtype' tenv t1 t2 = TC.mfail ("Fails to establish " ++ pshow t1 ++ " ==: " ++ pshow t2)
 
@@ -358,131 +421,7 @@ subtype tenv t1 t2 = do
   r <- subtype' tenv t1 t2
   return $ D.trace ("subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ show r) r
 
--- TODO: lift to generate mu-types
-lub', glb' :: TEnv -> Type -> Type -> TCM Type
-lub' tenv TUnit TUnit = return TUnit
-lub' tenv TInt TInt = return TInt
-lub' tenv (TLab labs1) (TLab labs2) = return $ TLab (labs1 `union` labs2)
-lub' tenv (TFun tm tx t1 t2) (TFun sm sx s1 s2) =
-  let rx = "zz" ++ show (length tenv) 
-  in do
-    r1 <- glb tenv t1 s1
-    r2 <- lub ((rx, (Many, r1)) : tenv) (subst tx (Var rx) t2) (subst sx (Var rx) s2)
-    return $ TFun (max tm sm) rx r1 r2 
 
-lub' tenv (TSend tx t1 t2) (TSend sx s1 s2) =
-  let rx = "zz" ++ show (length tenv) 
-  in do
-    r1 <- glb tenv t1 s1
-    r2 <- lub ((rx, (Many, r1)) : tenv) (subst tx (Var rx) t2) (subst sx (Var rx) s2)
-    return $ TSend rx r1 r2 
-
-lub' tenv (TPair tm tx t1 t2) (TPair sm sx s1 s2) =
-  let rx = "zz" ++ show (length tenv) 
-  in do
-    r1 <- lub tenv t1 s1
-    r2 <- lub ((rx, (Many, r1)) : tenv) (subst tx (Var rx) t2) (subst sx (Var rx) s2)
-    return $ TPair (max tm sm) rx r1 r2 
-
-lub' tenv (TRecv tx t1 t2) (TRecv sx s1 s2) =
-  let rx = "zz" ++ show (length tenv) 
-  in do
-    r1 <- lub tenv t1 s1
-    r2 <- lub ((rx, (Many, r1)) : tenv) (subst tx (Var rx) t2) (subst sx (Var rx) s2)
-    return $ TRecv rx r1 r2 
-
-lub' tenv (TCase val cases) ty2
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val = 
-  do ty1 <- lablookup lll cases
-     lub tenv ty1 ty2
-lub' tenv (TCase val@(Var x) cases) ty2 =
-  do (lty, labs) <- varlookupLabel x tenv
-     results <- mapM (\lll -> lablookup lll cases >>= \ty1 ->
-                              lub (("*lft*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
-                     labs
-     return $ tcase val lty (zip labs results)
-
-lub' tenv ty1 (TCase val cases)
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val =
-  do ty2 <- lablookup lll cases
-     lub tenv ty1 ty2
-lub' tenv ty1 (TCase val@(Var x) cases) =
-  do (lty, labs) <- varlookupLabel x tenv
-     results <- mapM (\lll -> lablookup lll cases >>= \ty2 ->
-                              lub (("*rgt*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
-                     labs
-     return $ tcase val lty (zip labs results)
-
--- fallback
-lub' tenv TBot t2 = return t2
-lub' tenv t1 TBot = return t1
-
-lub' tenv t1 t2 = TC.mfail ("LUB fails for " ++ pshow t1 ++ " and " ++ pshow t2)
-
-----------
-
-glb' tenv TUnit TUnit = return TUnit
-glb' tenv TInt TInt = return TInt
-glb' tenv (TLab labs1) (TLab labs2) = return $ TLab (labs1 `intersect` labs2)
-glb' tenv (TFun tm tx t1 t2) (TFun sm sx s1 s2) =
-  let rx = "zz" ++ show (length tenv) 
-  in do
-    r1 <- lub tenv t1 s1
-    r2 <- glb ((rx, (Many, r1)) : tenv) (subst tx (Var rx) t2) (subst sx (Var rx) s2)
-    return $ TFun (min tm sm) rx r1 r2 
-
-glb' tenv (TSend tx t1 t2) (TSend sx s1 s2) =
-  let rx = "zz" ++ show (length tenv) 
-  in do
-    r1 <- lub tenv t1 s1
-    r2 <- glb ((rx, (Many, r1)) : tenv) (subst tx (Var rx) t2) (subst sx (Var rx) s2)
-    return $ TSend rx r1 r2 
-
-glb' tenv (TPair tm tx t1 t2) (TPair sm sx s1 s2) =
-  let rx = "zz" ++ show (length tenv) 
-  in do
-    r1 <- glb tenv t1 s1
-    r2 <- glb ((rx, (Many, r1)) : tenv) (subst tx (Var rx) t2) (subst sx (Var rx) s2)
-    return $ TPair (min tm sm) rx r1 r2 
-
-glb' tenv (TRecv tx t1 t2) (TRecv sx s1 s2) =
-  let rx = "zz" ++ show (length tenv) 
-  in do
-    r1 <- glb tenv t1 s1
-    r2 <- glb ((rx, (Many, r1)) : tenv) (subst tx (Var rx) t2) (subst sx (Var rx) s2)
-    return $ TRecv rx r1 r2 
-    
-glb' tenv (TCase val cases) ty2
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val = 
-  do ty1 <- lablookup lll cases
-     glb tenv ty1 ty2
-glb' tenv (TCase val@(Var x) cases) ty2 =
-  do (lty, labs) <- varlookupLabel x tenv
-     results <- mapM (\lll -> lablookup lll cases >>= \ty1 ->
-                              glb (("*lft*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
-                     labs
-     return $ tcase val lty  (zip labs results)
-
-glb' tenv ty1 (TCase val cases)
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val =
-  do ty2 <- lablookup lll cases
-     glb tenv ty1 ty2
-glb' tenv ty1 (TCase val@(Var x) cases) =
-  do (lty, labs) <- varlookupLabel x tenv
-     results <- mapM (\lll -> lablookup lll cases >>= \ty2 ->
-                              glb (("*rgt*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
-                     labs
-     return $ tcase val lty (zip labs results)
-
-glb' tenv t1 t2 = TC.mfail ("GLB fails for " ++ pshow t1 ++ " and " ++ pshow t2)
-
-lub tenv t1 t2 = do
-  r <- lub' tenv t1 t2
-  return $ D.trace ("lub " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ pshow r) r
-
-glb tenv t1 t2 = do
-  r <- glb' tenv t1 t2
-  return $ D.trace ("glb " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ pshow r) r
 
 -- smart constructor that drops the case if all branches are equal (eta reduction)
 tcase :: Exp -> Type -> [(String, Type)] -> Type
@@ -527,9 +466,4 @@ commonHead e@(Var z) tyz cases = do
     else do
     return (e', segt1', map snd renamedpairs)
 
--- n-ary lub for non-empty lists
-lubn :: TEnv -> [Type] -> TCM Type
-lubn te [ty] = return ty
-lubn te (ty1:ty2:tys) = do
-  ty12 <- lub te ty1 ty2
-  lubn te (ty12:tys)
+
