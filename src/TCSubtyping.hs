@@ -118,6 +118,17 @@ unfold tenv (TCase val@(Var x) cases) = do
   (_, tyx) <- varlookup x tenv
   tcaseM tenv val tyx (zip labs results)
   -- return $ tcase val (zip labs results)
+unfold tenv (TNatRec e1 tz1 tv1 ts1)
+  | Just (v, TNat) <- valueEquiv tenv e1 =
+      case v of
+        Nat 0 ->
+          unfold tenv tz1
+        Nat n | n > 0 ->
+          unfold tenv (tsubst tv1 (TNatRec (Nat (n-1)) tz1 tv1 ts1) ts1)
+        Succ var ->
+          unfold tenv (tsubst tv1 (TNatRec var tz1 tv1 ts1) ts1)
+        _ ->
+          TC.mfail ("eqvtype: type mismatch")
 unfold tenv ty =
   return ty
 
@@ -285,6 +296,7 @@ subtype' tenv ty1@(TVar b tv) ty2 = do
 subtype' tenv TUnit TUnit = return Kunit
 subtype' tenv TInt TInt = return Kunit
 subtype' tenv TNat TNat = return Kunit
+subtype' tenv TNat TInt = return Kunit
 subtype' tenv (TLab ls1) (TLab ls2) | all (`elem` ls2) ls1 = return Kidx
 subtype' tenv s@(TFun sm sx sin sout) t@(TFun tm tx tin tout) =
   let nx = "zz" ++ show (length tenv) in

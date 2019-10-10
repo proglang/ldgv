@@ -60,12 +60,12 @@ main = do
                     
             tenv' <- case mty of
               Nothing -> do
-                let r = (TC.runM (TT.tySynth tenv e') kenv TS.initCaches)
+                let r = (TC.runM (TT.tySynthUnfold tenv e') kenv TS.initCaches)
                     tenv' = case fst r of
                           Left _ ->
                             tenv
                           Right ((ty, _), _) ->
-                            ((f,(K.Many, buildty ty binds)) : tenv)
+                            ((f,(K.Many, ty)) : tenv)
                 printResult r
                 return tenv'
 

@@ -126,7 +126,7 @@ Exp : let var '=' Exp in Exp { Let $2 $4 $6 }
     | Exp '/' Exp            { Div $1 $3 }
     | '(' Exp ')'            { $2 }
     | '-' Exp %prec NEG      { Negate $2 }
-    | int                    { Int $1 }
+    | int                    { if $1 < 0 then Int $1 else Nat $1 }
     | var                    { Var $1 }
     | lab                    { Lab $1 }
     | case Exp of '{' ExpCases '}'  { Case $2 $5 }

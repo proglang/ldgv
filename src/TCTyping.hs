@@ -92,6 +92,13 @@ strengthen e (ty, (x, (mm, tyx)) : te) =
 
 teinfo (n, (m, _)) = (n,m)
 
+-- type synthesis and unfolding
+tySynthUnfold :: TEnv -> Exp -> TCM (Type, TEnv)
+tySynthUnfold te e = do
+  (t, te') <- tySynth te e
+  tu <- unfold te' t
+  return (tu, te')
+
 -- type synthesis
 tySynth :: TEnv -> Exp -> TCM (Type, TEnv)
 tySynth te e = 
@@ -122,6 +129,7 @@ tySynth te e =
     te1 <- tyCheck te e1 TInt
     return (TInt, te1)
   Int n -> return (TInt, te)
+  Nat n -> return (TNat, te)
   Var x -> do
     (mm, tyx) <- maybe (fail ("No variable " ++ show x)) return $ lookup x te
     mm' <- maybe (fail ("Illegal use of linear variable " ++ show x)) return $ use mm
