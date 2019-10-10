@@ -63,6 +63,12 @@ kiSynth te (TNatRec e1 tz y ts) = do
   _ <- tyCheck te e1 TNat
   (kz, mz) <- kiSynth te tz
   TC.mlocal y (TName False y, kz) (kiSynth te ts)
+kiSynth te (TVar b v) = do
+  kentry <- TC.mlookup v
+  let k = keKind kentry
+  return (k, mult k)
+kiSynth te ty =
+  fail ("kiSynth fails on " ++ pshow ty)
 
 -- kind checking
 kiCheck :: TEnv -> Type -> Kind -> TCM ()
@@ -272,7 +278,7 @@ tySynth te e =
     fail "illegal case expression"
   NatRec e1 ez n1 tv y tyy es -> do
     _ <- tyCheck (demoteTE te) e1 TNat
-    TC.mlocal tv (TVar False tv, Kunit) $ do
+    TC.censor (const []) $ TC.mlocal tv (TVar False tv, Kunit) $ do
       (tyz, tez) <- tySynth te ez
       DT.traceM ("NatRec: tyz = " ++ pshow tyz)
       (kiy, muy) <- kiSynth (demoteTE te) tyy
@@ -285,9 +291,11 @@ tySynth te e =
       (_, ccs) <- TC.listen (tyCheck tes_in es tyy)
       DT.traceM ("NatRec found constraints " ++ pshow ccz ++ ", " ++ pshow ccs)
       -- hack alert
-      let rty = tsubst tv (TNatRec e1 tzr tv tsr) tyy
+      let rty = tsubst tv (TNatRec e1 (nonvar tzl tzr) tv (nonvar tsl tsr)) tyy
           tzl :<: tzr = head ccz
           tsl :<: tsr = head ccs
+          nonvar (TVar _ _) tr = tr
+          nonvar tl _ = tl
       DT.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
   _ ->

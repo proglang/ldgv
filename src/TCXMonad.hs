@@ -1,6 +1,6 @@
 module TCXMonad (
   M, runM,
-  mget, mstate, mupdate, mlocal, mfail, tell, listen
+  mget, mstate, mupdate, mlocal, mfail, tell, listen, censor
   ) where
 
 import Control.Applicative
