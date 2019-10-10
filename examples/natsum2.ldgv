@@ -1,0 +1,22 @@
+type SUMF : ~un =
+     (n : Nat) ->
+     natrec n
+     {
+	Int
+	, A. (x : Int) -> A
+     }
+
+val sumf ( n : Nat) =
+    (natrec n
+    {
+	fn (acc : Int) acc
+	, n1 . A . (y : (acc : Int) -> A) .
+	fn (acc : Int) fn (x : Int)
+	(y (acc + x))
+    }) 0
+
+val r0 = sumf (0)
+
+val r1 = ((sumf (1)) 42)
+
+val r2 = (((sumf (2)) 17) 4)
