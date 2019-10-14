@@ -74,7 +74,6 @@ import Syntax
 %left '*' '/'
 %left LET
 %left send recv
-
 %left APP
 
 %%
