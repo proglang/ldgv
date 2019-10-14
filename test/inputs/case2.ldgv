@@ -1,0 +1,25 @@
+-- type checking fork
+
+val f1 (m : Unit) =
+    fork ()
+
+val f2 (m : Unit) =
+    fork m
+
+val f3 (m : Int) (c : !Int. Unit) =
+    fork ((send c) m)
+
+type SendInt : ! ~ssn =
+  !Int. !Int. Unit
+
+val send2 (c : SendInt) =
+    let c = (send c) 42 in
+    let c = (send c) 17 in
+    ()
+
+val f4 (c : SendInt) =
+    fork (send2 c)
+
+-- FIX: send c m doesn't parse correct
+-- val f4 (m : Int) (c : !Int. Unit) =
+--    fork (send c m)

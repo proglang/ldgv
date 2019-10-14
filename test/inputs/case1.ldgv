@@ -1,0 +1,33 @@
+-- test infix parsing
+
+val plus (m : Int) (n : Int) =
+    m + n
+
+val minus (m : Int) (n : Int) =
+    m - n
+
+val uminus (m : Int) =
+    - m
+
+val uminus2 (m : Int) =
+    - 2 * m
+
+val uminus3 (m : Int) =
+    - 2 - 2
+
+val uminus4 (m : Int) =
+    - - m
+
+val mixed1 (m : Int) (n : Int) =
+    m + 2 * n
+
+val mixed2 (m : Int) (n : Int) =
+    m * 2 - n
+
+-- test parsing function application
+
+val f (m : Int) = plus m
+
+-- wrong!!
+val f2 (m : Int) = plus m m
+

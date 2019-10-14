@@ -70,12 +70,12 @@ import Syntax
 
 %right in
 %nonassoc '>' '<'
-%left '+' '-'
+%left '+' '-' NEG
 %left '*' '/'
-%left NEG
 %left LET
-%left APP
 %left send recv
+
+%left APP
 
 %%
 
