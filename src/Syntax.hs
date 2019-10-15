@@ -100,7 +100,7 @@ data Decl = DType TIdent Multiplicity Kind Type
           | DLub TEnv Type Type
           | DGlb TEnv Type Type
           | DAssume TEnv Decl
-          deriving Show
+          deriving (Show, Eq)
 
 
 type TEnvEntry = (Ident, (Occurrence, Type))
