@@ -68,13 +68,14 @@ import Syntax
     '!' { T.Sym '!' }
     '?' { T.Sym '?' }
 
+%nonassoc int '(' var lab case natrec '()' lam rec fst snd new fork
 %right in
 %nonassoc '>' '<'
 %left '+' '-' NEG
 %left '*' '/'
 %left LET
 %left send recv
-%left APP
+%nonassoc APP
 
 %%
 

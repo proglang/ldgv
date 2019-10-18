@@ -66,5 +66,8 @@ main = hspec $ do
       parse "val f (g:Int) (n:Int) = g n n" `shouldBe`
         [DFun "f" [(MMany,"g",TInt),(MMany,"n",TInt)] (App (App (Var "g") (Var "n")) (Var "n")) Nothing]
 
+    it "parses let around infix op" $ do
+      parse "val f (m:Int) (n:Int) = let x = m in n + n" `shouldBe`
+        [DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)] (Let "x" (Var "m") (Plus (Var "n") (Var "n"))) Nothing]
 
 
