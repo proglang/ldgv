@@ -68,14 +68,15 @@ import Syntax
     '!' { T.Sym '!' }
     '?' { T.Sym '?' }
 
+%right LET
 %nonassoc int '(' var lab case natrec '()' lam rec fst snd new fork
 %right in
 %nonassoc '>' '<'
 %left '+' '-' NEG
 %left '*' '/'
-%left LET
 %left send recv
 %nonassoc APP
+
 
 %%
 
@@ -119,7 +120,7 @@ AExp
     | lab                    { Lab $1 }
     | '(' Exp ')'            { $2 }
 
-Exp : let var '=' Exp in Exp { Let $2 $4 $6 }
+Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | Exp '+' Exp            { Plus $1 $3 }
     | Exp '-' Exp            { Minus $1 $3 }
     | Exp '*' Exp            { Times $1 $3 }
@@ -136,7 +137,7 @@ Exp : let var '=' Exp in Exp { Let $2 $4 $6 }
     | lam Mul '(' var ':' Typ ')' Exp        { Lam $2 $4 $6 $8 }
     | rec var '(' var ':' Typ ')' ':' Typ '=' Exp        { Rec $2 $4 $6 $9 $11 }
     | '<' Mul var '=' Exp ',' Exp '>' { Pair $2 $3 $5 $7 }
-    | let '<' var ',' var '>' '=' Exp in Exp { LetPair $3 $5 $8 $10 }
+    | let '<' var ',' var '>' '=' Exp in Exp %prec LET { LetPair $3 $5 $8 $10 }
     | fst Exp                { Fst $2 }
     | snd Exp                { Snd $2 }
     | new Typ { New $2 }

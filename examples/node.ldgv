@@ -1,22 +1,24 @@
-type Close : ~unit = Unit
+type End : ~unit = Unit
 
 type NodeC :! ~ssn =
   !( tag : {'Empty, 'Node})
   case tag of
-  { 'Empty : !Unit. Close
-  , 'Node  : !Int. Close
+  { 'Empty : !Unit. End
+  , 'Node  : !Int. End
   }
 
 type Node : ~un =
-  [ tag : {'Empty, 'Node} , case tag of { 'Empty: Unit, 'Node: Int } ]
+  -- Sigma
+  [ tag : {'Empty, 'Node}
+  , case tag of { 'Empty: Unit, 'Node: Int } ]
 
-val recvNode (c : dualof NodeC) =
+val recvNode (c : dualof NodeC) : Node =
   let <tag,c> = recv c in
   let <v,c> = recv c in
   < tag = tag , v >
 
 val sendNode (n : Node) (c : NodeC) =
   let < tag , v > = n in
-  (let c = (send c) tag in
-  (send c) v)
+  let c = send c tag in
+  send c v
   

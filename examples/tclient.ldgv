@@ -1,18 +1,21 @@
+type EOS : ! ~un = {'EOS}
+type End : ! ~unit = Unit
+
 type TClient : ! ~ssn =
   !( l : {'neg, 'add})
   case l of
-  { 'neg : !Int. ?Int. ?{'EOS}. Unit
-  , 'add : !Int. !Int. ?Int. ?{'EOS}. Unit
+  { 'neg : !Int. ?Int. ?EOS. End
+  , 'add : !Int. !Int. ?Int. ?EOS. End
   }
 
 type LClient : ! ~ssn =
-  !{'neg}. !Int. ?Int. ?{'EOS}. Unit
+  !{'neg}. !Int. ?Int. ?EOS. End
 
 TClient <: LClient
 
-val lClient (d : TClient) (x : Int) =
-    let d = (send d) 'neg in
-    let d = (send d) x in
+val lClient (d : TClient) (x : Int) : Int =
+    let d = send d 'neg in
+    let d = send d x in
     let <r,d> = recv d in
     let <xx,zz> = recv d in
     r

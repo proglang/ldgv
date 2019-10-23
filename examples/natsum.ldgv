@@ -7,15 +7,13 @@ type SUMC : ~ssn =
   , A. ?Int. A
   }
 
-type SUM : ~un =
-  (ch : SUMC) -> End
-
-val sum (ch_in : SUMC) =
+val sum (ch_in : SUMC) : End =
   let <n, ch> = recv ch_in in
-  ((natrec n 
-  { fn (m : Int) fn (c : !Int.End) (send c) m
+  (natrec n 
+  { fn (m : Int) fn (c : !Int.End)
+    send c m
   , n1 . A . (y : (m : Int) -> (a:A) -> End) .
-         fn (m: Int) fn (c : ?Int. A)
-       let <k,c> = recv c in
-       (y (k + m)) c
-  }) 0) ch
+    fn (m: Int) fn (c : ?Int. A)
+    let <k,c> = recv c in
+    y (k + m) c
+  }) 0 ch

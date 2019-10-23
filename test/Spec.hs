@@ -70,4 +70,38 @@ main = hspec $ do
       parse "val f (m:Int) (n:Int) = let x = m in n + n" `shouldBe`
         [DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)] (Let "x" (Var "m") (Plus (Var "n") (Var "n"))) Nothing]
 
+    it "parses nested let" $ do
+      parse "val f (m:Int) (n:Int) = let x = m in let y = x in x + y" `shouldBe`
+        [DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)] 
+         (Let "x" (Var "m")
+          (Let "y" (Var "x")
+           (Plus (Var "x") (Var "y"))))
+          Nothing]
+
+    it "parses nested let(pair)" $ do
+      parse "val f (m:Int) (n:Int) = let <x,y> = m in let z = x in z + y + n" `shouldBe`
+        [DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)] 
+         (LetPair "x" "y" (Var "m")
+          (Let "z" (Var "x")
+           (Plus (Plus (Var "z") (Var "y")) (Var "n")))) 
+          Nothing]
+
+    it "parses nested let(pair)1" $ do
+      parse "val sendNode (n : Node) (c : NodeC) = let < tag , v > = n in (let c = send c tag in   send c v)" `shouldBe`
+        [DFun "sendNode" [(MMany,"n",TName False "Node"),(MMany,"c",TName False "NodeC")]
+          (LetPair "tag" "v" (Var "n")
+            (Let "c" (App (Send (Var "c")) (Var "tag")) 
+             (App (Send (Var "c")) (Var "v"))))
+          Nothing]
+
+    it "parses nested let(pair)2" $ do
+      parse "val sendNode (n : Node) (c : NodeC) = let < tag , v > = n in let c = send c tag in   send c v" `shouldBe`
+        [DFun "sendNode" [(MMany,"n",TName False "Node"),(MMany,"c",TName False "NodeC")]
+          (LetPair "tag" "v" (Var "n")
+            (Let "c" (App (Send (Var "c")) (Var "tag")) 
+             (App (Send (Var "c")) (Var "v"))))
+          Nothing]
+
+
+
 

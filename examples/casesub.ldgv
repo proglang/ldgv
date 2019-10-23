@@ -10,4 +10,5 @@ type T2 : ~un = (b : BOOL) -> BOOL
 
 T1 <: T2
 
+-- error expected
 T2 <: T1
