@@ -425,6 +425,17 @@ subtype' tenv (TName b tn) ty2 = do
   let ty1 = cdualof b $ keType kentry
   subtype tenv ty1 ty2
 
+subtype' tenv ty1@(TSingle z1) ty2 = do
+  (oc1, ty1') <- varlookup z1 tenv
+  let k1 = Kun -- (k1, mul1) <- kiSynth tenv ty1'
+  case ty2 of
+    TSingle z2 ->
+      if z1 == z2 
+      then return k1
+      else TC.mfail ("Subtyping fails to establish " ++ pshow ty1 ++ " <: " ++ pshow ty2)
+    _ ->
+      subtype' tenv ty1' ty2
+
 -- catchall
 subtype' tenv t1 t2 = TC.mfail ("Subtyping fails to establish " ++ pshow t1 ++ " <: " ++ pshow t2)
 
