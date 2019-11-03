@@ -50,7 +50,9 @@ printPEnv (x:xs) = show x ++ "\n" ++ printPEnv xs
 data Value = VUnit
       | VLabel String
       | VInt Int
-      | VChan (C.Chan Value) -- when an id maps to a Channel
+      -- we have two channels, one for reading and one for writing to the other
+      -- end, so we do not read our own written values
+      | VChan (C.Chan Value) (C.Chan Value)
       | VPair Value Value -- pair of ids that map to two values
       | VDecl S.Decl -- when an identifier maps to another function
       | VType S.Type
@@ -64,7 +66,7 @@ instance Show Value where
         VUnit -> "VUnit"
         VLabel s -> "VLabel " ++ s
         VInt i -> "VInt " ++ show i
-        VChan _ -> "VChan"
+        VChan _ _ -> "VChan"
         VPair a b -> "(" ++ show a ++ "," ++ show b ++ ")"
         VDecl d -> "VDecl " ++ show d
         VType t -> "VType " ++ show t
