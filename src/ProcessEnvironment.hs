@@ -17,10 +17,6 @@ createPMEntry entry = do
 extendEnv :: PEnvEntry -> PEnv -> PEnv
 extendEnv e env = e:env
 
--- | Ignore current environment end perform a computation in a given environment
--- inEnv :: PEnv -> InterpretM -> InterpretM
--- inEnv env ma = \_ -> env >>= ma
-
 pmlookup :: String -> InterpretM
 pmlookup id = do
     identifiers <- get
@@ -34,14 +30,6 @@ pmlookup id = do
 type PEnv = [PEnvEntry]
 type PEnvEntry = (String, Value)
 
-argsfromDFun :: S.Decl -> [(String, S.Type)]
-argsfromDFun (DFun s args e mt) = [(s, t) | (m, s, t) <- args]
-
-
-lookupEnv :: String -> PEnv -> Value
-lookupEnv s penv = case lookup s penv of
-                    Just val -> val
-
 printPEnv :: PEnv -> String
 printPEnv [] = ""
 printPEnv (x:xs) = show x ++ "\n" ++ printPEnv xs
@@ -54,12 +42,9 @@ data Value = VUnit
       -- end, so we do not read our own written values
       | VChan (C.Chan Value) (C.Chan Value)
       | VPair Value Value -- pair of ids that map to two values
-      | VDecl S.Decl -- when an identifier maps to another function
+      | VDecl S.Decl -- when an identifier maps to another function we have not yet interpreted
       | VType S.Type
-      -- | represents an unfinished send on a channel.
-      -- | Holds a function that expects a Value to be sent on the channel
       | VFun (Value -> InterpretM) -- Function Type
-
 
 instance Show Value where
     show v = case v of
