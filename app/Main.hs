@@ -10,18 +10,55 @@ import qualified Kinds as K
 import qualified TCXMonad as TC
 import qualified TCSubtyping as TS
 import qualified TCTyping as TT
+import Options.Applicative
+import Data.Semigroup ((<>))
+
+import qualified Interpreter as I
 
 import PrettySyntax
 
+-- | Options for the main program
+data LDGVOptions = LDGVOptions
+  { interpret :: Bool
+--  , parseonly :: Bool
+  , file      :: String }
+
+-- | Options descriptions, types and defaults
+processOptions :: Parser LDGVOptions
+processOptions = LDGVOptions
+  <$> switch
+    (long "interpret"
+    <> short 'i'
+    <> help "interpret (instead of typecheck) the value of a \"main\" function definition (with no free variables)")
+  <*> argument str ( metavar "FILENAME")
+
+-- | execute the option parser or help message printer
+main :: IO ()
+main = execOptions =<< execParser opts
+  where
+    opts = info (processOptions <**> helper)
+      ( fullDesc
+     <> progDesc "A typechecker / interpreter for ldgv files")
+
+
+-- | typecheck or interpret the file according to the specified args
+execOptions :: LDGVOptions -> IO ()
+execOptions (LDGVOptions True filename) = I.interpret filename
+execOptions (LDGVOptions False filename) = typecheck filename
+
+
+-- | helper for prettyprinting results
 printResult :: (Pretty a, Pretty b) => (Either a b, s) -> IO ()
 printResult (Left a, _) =
   putStrLn ("Error: " ++ pshow a)
 printResult (Right b, _) =
   putStrLn ("Success: " ++ pshow b)
 
-main :: IO ()
-main = do
-  s <- getContents
+
+-- | typecheck a given ldgv file
+typecheck :: String -> IO ()
+typecheck filename = do
+  s <- readFile filename
   let ts = T.alexScanTokens s
   -- print ts
   let cmds = G.parseCalc ts
