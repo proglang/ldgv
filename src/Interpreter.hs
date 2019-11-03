@@ -134,17 +134,18 @@ interpret' e =
           (VPair s1 s2) -> return s2
   Fork e -> do
       penv <- get
-      let f = forkIO (return (S.runStateT (interpret' e) penv)
-                             >> putStrLn "Ran a forked operation")
-      liftIO f
+      liftIO $ forkIO (do
+                      res <- S.runStateT (interpret' e) penv
+                      putStrLn "Ran a forked operation")
       return VUnit
   New t -> do
-    c <- liftIO C.newChan
-    return $ VPair (VChan c) (VChan c)
+    r <- liftIO C.newChan
+    w <- liftIO C.newChan
+    return $ VPair (VChan r w) (VChan w r)
   Send e -> do
       v <- interpret' e
       case v of
-        (VChan c) -> return $ VFun (\arg -> do
+        (VChan _ c) -> return $ VFun (\arg -> do
                                         liftIO $ putStrLn $ "Sending Value " ++ show arg ++ " on Channel " ++ show v
                                         liftIO (C.writeChan c arg)
                                         return v)
@@ -153,10 +154,10 @@ interpret' e =
   Recv e -> do
       v <- interpret' e
       case v of
-        (VChan c) -> do
-          a <- liftIO $ C.readChan c
-          liftIO $ putStrLn $ "Read " ++ show a ++ " from Chan "
-          return $ VPair a (VChan c)
+        (VChan c _) -> do
+          val <- liftIO $ C.readChan c
+          liftIO $ putStrLn $ "Read " ++ show val ++ " from Chan "
+          return $ VPair val v
   Case e cases -> do
       v <- interpret' e
       case v of

@@ -1,38 +1,9 @@
 type End : ~unit = Unit
 
-type SendInt : ! ~ssn = !Int. !Int. End
-
-val send2 (c: SendInt) =
-    let x = ((send c) 1) in
-    let y = ((send x) 42) in
-    ()
-
-val add2 (c1: dualof SendInt) =
-    let <m, c2> = recv c1 in
-    let <n, c3> = recv c2 in
-    (m + n)
-
-
--- This blocks indefinetly 
---val main =
---    let <a, b> = (new SendInt) in
---    let a1 = fork (send2 a) in
---    add2 b
--- while this one works (probably sth with copying the channels in forking)
-val main =
-    let <a, b> = (new SendInt) in
-    let b1 = ((send b) 1) in
-    let b2 = ((send b1) 42) in
-    add2 b
-
-
--- this does not work on unbounded Chan(nel)s, because the same
--- channel is used for reading and writing, so functions may read their own
--- values. A bounded Channel (with only one element) should prevent this.
---val main = 
---     let <a, b> = (new TClient) in
---     let y = fork (lServer b) in
---     ((lClient a) 42)
+val main = 
+     let <a, b> = (new TClient) in
+     let y = fork (lServer b) in
+     ((lClient a) 42)
 
 type EOS : ! ~un = {'EOS}
 type End : ! ~unit = Unit
@@ -49,7 +20,7 @@ type LClient : ! ~ssn =
 
 val lClient (d : TClient) (x : Int) : Int =
     let d1 = (send d) 'neg in
-    let d2 = send d1 x in
+    let d2 = (send d1) x in
     let <r,d3> = recv d2 in
     let <xx,zz> = recv d3 in
     r
