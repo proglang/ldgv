@@ -44,14 +44,6 @@ interpret filename = do
   putStrLn $ "Interpretation of main resulted in " ++ show (fst x) ++ "\nand State"
   mapM_ print $ snd x
 
-eval :: Decl ->  InterpretM
-eval cmd =
-    case cmd of
-        DFun f binds e mty -> do
-          -- check if args are given
-          a <- interpret' e
-          return a
-
 -- | interpret a DFun (Function declaration)
 -- | construct a VFun (Function Value) out of a declaration
 evalDFun :: Decl -> InterpretM
@@ -63,9 +55,6 @@ evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
                                                   createPMEntry (id, arg)
                                                   -- and evaluate the rest of the declaration
                                                   evalDFun decl') 
---D2VFun :: Decl -> Value
---evalDFun decl@(DFun name [] expression _) = interpret' expression
---evalDFun decl@(DFun name ((_, id, _):binds) e mty) = VFun (\arg -> do )
 
 -- | interpret a single Expression
 interpret' :: Exp ->  InterpretM
@@ -149,8 +138,6 @@ interpret' e =
                                         liftIO $ putStrLn $ "Sending Value " ++ show arg ++ " on Channel " ++ show v
                                         liftIO (C.writeChan c arg)
                                         return v)
-
-        -- fail "Trying to send on " ++ show v ++ ", which is not a Channel"
   Recv e -> do
       v <- interpret' e
       case v of
