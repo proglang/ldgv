@@ -164,8 +164,8 @@ tySynth te e =
         ty1' = TSingle y
     (ty1, te1) <- tySynth te e1
     (ki1, mu1) <- kiSynth (demoteTE te) ty1
-    (ty2, te2) <- tySynth ((x', (demote mu1, ty1')) : te1) e2
-    (ki2, mu2) <- kiSynth (demoteTE te) ty2
+    (ty2, te2) <- tySynth ((x', (demote mu1, ty1')) : te1) e2'
+    (ki2, mu2) <- kiSynth ((x', (demote mu1, ty1')) : demoteTE te) ty2
     strengthen e (TPair mul x' ty1' ty2, te2)
 
   Pair mul x e1 e2 -> do
@@ -183,7 +183,7 @@ tySynth te e =
           return (ty2, tail teq_te2)
         _ ->
           tySynth ((x', (demote mu1, ty1)) : te1) e2'
-    (ki2, mu2) <- kiSynth (demoteTE te) ty2
+    (ki2, mu2) <- kiSynth ((x', (demote mu1, ty1)) : demoteTE te) ty2
     strengthen e (TPair mul x' ty1 ty2, te2)
   LetPair x y e1 e2 -> D.trace ("Entering " ++ pshow e) $ do
     (tp, te1) <- tySynth te e1

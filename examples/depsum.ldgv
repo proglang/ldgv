@@ -1,0 +1,19 @@
+type Bool : ~un = {'True,'False}
+
+val f1 =
+    < x = 'a, 42 >
+
+val f1a =
+    < x = 'a, case x of {'a : 42, 'b : 'True} >
+
+val f1bz (z : {'a, 'b}) =
+    < x = z, case z of {'a : 42, 'b : 'True} >
+
+val f1b (z : {'a, 'b}) =
+    < x = z, case x of {'a : 42, 'b : 'True} >
+
+val f2
+    (g : (x : {'a, 'b}) -> case x of {'a : Int, 'b : Bool})
+    (y : {'a, 'b})
+    =
+    < z = case y of {'a : 'b, 'b : 'a}, g z >
