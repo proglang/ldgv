@@ -18,8 +18,6 @@ typecheck :: String -> IO ()
 typecheck text = do
   let ts = T.alexScanTokens text
   let cmds = G.parseCalc ts
-  --C.printDebug ts
-  --C.printDebug cmds
   C.putStrLn "-------- Running Typecheck Request --------"
   exec [] [] cmds
     where
@@ -60,7 +58,7 @@ typecheck text = do
                             tenv
                           Right ((ty, _), _) ->
                             ((f,(K.Many, ty)) : tenv)
-                --C.printResult r
+                C.printResult r
                 return tenv'
 
               Just ty -> do

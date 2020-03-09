@@ -9,7 +9,8 @@ import PrettySyntax (Pretty, pshow)
 data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)
 
-debugLevel = DebugAll
+--debugLevel = DebugAll
+debugLevel = DebugNone
 
 trace s a | debugLevel > DebugNone = D.trace s a
           | otherwise = a
@@ -30,11 +31,9 @@ printLn s = do
 
 -- | helper for prettyprinting results depending on debug level
 printResult :: (Pretty a, Pretty b) => (Either a b, s) -> IO ()
---printResult (Left a, _) | debugLevel > DebugNone = printLn ("Error: " ++ pshow a)
---                        | otherwise = fail ("Error: " ++ pshow a)
 printResult (Left a, _) = fail ("Error: " ++ pshow a)
-printResult (Right b, _) | debugLevel > DebugNone = printLn ("Success: " ++ pshow b)
-                         | otherwise = return ()
+printResult (Right b, _) | debugLevel > DebugNone = printLn $ "Success: " ++ pshow b
+                         | otherwise = printLn "Success"
 
 printDebug s | debugLevel > DebugNone = printLn $ show s
 printDebug s | otherwise = return ()
