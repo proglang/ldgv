@@ -1,0 +1,30 @@
+html, body {
+  font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #ffffe0;
+  font-size: 16px;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+p {
+  color: black;
+}
+
+div {
+/*  display: flex;*/
+  align-items: center;
+}
+
+textarea {
+  margin-top: 25px;
+  height: 10em;
+  width: 100%;
+}
