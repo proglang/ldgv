@@ -14,9 +14,7 @@ type SUM : ~ssn =
   , A. !Int. A
   }
 
-
-
-
+-- sum up incoming numbers
 val sum (ch_in : SUMC) : End =
   let <n, ch> = recv ch_in in
     (natrec n 
