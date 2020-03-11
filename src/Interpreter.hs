@@ -24,7 +24,7 @@ interpret s = do
 
     -- find the main DFun
     case lookup "main" penv of
-                          Nothing -> error "No 'main' value declaration found, exiting"
+                          Nothing -> fail "No 'main' value declaration found, exiting"
                           Just (VDecl decl) -> (do
                                                   endResult <- S.runStateT (evalDFun decl) penv
                                                   return $ fst endResult)
