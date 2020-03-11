@@ -2,16 +2,11 @@
 module Interpreter (interpret) where
 import qualified Config as C
 import Syntax
-import qualified Typing as Ty
-import qualified Kinds as K
-import qualified TCSubtyping as TS
-import qualified TCTyping as TT
 import Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State as S
-import Control.Exception (try)
 import qualified Tokens as Tokens
 import qualified Grammar as G
 

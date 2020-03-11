@@ -5,9 +5,7 @@ import qualified Tokens as T
 import qualified Grammar as G
 import qualified Syntax as G
 import qualified Subtyping as S
-import qualified Typing as Ty
 import qualified Kinds as K
-import qualified Interpreter as I
 import qualified TCXMonad as TC
 import qualified TCSubtyping as TS
 import qualified TCTyping as TT

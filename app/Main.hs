@@ -1,15 +1,8 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecursiveDo #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeApplications #-}
 module Main where
 
-import Control.Monad
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.String as S
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import qualified Data.Map as Map
 import Reflex.Dom.Core
 import Language.Javascript.JSaddle
@@ -33,7 +26,7 @@ header :: DomBuilder t m => m ()
 header = do
     el "h1" $ text "Interpreter for label-dependent Session Types"
     el "p" $ do
-        text "You can find more information in the Paper by Peter Thiemann and Vasco T.Vasconcelos, available on "
+        text "You can find more information in the paper by Peter Thiemann and Vasco T.Vasconcelos, available on "
         elAttr "a" ("href" =: "https://arxiv.org/abs/1911.00705" <> "target" =: "_blank") $ text "arxiv"
         text ".\n"
 

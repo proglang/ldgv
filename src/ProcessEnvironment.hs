@@ -1,10 +1,8 @@
 module ProcessEnvironment where
 import Syntax as S
-import qualified TCSubtyping as TS
 import qualified Config as D
 import Control.Concurrent.Chan as C
 import Control.Monad.State as T
-import Control.Monad
 import Language.Javascript.JSaddle
 
 -- | the interpretation monad
