@@ -69,6 +69,9 @@ cdualof False ty = ty
 -- subtyping constraint
 data Constraint = Type :<: Type
 
+instance Show Constraint where
+  show (t1 :<: t2) = (show t1) ++ " :<: " ++ show t2
+
 data SegType = SegSend | SegRecv | SegFun Multiplicity | SegPair Multiplicity
   deriving (Show, Eq)
 

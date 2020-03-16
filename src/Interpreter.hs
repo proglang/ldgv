@@ -1,54 +1,38 @@
-{-# LANGUAGE TypeApplications #-}
-module Interpreter where
-import qualified Config as D
-import qualified Tokens as T
-import qualified Grammar as G
+{-# LANGUAGE OverloadedStrings #-}
+module Interpreter (interpret) where
+import qualified Config as C
 import Syntax
 import qualified Typing as Ty
 import qualified Kinds as K
 import qualified TCSubtyping as TS
 import qualified TCTyping as TT
-import Control.Concurrent.Chan as C
+import Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State as S
-import System.Exit as E
-
+import Control.Exception (try)
+import qualified Tokens as Tokens
+import qualified Grammar as G
 
 -- | interpret the "main" value in an ldgv file given over stdin
-interpret :: String -> IO ()
-interpret filename = do
-  -- gather Type and Function definitions
-  s <- readFile filename
-  let tokens = T.alexScanTokens s
-  let cmds = G.parseCalc tokens
-  let dfuns = filter isDFun cmds where
-        isDFun (DFun _ _ _ _) = True
-        isDFun _ = False
-  let dtypes = filter isDType cmds where
-        isDType (DType _ _ _ _) = True
-        isDType _ = False
-  let penv = createPEnv $ dtypes ++ dfuns
-
-  D.printDebug dfuns
-  D.printDebug dtypes
-
-  -- find the main DFun
-  let m = case lookup "main" penv of
-                    Just val -> val
-                    Nothing -> VUnit
-  liftIO $ case m of
-                VUnit -> E.die "No 'main' value declaration found, exiting"
-                _ -> return ()
-  let d = case m of
-        (VDecl decl) -> decl
-  endResult <- S.runStateT (evalDFun d) penv
-
-  putStrLn $ "\nInterpretation of main resulted in\n" ++ show (fst endResult)
+interpret :: String -> IO Value
+interpret s = do
+    let tokens = Tokens.alexScanTokens s
+    let parsed = G.parseCalc tokens
   
-  D.putDebugStr "\nand State"
-  mapM_ D.printDebug $ snd endResult
+    -- gather Type and Function definitions
+    let penv = createPEnv $ filter isInterestingDecl parsed where
+        isInterestingDecl (DFun _ _ _ _) = True
+        isInterestingDecl (DType _ _ _ _) = True
+        isInterestingDecl _ = False
+
+    -- find the main DFun
+    case lookup "main" penv of
+                          Nothing -> error "No 'main' value declaration found, exiting"
+                          Just (VDecl decl) -> (do
+                                                  endResult <- S.runStateT (evalDFun decl) penv
+                                                  return $ fst endResult)
 
 -- | interpret a DFun (Function declaration)
 evalDFun :: Decl -> InterpretM
@@ -65,8 +49,8 @@ evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
 interpret' :: Exp ->  InterpretM
 interpret' e =
   M.ap
-  (return (\val -> D.trace ("Leaving interpretation of " ++ show e ++ " with value " ++ show val) val)) $
-  case D.trace ("Invoking interpretation on " ++ show e) $ e of
+  (return (\val -> C.trace ("Leaving interpretation of " ++ show e ++ " with value " ++ show val) val)) $
+  case C.trace ("Invoking interpretation on " ++ show e) e of
   Int i -> return $ VInt i
   Nat i -> return $ VInt i
   Succ e -> mathHelper (+) (Int 1) e
@@ -111,7 +95,7 @@ interpret' e =
   Div e1 e2 ->  mathHelper quot e1 e2
   Negate e1 ->  mathHelper (-) (Int 0) e1
   App e1 e2 -> do
-      _ <- liftIO $ D.traceIO $ "Arguments for " ++ show e1 ++ " are: "  ++ show e2
+      _ <- liftIO $ C.traceIO $ "Arguments for " ++ show e1 ++ " are: "  ++ show e2
       -- interpret e1 first, because the innermost application
       -- is the function with its first argument
       v1 <- interpret' e1
@@ -152,25 +136,25 @@ interpret' e =
       penv <- get
       liftIO $ forkIO (do
                       res <- S.runStateT (interpret' e) penv
-                      D.traceIO "Ran a forked operation")
+                      C.traceIO "Ran a forked operation")
       return VUnit
   New t -> do
-    r <- liftIO C.newChan
-    w <- liftIO C.newChan
+    r <- liftIO Chan.newChan
+    w <- liftIO Chan.newChan
     return $ VPair (VChan r w) (VChan w r)
   Send e -> do
       v <- interpret' e
       case v of
         (VChan _ c) -> return $ VFun (\arg -> do
-                                        liftIO $ D.traceIO $ "Sending Value " ++ show arg ++ " on Channel " ++ show v
-                                        liftIO (C.writeChan c arg)
+                                        liftIO $ C.traceIO $ "Sending Value " ++ show arg ++ " on Channel " ++ show v
+                                        liftIO (Chan.writeChan c arg)
                                         return v)
   Recv e -> do
       v <- interpret' e
       case v of
         (VChan c _) -> do
-          val <- liftIO $ C.readChan c
-          liftIO $ D.traceIO $ "Read " ++ show val ++ " from Chan "
+          val <- liftIO $ Chan.readChan c
+          liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan "
           return $ VPair val v
   Case e cases -> do
       v <- interpret' e
@@ -186,7 +170,7 @@ interpret' e =
 mathHelper op e1 e2 = do
     v1 <- interpret' e1
     v2 <- interpret' e2
-    liftIO $ D.traceIO $ "MathHelper works on " ++ show v1 ++ " and " ++ show v2
+    liftIO $ putStrLn $ "MathHelper works on " ++ show v1 ++ " and " ++ show v2
     return $ case (v1, v2) of
       (VInt a, VInt b) -> VInt (op a b)
 

@@ -23,5 +23,5 @@ cabal.project.local~
 *~
 
 *.swp
-
 stack.yaml.lock
+result/

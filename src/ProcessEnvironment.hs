@@ -5,9 +5,10 @@ import qualified Config as D
 import Control.Concurrent.Chan as C
 import Control.Monad.State as T
 import Control.Monad
+import Language.Javascript.JSaddle
 
 -- | the interpretation monad
-type InterpretM = T.StateT PEnv IO Value
+type InterpretM = T.StateT PEnv JSM Value
 
 -- | create a new entry (requires identifier to be unique)
 createPMEntry :: PEnvEntry -> T.StateT PEnv IO ()
@@ -57,5 +58,3 @@ instance Show Value where
         VDecl d -> "VDecl " ++ show d
         VType t -> "VType " ++ show t
         VFun _ -> "VFunction "
-        _ -> "Value"
-

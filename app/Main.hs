@@ -1,115 +1,97 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeApplications #-}
 module Main where
 
-import qualified Tokens as T
-import qualified Grammar as G
-import qualified Syntax as G
-import qualified Subtyping as S
-import qualified Typing as Ty
-import qualified Kinds as K
-import qualified Interpreter as I
-import qualified TCXMonad as TC
-import qualified TCSubtyping as TS
-import qualified TCTyping as TT
-import Options.Applicative
-import Data.Semigroup ((<>))
-import Config as C
+import Control.Monad
+import Control.Monad.IO.Class (liftIO)
+import qualified Data.String as S
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Map as Map
+import Reflex.Dom.Core
+import Language.Javascript.JSaddle
+import Language.Javascript.JSaddle (eval, liftJSM)
 
+import Config as C (putStrLn)
+import Interpreter as I
+import Typechecker (typecheck)
+import qualified Examples as E
+import Control.Exception (try, SomeException)
+import ProcessEnvironment as P (Value) 
 
--- | Options for the main program
-data LDGVOptions = LDGVOptions
-  { interpret :: Bool
---  , parseonly :: Bool
-  , file      :: String }
+widgetHead :: DomBuilder t m => m ()
+widgetHead = do
+  el "title" $ text "LDGV Interpreter"
+  elAttr "link" ("rel" =: "stylesheet" <> "href" =: "main.css" <> "type" =: "text/css") blank
 
--- | Options descriptions, types and defaults
-processOptions :: Parser LDGVOptions
-processOptions = LDGVOptions
-  <$> switch
-    (long "interpret"
-    <> short 'i'
-    <> help "interpret (instead of typecheck) the value of a \"main\" function definition (with no free variables)")
-  <*> argument str ( metavar "FILENAME")
+-- read the text inside our textarea
+textareaget :: JSM T.Text
+textareaget = valToText $ eval ("document.getElementById('tSrc').value" :: T.Text)
 
--- | execute the option parser or help message printer
-main :: IO ()
-main = execOptions =<< execParser opts
-  where
-    opts = info (processOptions <**> helper)
-      ( fullDesc
-     <> progDesc "A typechecker / interpreter for ldgv files")
+-- set the text inside an element given by id
+setHtmlElement :: String -> String -> JSM ()
+setHtmlElement id s = do
+    val <- eval (T.pack $ "document.getElementById('" ++ id ++ "').value = " ++ (show s))
+    pure ()
 
--- | typecheck or interpret the file according to the specified args
-execOptions :: LDGVOptions -> IO ()
-execOptions o@(LDGVOptions True filename) = do
-                                                typecheck filename o
-                                                putStrLn "-------- Typecheck OK, interpreting --------"
-                                                I.interpret filename
-execOptions o@(LDGVOptions False filename) = typecheck filename o
+setSrc = setHtmlElement "tSrc"
+setRes = setHtmlElement "tResult"
+resetOutput = setHtmlElement "tOutput" ""
 
--- | typecheck a given ldgv file
-typecheck :: String -> LDGVOptions -> IO ()
-typecheck filename _ = do
-  s <- readFile filename
-  let ts = T.alexScanTokens s
-  let cmds = G.parseCalc ts
-  C.printDebug ts
-  C.printDebug cmds
-  putStrLn "-------- running typecheck request --------"
-  exec [] [] cmds
-    where
-      exec tenv kenv [] = return ()
-      exec tenv kenv (cmd:cmds) = 
-        case cmd of
-          G.DSub ty1 ty2 -> do
-            C.putDebugStr "--- subtyping ---"
-            C.printResult (TC.runM (TS.subtype tenv ty1 ty2) kenv TS.initCaches)
-            exec tenv kenv cmds
-            -- C.printDebug (S.subtype tenv ty1 ty2)
-          G.DEqv ty1 ty2 -> do
-            C.putDebugStr "--- equivalence ---"
-            C.printResult (TC.runM (TS.eqvtype tenv ty1 ty2) kenv TS.initCaches)
-            exec tenv kenv cmds
-          G.DSubst x e1 e2 ->
-            C.printDebug (show $ G.subst x e1 e2)
-          G.DLub _ ty1 ty2 ->
-            C.printDebug (S.lub tenv ty1 ty2)
-          G.DGlb _ ty1 ty2 ->
-            C.printDebug (S.glb tenv ty1 ty2)
-          G.DSig x m ty ->
-            exec ((x,(m, ty)) : tenv) kenv cmds
-          G.DFun f binds e mty -> do
-            C.putDebugStr ("--- type checking: " ++ f ++ " ---")
-            -- TODO: add f to env, but this requires its type
-            let complete [] e = e
-                complete ((m, v, vty) : binds) e = G.Lam m v vty (complete binds e)
-                e' = complete binds e
-                buildty ty [] = ty
-                buildty ty ((m, v, vty) : binds) = G.TFun m v vty (buildty ty binds)
-                    
-            tenv' <- case mty of
-              Nothing -> do
-                let r = (TC.runM (TT.tySynthUnfold tenv e') kenv TS.initCaches)
-                    tenv' = case fst r of
-                          Left _ ->
-                            tenv
-                          Right ((ty, _), _) ->
-                            ((f,(K.Many, ty)) : tenv)
-                C.printResult r
-                return tenv'
+main = mainWidgetWithHead widgetHead $ el "div" $ do
+    let srcfiles = E.filenames
+    -- create a map for lookup of all texts (by dropdown value)
+    let exampleFilesMap = Map.fromList [(name, T.pack name) | name <- srcfiles]
+    examplesTextMap <- return E.examples
 
-              Just ty -> do
-                let fty = buildty ty binds
-                    tenv' = ((f,(K.Many, fty)) : tenv)
-                C.printResult (TC.runM (TT.tyCheck tenv' e' fty) kenv TS.initCaches)
-                return tenv'
-            exec tenv' kenv cmds
+    el "h1" $ text "Interpreter for label-dependent Session Types"
+    el "p" $ do
+        text "You can find more information in the Paper by Peter Thiemann and Vasco T.Vasconcelos, available on "
+        elAttr "a" ("href" =: "https://arxiv.org/abs/1911.00705" <> "target" =: "_blank") $ text "arxiv"
+        text ".\n"
+    el "p" $ text "The interpreter looks for a 'main' to evaluate, wich must be a 'val' without any free variables."
 
-          G.DType tid m k ty -> do
-            C.putDebugStr ("--- type declaration: " ++ tid ++ " ---")
-            -- TODO: in general, we need to wait with this check until all types are declared
-            let kenv' = (tid, (ty, k)):kenv
-            -- C.printDebug (Ty.kiCheck tenv ty k)
-            C.printResult (TC.runM (TT.kiCheck tenv ty k) kenv' TS.initCaches)
-            exec tenv kenv' cmds
-          _ ->
-            C.putDebugStr "uninterpreted"
+    -- create a dropdown to set the textarea text
+    d <- dropdown (head srcfiles) (constDyn exampleFilesMap) def
+    el "div" blank
+    (b, _) <- elAttr' "button" ("id" =: "bInterpret") $ text "Interpret" 
+    el "div" blank
+    -- Interpret button click event
+    let e = domEvent Click b
+    el "div" blank
+    -- Dynamic Text looked up in example ldgv files on dropdown change
+    let dVal = _dropdown_value d
+    let lookupExample = (\v -> maybe ("Did not find example file") id (Map.lookup v examplesTextMap))
+
+    -- Textarea for source
+    (tSrc, tSrcText) <- elAttr' "textarea" ("id" =: "tSrc") $ dynText $ fmap (T.pack.lookupExample) dVal
+    el "div" blank
+
+    -- set the new text in the textarea on dropdown selection
+    performEvent_ $ ffor (fmap lookupExample $ _dropdown_change d) (\s -> liftJSM $ setSrc s)
+    -- get the text inside the area on button click
+    srcText <- performEvent $ ffor e $ (\v -> liftJSM $ textareaget)
+   
+    elAttr "textarea" ("id" =: "tOutput" <> "readonly" =: "readonly") blank
+    el "div" blank
+    -- interpret the source text
+    doneEv <- performEvent ((\v -> liftIO $ do
+                                              let s = T.unpack v
+                                              -- clear the old output
+                                              resetOutput
+                                              -- interpret
+                                              res <- try $ typecheck s >> I.interpret s :: IO (Either SomeException P.Value)
+                                              -- print errors to the output if there are any
+                                              --case res of
+                                              --    Left e    -> (C.putStrLn $ show e) >> return ""
+                                              --    Right val -> (setRes $ show val) >> (return $ show val)
+                                              return $ either (\v -> "Error: " ++ show v) (\v -> "Result: " ++ show v) res
+                            ) <$> srcText)
+
+    -- Dynamic Text and Textarea for output
+    output <- holdDyn "" $ fmap T.pack doneEv
+    elAttr "p" ("id" =: "tResult") $ dynText output
+    return ()
