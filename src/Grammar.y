@@ -185,6 +185,6 @@ Typ : ATyp                          { $1 }
 {
 
 parseError :: [T.Token] -> a
-parseError ts = error ("Parse error at: " ++ show (take 10 ts))
+parseError ts = errorWithoutStackTrace ("Parse error at: " ++ show (take 10 ts))
 
 }

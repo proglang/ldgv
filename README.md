@@ -1,29 +1,50 @@
 # ldgv - Label dependent session types
 
-This reponsitory contains an implementation of a frontend (parser and
-type checker) for LDGV.
+This repository contains an implementation of a frontend (parser and
+type checker) and a backend for LDGV.
 
-## requirements
+## Requirements
 
-Installation of the Haskell stack, tested with Version 1.9.3
+The [nix packet manager](https://nixos.org/nix/), preferably with a binary cache set up
+like described [here](https://github.com/obsidiansystems/obelisk/blob/master/README.md).
 
-## build
 
-In the toplevel directory:
-
-`stack build`
-
-## usage
+## Build
 
 In the toplevel directory:
 
-`stack exec ld-session-code-exe`
+`nix-build -A ghcjs.ldgv`
+
+## Test the Parser
+
+Run
+
+`nix-shells -A shells.ghc`
+
+to go into a nix shell and execute
+
+`cabal test`
+
+to let [hspec](https://hspec.github.io/) discover and run all tests.
+
+## Usage
+
+After building, you will find an `index.html` in `results/bin/ldgv.exe`.
 
 The input syntax is explained in file `syntax.txt`.
 There are examples in the `examples` directory. Source files end in
-`.ldgv`. They should be redirected into the executable as in
+`.ldgv`. 
 
-`stack exec ld-session-code-exe < examples/node.ldgv`
+### Typechecker
+
+`stack run -- examples/node.ldgv`
+
+### Interpreter
+Run
+
+`stack run -- -i examples/simple.ldgv`
+
+to run the typical session types hello world.
 
 There are further test cases in `example-inputs`, but this file contains
 single lines which test subtyping and other features in isolation.

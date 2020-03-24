@@ -1,0 +1,45 @@
+type End : ~unit = Unit
+
+type SUMC : ~ssn =
+  ?(n : Nat)
+  natrec n
+  { !Int. End
+  , A. ?Int. A
+  }
+
+type SUM : ~ssn =
+  !(n : Nat)
+  natrec n
+  { ?Int. End
+  , A. !Int. A
+  }
+
+-- sum up incoming numbers
+val sum (ch_in : SUMC) : End =
+  let <n, ch> = recv ch_in in
+    (natrec n 
+      { fn (m : Int) fn (c : !Int.End)
+        send c m
+      , n1 . A . (y : (m : Int) -> (a:A) -> End) .
+        fn (m: Int) fn (c : ?Int. A)
+        let <k,c> = recv c in
+        y (k + m) c
+      }
+    ) 0 ch
+
+-- sends the numbers n to 1
+val sendsum (ch_out : SUM) (n : Nat) : Int =
+  let ch = send ch_out n in
+  (natrec n
+  { fn (c : ?Int.End)
+        fst (recv c)
+  , n1 . A . (y : (a:A) -> Int) .
+        fn (c : !Int. A)
+        y (send c n1)
+  }) ch
+
+-- | the summation should be (n^2 + n) / 2 -> with 1000 it should return 500500
+val main =
+  let <a, b> = new SUMC in
+  let x = fork (sum a) in
+  sendsum b 1000
