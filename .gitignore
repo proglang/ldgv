@@ -21,7 +21,3 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 *~
-
-*.swp
-
-stack.yaml.lock
