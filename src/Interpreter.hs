@@ -34,18 +34,18 @@ interpret filename = do
   print dtypes
 
   -- find the main DFun
-  let m = case lookup "main" penv of
-                    Just val -> val
-                    -- TODO: fail if no main found
+  let m = lookupEnv "main" penv
   let d = case m of
         (VDecl decl)-> decl
   -- and interpret the declaration
   x <- S.runStateT (evalDFun d) penv
 
+  -- putStrLn $ "Interpretation of main resulted in \033[31;5m" ++ show (fst x) ++ "\033[0m and State "
   putStrLn $ "Interpretation of main resulted in " ++ show (fst x) ++ "\nand State"
   mapM_ print $ snd x
 
 -- | interpret a DFun (Function declaration)
+-- | construct a VFun (Function Value) out of a declaration
 evalDFun :: Decl -> InterpretM
 evalDFun decl@(DFun name [] expression _) = interpret' expression  -- a Declaration without free variables can be just interpreted
 evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
