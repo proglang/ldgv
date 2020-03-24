@@ -13,14 +13,6 @@ In the toplevel directory:
 
 `stack build`
 
-## test
-
-run
-
-`stack test`
-
-to let [hspec](https://hspec.github.io/) discover and run all tests.
-
 ## usage
 
 In the toplevel directory:
