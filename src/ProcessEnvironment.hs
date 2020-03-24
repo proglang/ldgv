@@ -1,7 +1,6 @@
 module ProcessEnvironment where
 import Syntax as S
 import qualified TCSubtyping as TS
-import qualified Config as D
 import Control.Concurrent.Chan as C
 import Control.Monad.State as T
 import Control.Monad
@@ -12,7 +11,7 @@ type InterpretM = T.StateT PEnv IO Value
 -- | create a new entry (requires identifier to be unique)
 createPMEntry :: PEnvEntry -> T.StateT PEnv IO ()
 createPMEntry entry = do
-    liftIO $ D.traceIO $ "Creating Environment entry " ++ show entry
+    liftIO $ putStrLn $ "Creating Environment entry " ++ show entry
     modify (\s1 -> entry : s1)
 
 extendEnv :: PEnvEntry -> PEnv -> PEnv
@@ -24,7 +23,7 @@ pmlookup id = do
     case lookup id identifiers of
         Nothing -> fail ("No Value for identifier " ++ id ++ " in ProcessEnvironment")
         Just val -> do
-                    liftIO $ D.traceIO $ "Looked up " ++ id ++ " and found " ++ show val
+                    liftIO $ putStrLn $ "Looked up " ++ id ++ " and found " ++ show val
                     >> pure val
 
 -- | a Process Envronment maps identifiers to Values of expressions and stores

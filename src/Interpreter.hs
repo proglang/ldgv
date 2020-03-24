@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 module Interpreter where
-import qualified Config as D
+import qualified Debug.Trace as D
 import qualified Tokens as T
 import qualified Grammar as G
 import Syntax
@@ -13,7 +13,6 @@ import Control.Concurrent (forkIO)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State as S
-import System.Exit as E
 
 
 -- | interpret the "main" value in an ldgv file given over stdin
@@ -31,24 +30,20 @@ interpret filename = do
         isDType _ = False
   let penv = createPEnv $ dtypes ++ dfuns
 
-  D.printDebug dfuns
-  D.printDebug dtypes
+  print dfuns
+  print dtypes
 
   -- find the main DFun
   let m = case lookup "main" penv of
                     Just val -> val
-                    Nothing -> VUnit
-  liftIO $ case m of
-                VUnit -> E.die "No 'main' value declaration found, exiting"
-                _ -> return ()
+                    -- TODO: fail if no main found
   let d = case m of
-        (VDecl decl) -> decl
-  endResult <- S.runStateT (evalDFun d) penv
+        (VDecl decl)-> decl
+  -- and interpret the declaration
+  x <- S.runStateT (evalDFun d) penv
 
-  putStrLn $ "\nInterpretation of main resulted in\n" ++ show (fst endResult)
-  
-  D.putDebugStr "\nand State"
-  mapM_ D.printDebug $ snd endResult
+  putStrLn $ "Interpretation of main resulted in " ++ show (fst x) ++ "\nand State"
+  mapM_ print $ snd x
 
 -- | interpret a DFun (Function declaration)
 evalDFun :: Decl -> InterpretM
@@ -70,29 +65,7 @@ interpret' e =
   Int i -> return $ VInt i
   Nat i -> return $ VInt i
   Succ e -> mathHelper (+) (Int 1) e
-  exp@(NatRec e1 e2 i1 t1 i2 t e3) -> do
-  -- returns a function indexed over e1 (should be a variable pointing to a Nat)
-  -- e1 should be the recursive variable which gets decreased each time the
-  -- non-zero case is evaluated
-  -- e2 is the zero case
-  -- e3 is the nonzero case
-         i <- interpret' e1
-         case i of
-                 VInt 0 -> interpret' e2
-                 VInt 1 -> (do
-                             env <- get
-                             zero <- interpret' e2
-                             put $ (i1, VInt 1):(i2, zero):env
-                             interpret' e3
-                           )
-                 VInt n -> do
-                        -- interpret the n-1 case i2 and add it to the env
-                        -- together with n before interpreting the body e3
-                        env <- get
-                        put $ (i1, VInt (n-1)):env
-                        lower <- interpret' $NatRec (Var i1) e2 i1 t1 i2 t e3
-                        put $ (i1, VInt n):(i2, lower):env
-                        interpret' e3
+  -- NatRec e1 e2 Ident TIdent Ident Type e3 -> do -- TODO
   Lam m i t e -> do
                  env <- get 
                  let f = \arg -> do
@@ -111,7 +84,7 @@ interpret' e =
   Div e1 e2 ->  mathHelper quot e1 e2
   Negate e1 ->  mathHelper (-) (Int 0) e1
   App e1 e2 -> do
-      _ <- liftIO $ D.traceIO $ "Arguments for " ++ show e1 ++ " are: "  ++ show e2
+      _ <- liftIO $ putStrLn $ "Arguments for " ++ show e1 ++ " are: "  ++ show e2
       -- interpret e1 first, because the innermost application
       -- is the function with its first argument
       v1 <- interpret' e1
@@ -152,7 +125,7 @@ interpret' e =
       penv <- get
       liftIO $ forkIO (do
                       res <- S.runStateT (interpret' e) penv
-                      D.traceIO "Ran a forked operation")
+                      putStrLn "Ran a forked operation")
       return VUnit
   New t -> do
     r <- liftIO C.newChan
@@ -162,7 +135,7 @@ interpret' e =
       v <- interpret' e
       case v of
         (VChan _ c) -> return $ VFun (\arg -> do
-                                        liftIO $ D.traceIO $ "Sending Value " ++ show arg ++ " on Channel " ++ show v
+                                        liftIO $ putStrLn $ "Sending Value " ++ show arg ++ " on Channel " ++ show v
                                         liftIO (C.writeChan c arg)
                                         return v)
   Recv e -> do
@@ -170,7 +143,7 @@ interpret' e =
       case v of
         (VChan c _) -> do
           val <- liftIO $ C.readChan c
-          liftIO $ D.traceIO $ "Read " ++ show val ++ " from Chan "
+          liftIO $ putStrLn $ "Read " ++ show val ++ " from Chan "
           return $ VPair val v
   Case e cases -> do
       v <- interpret' e
@@ -186,7 +159,7 @@ interpret' e =
 mathHelper op e1 e2 = do
     v1 <- interpret' e1
     v2 <- interpret' e2
-    liftIO $ D.traceIO $ "MathHelper works on " ++ show v1 ++ " and " ++ show v2
+    liftIO $ putStrLn $ "MathHelper works on " ++ show v1 ++ " and " ++ show v2
     return $ case (v1, v2) of
       (VInt a, VInt b) -> VInt (op a b)
 

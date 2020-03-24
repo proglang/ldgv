@@ -1,7 +1,7 @@
 # ldgv - Label dependent session types
 
-This repository contains an implementation of a frontend (parser and
-type checker) and a backend for LDGV.
+This reponsitory contains an implementation of a frontend (parser and
+type checker), as well as a backend (WIP) for LDGV.
 
 ## Requirements
 
@@ -35,12 +35,9 @@ There are examples in the `examples` directory. Source files end in
 
 `stack run -- examples/node.ldgv`
 
-### Interpreter
-Run
+### Interpreter (WIP)
 
 `stack run -- -i examples/simple.ldgv`
-
-to run the typical session types hello world.
 
 There are further test cases in `example-inputs`, but this file contains
 single lines which test subtyping and other features in isolation.
