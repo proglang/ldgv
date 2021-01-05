@@ -23,12 +23,8 @@ traceIO s | debugLevel > DebugNone = D.traceIO s
 -- | helper for prettyprinting results depending on debug level
 printResult :: MonadOut m => (Pretty a, Pretty b) => (Either a b, s) -> m ()
 printResult (Left a, _) = fail ("Error: " ++ pshow a)
-printResult (Right b, _) | debugLevel > DebugNone = printLn $ "Success: " ++ pshow b
-                         | otherwise = printLn "Success"
+printResult (Right b, _) | debugLevel > DebugNone = output $ "Success: " ++ pshow b
+                         | otherwise = output "Success"
 
-printDebug s | debugLevel > DebugNone = printLn $ show s
+printDebug s | debugLevel > DebugNone = output $ show s
 printDebug s | otherwise = return ()
-
-putStrLn s = printLn s
-printLn s = output s
-
