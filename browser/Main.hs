@@ -13,7 +13,8 @@ import Interpreter as I
 import Typechecker (typecheck)
 import qualified Examples as E
 import Control.Exception (try, SomeException)
-import ProcessEnvironment as P (Value) 
+import ProcessEnvironment as P (Value)
+import BrowserOut
 
 -- head of document
 widgetHead :: DomBuilder t m => m ()
@@ -40,7 +41,7 @@ main = mainWidgetWithHead widgetHead $ divClass "wrapper" $ do
 
         -- create a dropdown to set the textarea text
         d <- dropdown (head srcfiles) (constDyn exampleFilesMap) def
-        (b, _) <- elAttr' "button" ("id" =: "bInterpret") $ text "Interpret" 
+        (b, _) <- elAttr' "button" ("id" =: "bInterpret") $ text "Interpret"
         -- Interpret button click event
         let e = domEvent Click b
         -- Dynamic Text looked up in example ldgv files on dropdown change
@@ -59,14 +60,14 @@ main = mainWidgetWithHead widgetHead $ divClass "wrapper" $ do
         el "div" blank
         -- interpret the source text
         doneEv <- performEvent ((\v -> liftIO $ do
-                                                  let s = T.unpack v
-                                                  -- clear the old output
-                                                  resetOutput
-                                                  -- interpret
-                                                  res <- try $ typecheck s >> I.interpret s :: IO (Either SomeException P.Value)
-                                                  -- print errors to the output if there are any
-                                                  return $ either (\v -> "Error: " ++ show v) (\v -> "Result: " ++ show v) res
-                                ) <$> srcText)
+            let s = T.unpack v
+            -- clear the old output
+            resetOutput
+            -- interpret
+            res <- try $ runBrowserOutT (typecheck s) >> I.interpret s :: IO (Either SomeException P.Value)
+            -- print errors to the output if there are any
+            return $ either (\v -> "Error: " ++ show v) (\v -> "Result: " ++ show v) res
+          ) <$> srcText)
 
         -- Dynamic Text and Textarea for output
         output <- holdDyn "" $ fmap T.pack doneEv

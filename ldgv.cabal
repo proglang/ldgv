@@ -22,7 +22,7 @@ library
                  , Config
                  , Examples
                  , ProcessEnvironment
-                 , SyntaxDescription
+                 , MonadOut
   other-modules: Tokens
                , Grammar
                , Kinds
@@ -37,14 +37,12 @@ library
   build-depends: base
                , array
                , containers
+               , file-embed
                , lens
-               , jsaddle
-               , reflex
-               , reflex-dom
-               , text
                , mtl
                , prettyprinter
-               , file-embed
+               , text
+               , transformers
   default-language: Haskell2010
 
 test-suite ldgv-test
@@ -77,6 +75,8 @@ executable ldgv-exe
 
 executable ldgv-browser
   main-is: Main.hs
+  other-modules: BrowserOut
+               , SyntaxDescription
   hs-source-dirs: browser
   build-tools: alex, happy
   build-depends: base >=4.12 && <4.13
@@ -89,6 +89,7 @@ executable ldgv-browser
                , reflex-dom
                , text
                , mtl
+               , transformers
   default-language: Haskell2010
   if impl(ghcjs)
     ghc-options: -dedupe -Wall

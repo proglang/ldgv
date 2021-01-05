@@ -39,7 +39,7 @@ kiSynth te ty@(TPair m x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
   (k2, m2) <- kiSynth ((x, (demote m1, ty1)) : te) ty2
   let mout = max m1 m2
-  if mout <= m then return (kindof mout, mout) else fail ("kiSynth " ++ pshow ty)
+  if mout <= m then return (kindof mout, mout) else TC.mfail ("kiSynth " ++ pshow ty)
 kiSynth te (TSend x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
   m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn 
@@ -57,7 +57,7 @@ kiSynth te (TCase e1 cases) = do
              cases
   return (foldr1 kolub ks)
 kiSynth te (TSingle x) = do
-  (mm, tyx) <- maybe (fail ("No variable " ++ show x)) return $ lookup x te
+  (mm, tyx) <- maybe (TC.mfail ("No variable " ++ show x)) return $ lookup x te
   kiSynth te tyx
 kiSynth te (TNatRec e1 tz y ts) = do
   _ <- tyCheck te e1 TNat
@@ -68,25 +68,27 @@ kiSynth te (TVar b v) = do
   let k = keKind kentry
   return (k, mult k)
 kiSynth te ty =
-  fail ("kiSynth fails on " ++ pshow ty)
+  TC.mfail ("kiSynth fails on " ++ pshow ty)
 
 -- kind checking
 kiCheck :: TEnv -> Type -> Kind -> TCM ()
 kiCheck te ty ki = do
   (k1, m1) <- kiSynth te ty
-  if klub ki k1 == ki then return () else fail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1)
+  if klub ki k1 == ki
+     then return ()
+     else TC.mfail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1)
 
 -- unrestricted strengthening of top entry
 strengthenTop :: Exp -> TEnv -> TCM TEnv
 strengthenTop e ((_, (Zero, _)) : te) = return te
 strengthenTop e ((_, (Many, _)) : te) = return te
-strengthenTop e ((x, (One, _)) : te) = fail ("Linear variable " ++ x ++ " not used in " ++ pshow e)
+strengthenTop e ((x, (One, _)) : te) = TC.mfail ("Linear variable " ++ x ++ " not used in " ++ pshow e)
 
 -- unrestricted strengthening + expanding singletons if needed
 strengthen :: Exp -> (Type, TEnv) -> TCM (Type, TEnv)
 strengthen e (ty, (x, (mm, tyx)) : te) =
   if mm == One then 
-    fail ("Linear variable " ++ x ++ " not used in " ++ pshow e)
+    TC.mfail ("Linear variable " ++ x ++ " not used in " ++ pshow e)
   else
     return (single x tyx ty, te)
 
@@ -131,8 +133,8 @@ tySynth te e =
   Int n -> return (TInt, te)
   Nat n -> return (TNat, te)
   Var x -> do
-    (mm, tyx) <- maybe (fail ("No variable " ++ show x)) return $ lookup x te
-    mm' <- maybe (fail ("Illegal use of linear variable " ++ show x)) return $ use mm
+    (mm, tyx) <- maybe (TC.mfail ("No variable " ++ show x)) return $ lookup x te
+    mm' <- maybe (TC.mfail ("Illegal use of linear variable " ++ show x)) return $ use mm
     let te' = map upd te
         upd entry@(y, _) = if x == y then (x, (mm', tyx)) else entry
     return (tyx, te')
@@ -156,7 +158,7 @@ tySynth te e =
         _ <- kiSynth (demoteTE te) tyout
         return (tyout, te2)
       _ ->
-        fail ("Function expected, but got " ++ pshow tf ++ " (" ++ pshow tfu ++ ")")
+        TC.mfail ("Function expected, but got " ++ pshow tf ++ " (" ++ pshow tfu ++ ")")
 
   Pair mul x e1@(Var y) e2 -> do
     let x' = freshvar x (fv e1 ++ (fv e2 \\ [x]))
@@ -242,7 +244,7 @@ tySynth te e =
       TSend x ty1 ty2 ->
         return (TFun MOne x ty1 ty2, te1)
       _ ->
-        fail ("Send expected, but got " ++ pshow ts ++ " (" ++ pshow tsu ++ ")")
+        TC.mfail ("Send expected, but got " ++ pshow ts ++ " (" ++ pshow tsu ++ ")")
   Recv e1 -> do
     (tr, te1) <- tySynth te e1
     tru <- unfold te1 tr
@@ -250,10 +252,10 @@ tySynth te e =
       TRecv x ty1 ty2 ->
         return (TPair MOne x ty1 ty2, te1)
       _ ->
-        fail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
+        TC.mfail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
   Case e1 cases
     | Just (Lab lab, TLab labels) <- valueEquiv (demoteTE te) e1 ->
-      do elab <- maybe (fail ("No case for label " ++ show lab)) return $ lookup lab cases
+      do elab <- maybe (TC.mfail ("No case for label " ++ show lab)) return $ lookup lab cases
          tySynth te elab
   Case e1@(Var x) cases -> do
     let labels = map fst cases
@@ -283,7 +285,7 @@ tySynth te e =
     return (ty', te')
 -}
   Case _ _ ->
-    fail "illegal case expression"
+    TC.mfail "illegal case expression"
   NatRec e1 ez n1 tv y tyy es -> do
     _ <- tyCheck (demoteTE te) e1 TNat
     TC.censor (const []) $ TC.mlocal tv (TVar False tv, Kunit) $ do
@@ -307,7 +309,7 @@ tySynth te e =
       DT.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
   _ ->
-    fail ("Unhandled expression: " ++ pshow e)
+    TC.mfail ("Unhandled expression: " ++ pshow e)
 
 tyCheck :: TEnv -> Exp -> Type -> TCM TEnv
 tyCheck te e ty = do
@@ -327,4 +329,4 @@ tenvJoin = zipWithM tenvEntryJoin
 tenvEntryJoin :: TEnvEntry -> TEnvEntry -> TCM TEnvEntry
 tenvEntryJoin e1 e2
   | e1 == e2 = return e1
-tenvEntryJoin e1 e2 = fail ("Unmatched environment entries " ++ show e1 ++ " and " ++ show e2)
+tenvEntryJoin e1 e2 = TC.mfail ("Unmatched environment entries " ++ show e1 ++ " and " ++ show e2)

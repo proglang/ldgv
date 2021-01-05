@@ -56,7 +56,7 @@ valueEquiv' tenv (Var name) =
        Succ _ -> return (e, t)
        Var x -> valueEquiv tenv e
   <|>
-  do (_, TSingle y) <- varlookup name tenv
+  do (_, TSingle y) <- lookup name tenv
      valueEquiv tenv (Var y)
 valueEquiv' tenv _ =
   Nothing
@@ -70,7 +70,7 @@ lablookup lll cases =
   lookup lll cases
 
 varlookup x tenv =
-  maybe (fail ("No binding for variable " ++ show x)) return $
+  maybe (TC.mfail ("No binding for variable " ++ show x)) return $
   lookup x tenv
 
 -- extended lookup returns remaining tenv and the binding
