@@ -1,9 +1,15 @@
 {-# LANGUAGE ApplicativeDo #-}
-module Main where
+module Main (main) where
 
 import Control.Applicative
+import Control.Exception
 import Control.Monad
 import qualified Options.Applicative as Opts
+
+import MonadOut
+import Typechecker
+import qualified Interpreter as I
+import qualified ProcessEnvironment as P
 
 actionParser :: Opts.Parser (IO ())
 actionParser = Opts.hsubparser $ mconcat
@@ -49,9 +55,17 @@ main = join $ Opts.customExecParser prefs actionParserInfo
     prefs = Opts.prefs Opts.showHelpOnEmpty
 
 interpret :: Maybe FilePath -> IO ()
-interpret _minput = do
-  fail "interpret: not yet hooked up"
+interpret minput = withInput minput $ \s -> do
+  res <- try $ runOutIO (typecheck s) >> I.interpret s
+  putStrLn $ either
+    (\v -> "Error: " ++ show v)
+    (\v -> "Result: " ++ show v)
+    (res :: Either SomeException P.Value)
 
 compile :: Maybe FilePath -> Maybe FilePath -> IO ()
 compile _minput _moutput = do
   fail "compile: not yet implemented"
+
+
+withInput :: Maybe FilePath -> (String -> IO r) -> IO r
+withInput mfp f = f =<< maybe getContents readFile mfp
