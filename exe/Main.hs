@@ -1,16 +1,22 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE LambdaCase #-}
 module Main (main) where
 
 import Control.Applicative
+import Control.Category ((>>>))
 import Control.Exception
 import Control.Monad
+import Data.ByteString.Builder
+import System.IO
 import qualified Options.Applicative as Opts
 
 import MonadOut
+import Parsing
 import Typechecker
 import qualified Interpreter as I
 import qualified ProcessEnvironment as P
-import Parsing
+import qualified Syntax
+import qualified Target.C as C
 
 actionParser :: Opts.Parser (IO ())
 actionParser = Opts.hsubparser $ mconcat
@@ -57,8 +63,8 @@ main = join $ Opts.customExecParser prefs actionParserInfo
 
 interpret :: Maybe FilePath -> IO ()
 interpret minput = do
-  res <- withInput minput $ \src -> try $ do
-    let decls = parse src
+  res <- try $ do
+    decls <- parseInput minput
     runOutIO $ typecheck decls
     I.interpret decls
   putStrLn $ either
@@ -67,9 +73,14 @@ interpret minput = do
     (res :: Either SomeException P.Value)
 
 compile :: Maybe FilePath -> Maybe FilePath -> IO ()
-compile _minput _moutput = do
-  fail "compile: not yet implemented"
+compile minput moutput = do
+  decls <- parseInput minput
+  runOutIO $ typecheck decls
+  withOutput moutput $ \outHandle ->
+    hPutBuilder outHandle (C.generate decls)
 
+parseInput :: Maybe FilePath -> IO [Syntax.Decl]
+parseInput = maybe getContents readFile >>> fmap parse
 
-withInput :: Maybe FilePath -> (String -> IO r) -> IO r
-withInput mfp f = f =<< maybe getContents readFile mfp
+withOutput :: Maybe FilePath -> (Handle -> IO r) -> IO r
+withOutput = maybe ($ stdout) (\fp -> withBinaryFile fp WriteMode)
