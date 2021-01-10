@@ -7,17 +7,14 @@ import Control.Concurrent (forkIO)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State as S
-import qualified Tokens as Tokens
+import qualified Tokens
 import qualified Grammar as G
 
 -- | interpret the "main" value in an ldgv file given over stdin
-interpret :: String -> IO Value
-interpret s = do
-    let tokens = Tokens.alexScanTokens s
-    let parsed = G.parseCalc tokens
-  
+interpret :: [Decl] -> IO Value
+interpret decls = do
     -- gather Type and Function definitions
-    let penv = createPEnv $ filter isInterestingDecl parsed where
+    let penv = createPEnv $ filter isInterestingDecl decls
         isInterestingDecl (DFun _ _ _ _) = True
         isInterestingDecl (DType _ _ _ _) = True
         isInterestingDecl _ = False

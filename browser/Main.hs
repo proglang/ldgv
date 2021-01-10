@@ -10,6 +10,7 @@ import Language.Javascript.JSaddle (eval, liftJSM)
 
 import SyntaxDescription (syntaxdescription)
 import Interpreter as I
+import Parsing (parse)
 import Typechecker (typecheck)
 import qualified Examples as E
 import Control.Exception (try, SomeException)
@@ -63,10 +64,14 @@ main = mainWidgetWithHead widgetHead $ divClass "wrapper" $ do
             let s = T.unpack v
             -- clear the old output
             resetOutput
-            -- interpret
-            res <- try $ runBrowserOutT (typecheck s) >> I.interpret s :: IO (Either SomeException P.Value)
-            -- print errors to the output if there are any
-            return $ either (\v -> "Error: " ++ show v) (\v -> "Result: " ++ show v) res
+            res <- try $ do
+              let decls = parse s
+              runBrowserOutT $ typecheck decls
+              I.interpret decls
+            return $ either
+              (\v -> "Error: " ++ show v)
+              (\v -> "Result: " ++ show v)
+              (res :: Either SomeException P.Value)
           ) <$> srcText)
 
         -- Dynamic Text and Textarea for output

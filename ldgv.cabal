@@ -23,6 +23,7 @@ library
                  , Examples
                  , ProcessEnvironment
                  , MonadOut
+                 , Parsing
   other-modules: Tokens
                , Grammar
                , Kinds

@@ -10,6 +10,7 @@ import MonadOut
 import Typechecker
 import qualified Interpreter as I
 import qualified ProcessEnvironment as P
+import Parsing
 
 actionParser :: Opts.Parser (IO ())
 actionParser = Opts.hsubparser $ mconcat
@@ -55,8 +56,11 @@ main = join $ Opts.customExecParser prefs actionParserInfo
     prefs = Opts.prefs Opts.showHelpOnEmpty
 
 interpret :: Maybe FilePath -> IO ()
-interpret minput = withInput minput $ \s -> do
-  res <- try $ runOutIO (typecheck s) >> I.interpret s
+interpret minput = do
+  res <- withInput minput $ \src -> try $ do
+    let decls = parse src
+    runOutIO $ typecheck decls
+    I.interpret decls
   putStrLn $ either
     (\v -> "Error: " ++ show v)
     (\v -> "Result: " ++ show v)

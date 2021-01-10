@@ -12,13 +12,11 @@ import qualified TCTyping as TT
 import Config as C
 import MonadOut (MonadOut(..))
 
--- | typecheck a given ldgv file
-typecheck :: MonadOut m => String -> m ()
-typecheck text = do
-  let ts = T.alexScanTokens text
-  let cmds = G.parseCalc ts
+-- | Typecheck a list of declarations.
+typecheck :: MonadOut m => [G.Decl] -> m ()
+typecheck decls = do
   output "-------- Running Typecheck Request --------"
-  exec [] [] cmds
+  exec [] [] decls
     where
       exec :: MonadOut m => [G.TEnvEntry] -> G.KEnv -> [G.Decl] -> m ()
       exec tenv kenv [] = return ()
