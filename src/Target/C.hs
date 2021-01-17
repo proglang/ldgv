@@ -1,27 +1,31 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wall #-}
-module Target.C where
+module Target.C (generate) where
 
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.RWS.Strict
+import Control.Monad.State.Strict
 import Data.ByteString.Builder (Builder)
 import Data.Coerce
+import Data.Foldable
 import Data.Map (Map)
+import Data.Maybe
 import Data.Semigroup
 import Syntax
+import qualified Control.Foldl as L
 import qualified Data.ByteString.Builder as B
 import qualified Data.List as List
-import Control.Monad.State.Strict
-import Data.Foldable
 
 -- | Represents values lifted into the @LDST_t@ type.
 newtype CExp = CExp { unCExp :: Builder }
@@ -32,10 +36,8 @@ data CVar x where
   StackVar :: !Builder -> CVar 'Stack
   HeapVar :: !Builder -> CVar 'Heap
 
-newtype CStmt = CStmt { unCStmt :: Builder }
-
-instance Semigroup CStmt where
-  CStmt a <> CStmt b = CStmt (a <> "\n" <> b)
+newtype CStmt = CStmt Builder
+  deriving newtype (Semigroup, Monoid)
 
 data Tag a where
   TagInt :: Tag Int
@@ -57,10 +59,53 @@ data Info = Info
 
 makeLenses ''Info
 
-type GenM = ExceptT String (RWS Info (Maybe CStmt) Word)
+type GenM = RWST Info CStmt Word (Either String)
 
-generate :: [Decl] -> Builder
-generate _ = error "generate: not implemented"
+generate :: [Decl] -> Either String Builder
+generate = fromMaybe (Left "No code generated.") . foldMap \case
+  DFun name args body _ ->
+    let (argsBuilder, argsBindings) = L.fold (view _2 `L.premap`  goArgId) args
+
+        goArgId = (,)
+          <$> (\idn -> ctype <> B.char7 ' ' <> identForC idn) `L.premap` L.list
+          <*> (\idn -> (idn, StackVar (identForC idn))) `L.premap` L.map
+
+        info = Info
+          { _infoBindings = argsBindings -- TODO: include other functions
+          , _infoNameHint = identForC name
+          , _infoIndent = 1
+          }
+
+        funHeader = bunwords
+          [ ctype               -- function return type
+          , callExp (functionForC name) argsBuilder
+          , "{\n"
+          ]
+
+        funClose = "}\n\n"
+
+        addContext err =
+          "in function ‘" ++ name ++ "’:\n" ++ err
+
+        genBody = do
+          result <- generateExp body
+          tellStmt $ mconcat
+            [ "return "
+            , unCExp result
+            , B.char7 ';'
+            ]
+
+        completeFunction (CStmt body') = mconcat
+          [ funHeader
+          , body'
+          , funClose
+          ]
+
+     in Just
+          $ bimap addContext (completeFunction . snd)
+          $ evalRWST genBody info 0
+
+  _ -> mempty
 
 generateExp :: Exp -> GenM CExp
 generateExp = \case
@@ -121,14 +166,14 @@ generateExp = \case
     tellStmt $ mconcat [ ctype, B.char7 ' ', result, B.char7 ';' ]
     let buildBranch :: (String, Exp) -> StateT Builder GenM ()
         buildBranch (branchLabel, branchExp) = do
-          ifB <- get <* put "else if"
+          ifB <- get <* put "else if "
           let cmpExp = callExp funStrcmp [label, labelForC branchLabel] <> " == 0"
           lift $ tellStmt $ callExp ifB [cmpExp] <> " {"
           lift $ local (infoIndent +~ 1) do
             e' <- generateExp branchExp
             tellStmt $ bunwords [ result, B.char7 '=', unCExp e' <> B.char7 ';' ]
           lift $ tellStmt "}"
-    evalStateT (traverse_ buildBranch cs) ("if" :: Builder)
+    evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
     pure $ varToExp $ StackVar result
 
 doesNotExist :: MonadError String m => Ident -> m a
@@ -204,7 +249,7 @@ tellStmt :: Builder -> GenM ()
 tellStmt s = do
   lvl <- view infoIndent
   let !indent = stimes (lvl * 2) (B.char7 ' ')
-  tell $ Just $! CStmt $ indent <> s
+  tell $ CStmt $ indent <> s <> B.char7 '\n'
 
 
 -- | The type of all LDST values in the generated C code.
@@ -267,7 +312,7 @@ bunwords = mconcat . List.intersperse (B.char7 ' ')
 --
 --   * primes/single quotes are replaced by @zq@
 --
---   * @z@ is replaced by @zz@
+--   * @z@ is replaced by @zz@ to make the transformation bijective.
 identForC :: Ident -> Builder
 identForC = foldMap \case
   '_'  -> "z_"
@@ -280,3 +325,8 @@ labelForC :: String -> Builder
 labelForC lbl =
   -- The LDST grammar only allows characters which are valid in C strings.
   B.char7 '"' <> B.stringUtf8 lbl <> B.char7 '"'
+
+-- | Turn an identifier into a function name suitable in the generated C code.
+-- It uses the encoding from 'identForC' and prepends @"ldst__"@
+functionForC :: Ident -> Builder
+functionForC idn = "ldst__" <> identForC idn

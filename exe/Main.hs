@@ -12,6 +12,7 @@ import qualified Options.Applicative as Opts
 
 import MonadOut
 import Parsing
+import System.Exit
 import Typechecker
 import qualified Interpreter as I
 import qualified ProcessEnvironment as P
@@ -88,8 +89,13 @@ compile minput moutput debug = do
   if debug
      then runOutIO $ typecheck decls
      else runOutIgnore $ typecheck decls
-  withOutput moutput $ \outHandle ->
-    hPutBuilder outHandle (C.generate decls)
+  case C.generate decls of
+    Left err -> do
+      hPutStrLn stderr err
+      exitFailure
+    Right code ->
+      withOutput moutput $ \outHandle ->
+        hPutBuilder outHandle code
 
 parseInput :: Maybe FilePath -> IO [Syntax.Decl]
 parseInput = maybe getContents readFile >>> fmap parse
