@@ -47,6 +47,7 @@ library
                , prettyprinter
                , text
                , transformers
+               , validation-selective
   default-language: Haskell2010
 
 test-suite ldgv-test

@@ -16,13 +16,16 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.RWS.Strict
 import Control.Monad.State.Strict
+import Data.Bifunctor
 import Data.ByteString.Builder (Builder)
 import Data.Coerce
 import Data.Foldable
+import Data.List.NonEmpty (NonEmpty)
 import Data.Map (Map)
-import Data.Maybe
 import Data.Semigroup
+import Kinds
 import Syntax
+import Validation
 import qualified Control.Foldl as L
 import qualified Data.ByteString.Builder as B
 import qualified Data.List as List
@@ -62,50 +65,57 @@ makeLenses ''Info
 type GenM = RWST Info CStmt Word (Either String)
 
 generate :: [Decl] -> Either String Builder
-generate = fromMaybe (Left "No code generated.") . foldMap \case
-  DFun name args body _ ->
-    let (argsBuilder, argsBindings) = L.fold (view _2 `L.premap`  goArgId) args
-
-        goArgId = (,)
-          <$> (\idn -> ctype <> B.char7 ' ' <> identForC idn) `L.premap` L.list
-          <*> (\idn -> (idn, StackVar (identForC idn))) `L.premap` L.map
-
-        info = Info
-          { _infoBindings = argsBindings -- TODO: include other functions
-          , _infoNameHint = identForC name
-          , _infoIndent = 1
-          }
-
-        funHeader = bunwords
-          [ ctype               -- function return type
-          , callExp (functionForC name) argsBuilder
-          , "{\n"
-          ]
-
-        funClose = "}\n\n"
-
-        addContext err =
-          "in function ‘" ++ name ++ "’:\n" ++ err
-
-        genBody = do
-          result <- generateExp body
-          tellStmt $ mconcat
-            [ "return "
-            , unCExp result
-            , B.char7 ';'
-            ]
-
-        completeFunction (CStmt body') = mconcat
-          [ funHeader
-          , body'
-          , funClose
-          ]
-
-     in Just
-          $ bimap addContext (completeFunction . snd)
-          $ evalRWST genBody info 0
-
+generate = first (List.intercalate "\n" . toList) . validationToEither . foldMap \case
+  DFun name args body _ -> generateFunction name args body
   _ -> mempty
+
+generateFunction
+  :: Ident
+  -> [(Multiplicity, Ident, Type)]
+  -> Exp
+  -> Validation (NonEmpty String) Builder
+generateFunction name args body =
+  let (argsBuilder, argsBindings) = L.fold (view _2 `L.premap`  goArgId) args
+
+      goArgId = (,)
+        <$> (\idn -> ctype <> B.char7 ' ' <> identForC idn) `L.premap` L.list
+        <*> (\idn -> (idn, StackVar (identForC idn))) `L.premap` L.map
+
+      funHeader = bunwords
+        [ ctype
+        , callExp (functionForC name) argsBuilder
+        , "{\n"
+        ]
+
+      funClose = "}\n\n"
+
+      addContext err =
+        "in function ‘" ++ name ++ "’:\n" ++ err
+
+      genBody = do
+        result <- generateExp body
+        tellStmt $ mconcat
+          [ "return "
+          , unCExp result
+          , B.char7 ';'
+          ]
+
+      completeFunction (CStmt body') = mconcat
+        [ funHeader
+        , body'
+        , funClose
+        ]
+
+      info = Info
+        { _infoBindings = argsBindings -- TODO: include other functions
+        , _infoNameHint = identForC name
+        , _infoIndent = 1
+        }
+
+   in eitherToValidation
+        $ bimap (pure . addContext) (completeFunction . snd)
+        $ evalRWST genBody info 0
+
 
 generateExp :: Exp -> GenM CExp
 generateExp = \case

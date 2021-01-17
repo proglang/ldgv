@@ -10,6 +10,9 @@ in (import reflex-platform {}).project ({ pkgs, ... }: {
   packages = {
     ldgv = ./.;
   };
+  overrides = self: super: {
+    validation-selective = self.callHackage "validation-selective" "0.1.0.0" {};
+  };
   shells = {
     ghc = ["ldgv"];
     ghcjs = ["ldgv"];
