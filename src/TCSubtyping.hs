@@ -4,7 +4,6 @@ import Control.Applicative
 import Control.Monad (when, ap)
 import Data.List (union, intersect, nub, sort, (\\))
 
-import qualified Debug.Trace as DT
 import qualified Config as D
 
 import Syntax
@@ -285,12 +284,12 @@ complete xs [] ty =
 subtype' :: TEnv -> Type -> Type -> TCM Kind
 subtype' tenv ty1 ty2@(TVar b tv) = do
   kentry <- mlookup tv
-  DT.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
+  D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
 subtype' tenv ty1@(TVar b tv) ty2 = do
   kentry <- mlookup tv
-  DT.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
+  D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
 subtype' tenv TUnit TUnit = return Kunit
@@ -440,7 +439,7 @@ subtype' tenv ty1@(TSingle z1) ty2 = do
 subtype' tenv t1 t2 = TC.mfail ("Subtyping fails to establish " ++ pshow t1 ++ " <: " ++ pshow t2)
 
 subtype tenv t1 t2 = do
-  DT.traceM ("Entering subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
+  D.traceM ("Entering subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
   r <- subtype' tenv t1 t2
   return $ D.trace ("subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ show r) r
 

@@ -19,15 +19,23 @@ import qualified Syntax
 import qualified Target.C as C
 
 actionParser :: Opts.Parser (IO ())
-actionParser = Opts.hsubparser $ mconcat
-  [ Opts.command "compile"
-      $ Opts.info compileParser
-      $ Opts.progDesc "Parse, typecheck and transpile an LDGV/LDST program to C."
-  , Opts.command "interpret"
-      $ Opts.info interpretParser
-      $ Opts.progDesc "Parse, typecheck and interpret an LDGV/LDST program."
-  ]
+actionParser = do
+  debug <- Opts.switch $ mconcat
+    [ Opts.long "debug"
+    , Opts.help "Display debug output"
+    ]
+  cmd <- commands
+  pure $ cmd debug
   where
+    commands = Opts.hsubparser $ mconcat
+      [ Opts.command "compile"
+          $ Opts.info compileParser
+          $ Opts.progDesc "Parse, typecheck and transpile an LDGV/LDST program to C."
+      , Opts.command "interpret"
+          $ Opts.info interpretParser
+          $ Opts.progDesc "Parse, typecheck and interpret an LDGV/LDST program."
+      ]
+
     interpretParser = do
       inPath <- optional inPathArg
       pure $ interpret inPath
@@ -49,7 +57,7 @@ actionParser = Opts.hsubparser $ mconcat
 
 actionParserInfo :: Opts.ParserInfo (IO ())
 actionParserInfo = Opts.info (actionParser <**> Opts.helper) $ mconcat
-  [ Opts.progDesc "An implementation of the LDGV/LDST language."
+  [ Opts.progDesc "An implementation of Label Dependent Session Types (LDST)."
   , Opts.footer "Authors: \
       \Nils Hagner (interpreter, web frontend), \
       \Janek Spaderna (C backend, command line frontend), \
@@ -61,21 +69,25 @@ main = join $ Opts.customExecParser prefs actionParserInfo
   where
     prefs = Opts.prefs Opts.showHelpOnEmpty
 
-interpret :: Maybe FilePath -> IO ()
-interpret minput = do
+interpret :: Maybe FilePath -> Bool -> IO ()
+interpret minput debug = do
   res <- try $ do
     decls <- parseInput minput
-    runOutIO $ typecheck decls
+    if debug
+       then runOutIO $ typecheck decls
+       else runOutIgnore $ typecheck decls
     I.interpret decls
   putStrLn $ either
     (\v -> "Error: " ++ show v)
     (\v -> "Result: " ++ show v)
     (res :: Either SomeException P.Value)
 
-compile :: Maybe FilePath -> Maybe FilePath -> IO ()
-compile minput moutput = do
+compile :: Maybe FilePath -> Maybe FilePath -> Bool -> IO ()
+compile minput moutput debug = do
   decls <- parseInput minput
-  runOutIO $ typecheck decls
+  if debug
+     then runOutIO $ typecheck decls
+     else runOutIgnore $ typecheck decls
   withOutput moutput $ \outHandle ->
     hPutBuilder outHandle (C.generate decls)
 
