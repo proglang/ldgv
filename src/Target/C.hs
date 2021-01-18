@@ -8,7 +8,10 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wall #-}
 module Target.C (generate) where
 
@@ -18,22 +21,34 @@ import Control.Monad.RWS.Strict
 import Control.Monad.State.Strict
 import Data.Bifunctor
 import Data.ByteString.Builder (Builder)
-import Data.Coerce
 import Data.Foldable
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map (Map)
 import Data.Semigroup
+import Data.Set (Set)
 import Kinds
+import Singletons
 import Syntax
 import Validation
 import qualified Control.Foldl as L
 import qualified Data.ByteString.Builder as B
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 -- | Represents values lifted into the @LDST_t@ type.
 newtype CExp = CExp { unCExp :: Builder }
 
 data Location = Stack | Heap
+
+data SLocation x where
+  SStack :: SLocation 'Stack
+  SHeap :: SLocation 'Heap
+
+type instance The Location = SLocation
+
+instance Known 'Stack where sing = SStack
+instance Known 'Heap where sing = SHeap
 
 data CVar x where
   StackVar :: !Builder -> CVar 'Stack
@@ -46,6 +61,7 @@ data Tag a where
   TagInt :: Tag Int
   TagLabel :: Tag String
   TagPair :: Tag (CExp, CExp)
+  TagLam :: Tag (Builder, Set Ident)
 
 data Info = Info
   { _infoBindings :: !(Map Ident (CVar 'Stack))
@@ -55,6 +71,11 @@ data Info = Info
   , _infoNameHint :: !Builder
     -- ^ Prepended to all fresh variables, helps with understandability of the
     -- generated C code and tracking to which expression the variables belong.
+
+  , _infoFuncHint :: !Builder
+    -- ^ Prepended to all functions originating from splitting lambdas and
+    -- continuations out of their enclosing function. This is necessary to be
+    -- unique per function, otherwise the generated function names might clash.
 
   , _infoIndent :: !Int
     -- ^ Current indent level.
@@ -109,6 +130,7 @@ generateFunction name args body =
       info = Info
         { _infoBindings = argsBindings -- TODO: include other functions
         , _infoNameHint = identForC name
+        , _infoFuncHint = functionForC name
         , _infoIndent = 1
         }
 
@@ -135,16 +157,24 @@ generateExp = \case
   Succ e -> do
     e' <- stmt =<< generateExp e
     pure $ liftValue TagInt $ access TagInt e' <> "+ 1"
-  NatRec e e1 l_c l_c3 l_c4 t e6 -> undefined
+  NatRec{} -> undefined
   Var v -> do
     v' <- view (infoBindings . at v)
     maybe (doesNotExist v) (pure . varToExp) v'
   Unit -> undefined
   Lab lbl -> do
     mkValue TagLabel lbl
-  Lam m l_c t e -> undefined
-  Rec l_c l_c1 t t3 e -> undefined
-  App e e1 -> undefined
+  Lam _ argId _ body -> do
+    -- TODO: Generate actual code for the lambda.
+    name <- fresh (Just "lam")
+    mkValue TagLam (name, Set.fromList (filter (/= argId) (fv body)))
+  Rec{} -> undefined
+  App funExp argExp -> do
+    -- TODO: Directly call statically known top level functions.
+    lam <- stmt =<< generateExp funExp
+    arg <- generateExp argExp
+    let (fun, closure) = accessLambda lam
+    pure $ CExp $ callExp fun [closure, unCExp arg]
   Pair _ idnA a b -> do
     scoped idnA (generateExp a) \a' -> do
       b' <- generateExp b
@@ -172,8 +202,7 @@ generateExp = \case
     -- TODO: Should we assume that the matching branch always exists? Or check
     -- all branches and panic, in case none matches?
     label <- access TagLabel <$> (stmt =<< generateExp e)
-    result <- fresh
-    tellStmt $ mconcat [ ctype, B.char7 ' ', result, B.char7 ';' ]
+    result <- declareFresh @'Stack ctype Nothing
     let buildBranch :: (String, Exp) -> StateT Builder GenM ()
         buildBranch (branchLabel, branchExp) = do
           ifB <- get <* put "else if "
@@ -181,10 +210,10 @@ generateExp = \case
           lift $ tellStmt $ callExp ifB [cmpExp] <> " {"
           lift $ local (infoIndent +~ 1) do
             e' <- generateExp branchExp
-            tellStmt $ bunwords [ result, B.char7 '=', unCExp e' <> B.char7 ';' ]
+            tellStmt $ bunwords [ unCExp (varToExp result), B.char7 '=', unCExp e' <> B.char7 ';' ]
           lift $ tellStmt "}"
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
-    pure $ varToExp $ StackVar result
+    pure $ varToExp result
 
 doesNotExist :: MonadError String m => Ident -> m a
 doesNotExist idn = throwError $ "variable " ++ show idn ++ " does not exist"
@@ -202,40 +231,53 @@ mathOp c a b = do
     $ liftValue TagInt
     $ bunwords [ access TagInt a', B.char7 c, access TagInt b' ]
 
-
-fresh :: GenM Builder
-fresh = do
+-- | Generates a guaranteed fresh name for the current function. The returned
+-- identifier is suitable for use in C code provided that 'infoNameHint' and
+-- 'infoFuncHint' are never an invalid prefix.
+--
+-- If the first argument is @Just /funKind/@ the name is guaranteed to be fresh
+-- for the whole module and @fresh@ uses 'infoFuncHint' instead of
+-- 'infoNameHint' with @/funKind/@ appended before the unique id.
+fresh :: Maybe Builder -> GenM Builder
+fresh funKind = do
   n <- get <* modify' (+1)
-  hint <- view infoNameHint
+  hint <- case funKind of
+    Nothing -> view infoNameHint
+    Just fk -> (\h -> h <> B.char7 '_' <> fk) <$> view infoFuncHint
   pure $ hint <> B.char7 '_' <> B.wordHex n
 
-stmt :: CExp -> GenM (CVar 'Stack)
-stmt e = do
-  var <- fresh
-  tellStmt $ bunwords
-    [ ctype
-    , var
-    , B.char7 '='
-    , unCExp e <> B.char7 ';'
+declareFresh :: forall x. Known x => Builder -> Maybe Builder -> GenM (CVar x)
+declareFresh varType initExp = do
+  name <- fresh Nothing
+  tellStmt $ mconcat
+    [ varType
+    , case sing @_ @x of
+        SStack -> " "
+        SHeap -> " *"
+    , name
+    , fold $ (" = " <>) <$> initExp
+    , B.char7 ';'
     ]
-  pure (StackVar var)
+  pure case sing @_ @x of
+         SStack -> StackVar name
+         SHeap -> HeapVar name
 
+-- | Writes the result of the given expression into a fresh variable.
+stmt :: CExp -> GenM (CVar 'Stack)
+stmt = declareFresh ctype . Just . unCExp
+
+-- | Clones the result of the given expression into a fresh variable which
+-- lives on the heap instead of the stack.
 clone :: CExp -> GenM (CVar 'Heap)
 clone e = do
-  var <- fresh
-  tellStmt $ bunwords
-    [ ctype
-    , B.char7 '*' <> var
-    , B.char7 '='
-    , callExp funMalloc [sizeofCtype] <> B.char7 ';'
-    ]
-  tellStmt $ callExp funMemcpy [ var, takeAddress e, sizeofCtype ]
-  pure (HeapVar var)
+  var <- declareFresh ctype $ Just $ callExp funMalloc [sizeofCtype]
+  tellStmt $ callExp funMemcpy [ varName var, takeAddress e, sizeofCtype ]
+  pure var
 
+-- | Glues the parts together to yield something looking like a function call.
+-- It is also used to generate function headers and control structures.
 callExp :: Builder -> [Builder] -> Builder
-callExp f args =
-  let args' = mconcat $ List.intersperse ", " $ coerce args
-   in f <> B.char7 '(' <> args' <> B.char7 ')'
+callExp f args = f <> parens (intercalate ", " args)
 
 funMalloc :: Builder
 funMalloc = "malloc"
@@ -263,8 +305,28 @@ tellStmt s = do
 
 
 -- | The type of all LDST values in the generated C code.
+--
+-- @
+-- union LDST_t {
+--   int val_int;
+--   const char *val_label;
+--   union LDST_t *val_pair[2];
+--   struct LDST_lam_t val_lam;
+-- };
+-- @
 ctype :: Builder
-ctype = "LDST_t"
+ctype = "union LDST_t"
+
+-- | The type of lambdas and closures in the generated C code.
+--
+-- @
+-- struct LDST_lam_t {
+--   LDST_t (*lam_fp)(LDST_t *closure, LDST_t arg);
+--   LDST_t *lam_closure;
+-- };
+-- @
+lambdaType :: Builder
+lambdaType = "struct LDST_lam_t"
 
 mkValue :: Tag a -> a -> GenM CExp
 mkValue tag a = liftValue tag <$> case tag of
@@ -274,16 +336,38 @@ mkValue tag a = liftValue tag <$> case tag of
     let (x, y) = a
     CExp x' <- varToExp <$> clone x
     CExp y' <- varToExp <$> clone y
-    pure $ "{ " <> x' <> ", " <> y' <> " }"
+    pure $ braceList Nothing [x', y']
+  TagLam -> do
+    let (fun, capturedIds) = a
+    capturedVars <- flip Map.restrictKeys capturedIds <$> view infoBindings
+    let varCount = length capturedVars
+    closure <- if varCount == 0
+      then do
+        -- `malloc` of size 0 is not allowed, use a NULL closure instead.
+        pure (B.char7 '0')
+      else do
+        let size = B.intDec varCount <> " * " <> sizeofCtype
+        closure <- declareFresh @'Heap ctype $ Just $ callExp funMalloc [size]
+        tellStmt $ callExp funMemcpy
+          [ varName closure
+          , braceList (Just (ctype <> "[]")) (unCExp . varToExp . snd <$> Map.toAscList capturedVars)
+          ]
+        pure $ varName closure
+    pure $ braceList Nothing [fun, closure]
 
 liftValue :: Tag a -> Builder -> CExp
-liftValue tag a = CExp $ bunwords
-  [ "(" <> ctype <> "){"
-  , tagAccessor tag
-  , B.char7 '='
-  , a
-  , B.char7 '}'
-  ]
+liftValue tag a = CExp
+  $ braceList (Just ctype)
+  $ pure
+  $ bunwords
+      [ tagAccessor tag
+      , B.char7 '='
+      , a
+      ]
+
+braceList :: Maybe Builder -> [Builder] -> Builder
+braceList annot bs =
+  foldMap parens annot <> braces (intercalate ", " bs)
 
 access :: Tag a -> CVar x -> Builder
 access tag v = unCExp (varToExp v) <> tagAccessor tag
@@ -293,26 +377,70 @@ accessPair v =
   let b = access TagPair v
    in (HeapVar $ b <> "[0]", HeapVar $ b <> "[1]")
 
+accessLambda :: CVar x -> (Builder, Builder)
+accessLambda v =
+  let b = access TagLam v
+   in (b <> ".lam_fp", b <> ".lam_closure")
+
 varToExp :: CVar x -> CExp
 varToExp = CExp . \case
   StackVar v -> v
-  HeapVar v -> B.char7 '(' <> B.char7 '*' <> v <> B.char7 ')'
+  HeapVar v -> parens (B.char7 '*' <> v)
+
+varName :: CVar x -> Builder
+varName = \case
+  StackVar n -> n
+  HeapVar n -> n
 
 tagAccessor :: Tag a -> Builder
 tagAccessor = \case
-  TagInt -> ".val_int"
+  TagInt   -> ".val_int"
   TagLabel -> ".val_label"
-  TagPair -> ".val_pair"
+  TagPair  -> ".val_pair"
+  TagLam   -> ".val_lam"
 
-tagType :: Tag a -> Builder -> Builder
-tagType tag n = case tag of
-  TagInt -> "int " <> n
+_tagType :: Tag a -> Builder -> Builder
+_tagType tag n = case tag of
+  TagInt   -> "int " <> n
   TagLabel -> "const char *" <> n
-  TagPair -> mconcat [ "union ", ctype, " *", n, "[2]" ]
+  TagPair  -> mconcat [ "union ", ctype, " *", n, "[2]" ]
+  TagLam   -> lambdaType
 
 -- | Concatenate a list of builders using a single space character.
 bunwords :: [Builder] -> Builder
-bunwords = mconcat . List.intersperse (B.char7 ' ')
+bunwords = intercalate (B.char7 ' ')
+
+-- | @"Data.List".'List.intercalate'@ generalized to arbitrary monoids.
+--
+-- >>> intercalate "a" ["x", "y", "z"]
+-- "xayaz"
+-- >>> getDual $ intercalate (Dual "a") (Dual <$> ["x", "y", "z"])
+-- "zayax"
+intercalate :: Monoid a => a -> [a] -> a
+intercalate a = mconcat . List.intersperse a
+
+-- | @surround l r a@ adds @l@ to the left of @a@ and @r@ to the right.
+--
+-- >>> surround "(" ")" "abc"
+-- "(abc)"
+surround :: Semigroup a => a -> a -> a -> a
+surround l r a = l <> a <> r
+
+-- | Wraps the given builder in parentheses.
+--
+-- @
+-- parens b === surround "(" ")" b
+-- @
+parens :: Builder -> Builder
+parens = surround (B.char7 '(') (B.char7 ')')
+
+-- | Wraps the given builder in parentheses.
+--
+-- @
+-- braces b === surround "{" "}" b
+-- @
+braces :: Builder -> Builder
+braces = surround (B.char7 '{') (B.char7 '}')
 
 -- | Escapes an LDST identifier for use in C code. It is based on the
 --   z-encoding used in GHC.

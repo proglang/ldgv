@@ -29,6 +29,7 @@ library
   other-modules: Tokens
                , Grammar
                , Kinds
+               , Singletons
                , Subtyping
                , TCSubtyping
                , TCTyping
