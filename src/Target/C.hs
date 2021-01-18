@@ -232,7 +232,8 @@ generateExp = \case
   Var v -> do
     v' <- view (infoBindings . at v)
     maybe (doesNotExist v) (pure . varToExp) v'
-  Unit -> undefined
+  Unit -> do
+    pure $ CExp $ parens ctype <> unitInit
   Lab lbl -> do
     mkValue TagLabel lbl
   e@(Lam _ argId _ body) -> do
@@ -280,7 +281,7 @@ generateExp = \case
     -- TODO: Should we assume that the matching branch always exists? Or check
     -- all branches and panic, in case none matches?
     label <- access TagLabel <$> (stmt =<< generateExp e)
-    result <- declareFresh @'Stack ctype Nothing
+    result <- declareFresh @'Stack ctype unitInit
     let buildBranch :: (String, Exp) -> StateT Builder GenM ()
         buildBranch (branchLabel, branchExp) = do
           ifB <- get <* put "else if "
@@ -328,7 +329,7 @@ fresh funKind = do
     Just fk -> (\h -> h <> B.char7 '_' <> fk) <$> view infoFuncHint
   pure $ hint <> B.char7 '_' <> B.wordHex n
 
-declareFresh :: forall x. Known x => Builder -> Maybe Builder -> GenM (CVar x)
+declareFresh :: forall x. Known x => Builder -> Builder -> GenM (CVar x)
 declareFresh varType initExp = do
   name <- fresh Nothing
   tellStmt $ terminate $ mconcat
@@ -337,21 +338,25 @@ declareFresh varType initExp = do
         SStack -> " "
         SHeap -> " *"
     , name
-    , fold $ (" = " <>) <$> initExp
+    , " = "
+    , initExp
     ]
   pure case sing @_ @x of
          SStack -> StackVar name
          SHeap -> HeapVar name
 
+unitInit :: Builder
+unitInit = "{ 0 }"
+
 -- | Writes the result of the given expression into a fresh variable.
 stmt :: CExp -> GenM (CVar 'Stack)
-stmt = declareFresh ctype . Just . unCExp
+stmt = declareFresh ctype . unCExp
 
 -- | Clones the result of the given expression into a fresh variable which
 -- lives on the heap instead of the stack.
 clone :: CExp -> GenM (CVar 'Heap)
 clone e = do
-  var <- declareFresh ctype $ Just $ callExp funMalloc [sizeofCtype]
+  var <- declareFresh ctype $ callExp funMalloc [sizeofCtype]
   val <- stmt e
   tellStmt $ terminate $ callExp funMemcpy [ varName var, takeAddress val, sizeofCtype ]
   pure var
@@ -426,7 +431,7 @@ mkClosure vars = do
       pure (B.char7 '0')
     else do
       let size = B.intDec (length captureExprs) <> " * " <> sizeofCtype
-      closure <- declareFresh @'Heap ctype $ Just $ callExp funMalloc [size]
+      closure <- declareFresh @'Heap ctype $ callExp funMalloc [size]
       tellStmt $ terminate $ callExp funMemcpy
         [ varName closure
         , braceList (Just (ctype <> "[]")) captureExprs
