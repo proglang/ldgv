@@ -197,11 +197,7 @@ generateFunction' topLevelFun = evalQueueT [topLevelFun] $ execWriterT go
     genBody :: Function -> GenM ()
     genBody fun = do
       result <- generateExp (funBody fun)
-      tellStmt $ mconcat
-        [ "return "
-        , unCExp result
-        , B.char7 ';'
-        ]
+      tellStmt $ terminate $ "return " <> unCExp result
 
     complete :: Builder -> CStmt -> (Builder, Builder)
     complete signature (CStmt body) =
@@ -289,11 +285,11 @@ generateExp = \case
         buildBranch (branchLabel, branchExp) = do
           ifB <- get <* put "else if "
           let cmpExp = callExp funStrcmp [label, labelForC branchLabel] <> " == 0"
-          lift $ tellStmt $ callExp ifB [cmpExp] <> " {"
+          lift $ tellStmt $ CStmt $ callExp ifB [cmpExp] <> " {"
           lift $ local (infoIndent +~ 1) do
             e' <- generateExp branchExp
-            tellStmt $ bunwords [ unCExp (varToExp result), B.char7 '=', unCExp e' <> B.char7 ';' ]
-          lift $ tellStmt "}"
+            tellStmt $ terminate $ bunwords [ unCExp (varToExp result), B.char7 '=', unCExp e' ]
+          lift $ tellStmt $ CStmt "}"
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
     pure $ varToExp result
 
@@ -335,14 +331,13 @@ fresh funKind = do
 declareFresh :: forall x. Known x => Builder -> Maybe Builder -> GenM (CVar x)
 declareFresh varType initExp = do
   name <- fresh Nothing
-  tellStmt $ mconcat
+  tellStmt $ terminate $ mconcat
     [ varType
     , case sing @_ @x of
         SStack -> " "
         SHeap -> " *"
     , name
     , fold $ (" = " <>) <$> initExp
-    , B.char7 ';'
     ]
   pure case sing @_ @x of
          SStack -> StackVar name
@@ -357,7 +352,7 @@ stmt = declareFresh ctype . Just . unCExp
 clone :: CExp -> GenM (CVar 'Heap)
 clone e = do
   var <- declareFresh ctype $ Just $ callExp funMalloc [sizeofCtype]
-  tellStmt $ callExp funMemcpy [ varName var, takeAddress e, sizeofCtype ]
+  tellStmt $ terminate $ callExp funMemcpy [ varName var, takeAddress e, sizeofCtype ]
   pure var
 
 -- | Glues the parts together to yield something looking like a function call.
@@ -386,8 +381,8 @@ takeAddress (CExp e) = B.char7 '&' <> e
 -- | Adds some generated code to the output.
 --
 -- /Note:/ It is the callers job to include the trailing semicolon.
-tellStmt :: Builder -> GenM ()
-tellStmt s = do
+tellStmt :: CStmt -> GenM ()
+tellStmt (CStmt s) = do
   lvl <- view infoIndent
   let !indent = stimes (lvl * 2) (B.char7 ' ')
   tell $ CStmt $ indent <> s <> B.char7 '\n'
@@ -431,9 +426,10 @@ mkClosure vars = do
     else do
       let size = B.intDec (length captureExprs) <> " * " <> sizeofCtype
       closure <- declareFresh @'Heap ctype $ Just $ callExp funMalloc [size]
-      tellStmt $ callExp funMemcpy
+      tellStmt $ terminate $ callExp funMemcpy
         [ varName closure
         , braceList (Just (ctype <> "[]")) captureExprs
+        , size
         ]
       pure $ varName closure
   pure Closure
@@ -548,6 +544,14 @@ braces = surround (B.char7 '{') (B.char7 '}')
 -- @
 brackets :: Builder -> Builder
 brackets = surround (B.char7 '[') (B.char7 ']')
+
+-- | Appends a semicolon to the given builder
+--
+-- @
+-- terminate b === b <> ";"
+-- @
+terminate :: Builder -> CStmt
+terminate b = CStmt $ b <> B.char7 ';'
 
 -- | Escapes an LDST identifier for use in C code. It is based on the
 --   z-encoding used in GHC.
