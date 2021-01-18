@@ -352,7 +352,8 @@ stmt = declareFresh ctype . Just . unCExp
 clone :: CExp -> GenM (CVar 'Heap)
 clone e = do
   var <- declareFresh ctype $ Just $ callExp funMalloc [sizeofCtype]
-  tellStmt $ terminate $ callExp funMemcpy [ varName var, takeAddress e, sizeofCtype ]
+  val <- stmt e
+  tellStmt $ terminate $ callExp funMemcpy [ varName var, takeAddress val, sizeofCtype ]
   pure var
 
 -- | Glues the parts together to yield something looking like a function call.
@@ -372,10 +373,10 @@ funStrcmp = "strcmp"
 sizeofCtype :: Builder
 sizeofCtype = callExp "sizeof" [ctype]
 
-takeAddress :: CExp -> Builder
-takeAddress (CExp e) = B.char7 '&' <> e
--- It is ok to take the address here of the expression in `e`, even if it
--- evaluates to a temporary object.
+takeAddress :: CVar x -> Builder
+takeAddress = \case
+  StackVar v -> B.char7 '&' <> v
+  HeapVar v -> v
 
 
 -- | Adds some generated code to the output.
@@ -443,8 +444,8 @@ mkValue tag a = liftValue tag <$> case tag of
   TagLabel -> pure $ labelForC a
   TagPair -> do
     let (x, y) = a
-    CExp x' <- varToExp <$> clone x
-    CExp y' <- varToExp <$> clone y
+    x' <- takeAddress <$> clone x
+    y' <- takeAddress <$> clone y
     pure $ braceList Nothing [x', y']
   TagLam -> do
     let (fun, closure) = a
