@@ -10,6 +10,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wall #-}
@@ -19,6 +20,7 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.RWS.Strict
 import Control.Monad.State.Strict
+import Control.Monad.Writer.Strict
 import Data.Bifunctor
 import Data.ByteString.Builder (Builder)
 import Data.Foldable
@@ -61,7 +63,27 @@ data Tag a where
   TagInt :: Tag Int
   TagLabel :: Tag String
   TagPair :: Tag (CExp, CExp)
-  TagLam :: Tag (Builder, Set Ident)
+  TagLam :: Tag (Builder, Closure)
+
+data Function = Function
+  { funName    :: !Builder
+  , funHint    :: !Builder
+    -- ^ See '_infoNameHint'.
+  , funArgs    :: ![Ident]
+    -- ^ The functions parameters, not including any potential closure arguments.
+  , funBody    :: !Exp
+  , funClosure :: !(Maybe [Ident])
+    -- ^ @Just vars@ if the first parameter of the function should be a closure
+    -- argument.
+  }
+
+data Closure = Closure
+  { closureVars :: ![Ident]
+    -- ^ List of captured identifiers. The order corresponds to the order in
+    -- the C code in 'closureExpr'.
+  , closureExpr :: !Builder
+    -- ^ An expression of type @union LDST_t*@.
+  }
 
 data Info = Info
   { _infoBindings :: !(Map Ident (CVar 'Stack))
@@ -83,60 +105,113 @@ data Info = Info
 
 makeLenses ''Info
 
-type GenM = RWST Info CStmt Word (Either String)
+type GenM =
+  RWST Info CStmt Word
+    (QueueT Function (Either String))
+
+newtype QueueT q m a = QueueT { unQueueT :: StateT [q] m a }
+  deriving newtype (Functor, Applicative, Monad, MonadError e, MonadWriter w)
+
+evalQueueT :: Monad m => [q] -> QueueT q m a -> m a
+evalQueueT qs = flip evalStateT qs . unQueueT
+
+pushQ :: Monad m => q -> QueueT q m ()
+pushQ q = QueueT $ modify (q :)
+
+popQ :: Monad m => QueueT q m (Maybe q)
+popQ = QueueT do
+  qs <- get
+  case qs of
+    [] -> pure Nothing
+    q:qs' -> Just q <$ put qs'
 
 generate :: [Decl] -> Either String Builder
-generate = first (List.intercalate "\n" . toList) . validationToEither . foldMap \case
+generate = bimap concatErrors (uncurry joinParts) . validationToEither . foldMap \case
   DFun name args body _ -> generateFunction name args body
   _ -> mempty
+  where
+    joinParts decls defs = decls <> "\n" <> defs
+    concatErrors = intercalate "\n\n" . toList
 
 generateFunction
   :: Ident
   -> [(Multiplicity, Ident, Type)]
   -> Exp
-  -> Validation (NonEmpty String) Builder
+  -> Validation (NonEmpty String) (Builder, Builder)
 generateFunction name args body =
-  let (argsBuilder, argsBindings) = L.fold (view _2 `L.premap`  goArgId) args
-
-      goArgId = (,)
-        <$> (\idn -> ctype <> B.char7 ' ' <> identForC idn) `L.premap` L.list
-        <*> (\idn -> (idn, StackVar (identForC idn))) `L.premap` L.map
-
-      funHeader = bunwords
-        [ ctype
-        , callExp (functionForC name) argsBuilder
-        , "{\n"
-        ]
-
-      funClose = "}\n\n"
-
-      addContext err =
+  let addContext err =
         "in function ‘" ++ name ++ "’:\n" ++ err
 
-      genBody = do
-        result <- generateExp body
-        tellStmt $ mconcat
-          [ "return "
-          , unCExp result
-          , B.char7 ';'
-          ]
-
-      completeFunction (CStmt body') = mconcat
-        [ funHeader
-        , body'
-        , funClose
-        ]
-
-      info = Info
-        { _infoBindings = argsBindings -- TODO: include other functions
-        , _infoNameHint = identForC name
-        , _infoFuncHint = functionForC name
-        , _infoIndent = 1
+      root = Function
+        { funName = functionForC name
+        , funHint = identForC name
+        , funArgs = view _2 <$> args
+        , funBody = body
+        , funClosure = Nothing
         }
 
    in eitherToValidation
-        $ bimap (pure . addContext) (completeFunction . snd)
-        $ evalRWST genBody info 0
+        $ first (pure . addContext)
+        $ generateFunction' root
+
+
+generateFunction' :: Function ->  Either String (Builder, Builder)
+generateFunction' topLevelFun = evalQueueT [topLevelFun] $ execWriterT go
+  where
+    go = lift popQ >>= \case
+      Nothing -> pure ()
+      Just fun -> do
+        let (sig, bindings) = genSignature fun
+
+        let info = Info
+              { _infoBindings = bindings -- TODO: Other top-level functions
+              , _infoNameHint = funHint fun
+              , _infoFuncHint = funName fun
+              , _infoIndent = 1
+              }
+
+        (_, body) <- lift $ evalRWST (genBody fun) info 0
+        tell $ complete sig body
+        go
+
+    genSignature :: Function -> (Builder, Map Ident (CVar 'Stack))
+    genSignature fun =
+      let (args, bindings) = L.fold goArgId (funArgs fun)
+
+          (args', bindings') =
+            case funClosure fun of
+              Nothing -> (args, bindings)
+              Just clsr ->
+                let clsrName = "ldst_closure"
+                    clsrBindings = Map.fromList
+                      $ zip clsr
+                      $ fmap (\i -> StackVar $ clsrName <> brackets (B.intDec i)) [0..]
+                 in ((ctype <> " *" <> clsrName) : args, bindings <> clsrBindings)
+
+      in (functionHeader ctype (funName fun) args', bindings')
+
+    goArgId = (,)
+      <$> (\idn -> ctype <> B.char7 ' ' <> identForC idn) `L.premap` L.list
+      <*> (\idn -> (idn, StackVar (identForC idn))) `L.premap` L.map
+
+    genBody :: Function -> GenM ()
+    genBody fun = do
+      result <- generateExp (funBody fun)
+      tellStmt $ mconcat
+        [ "return "
+        , unCExp result
+        , B.char7 ';'
+        ]
+
+    complete :: Builder -> CStmt -> (Builder, Builder)
+    complete signature (CStmt body) =
+      let function = mconcat
+            [ signature
+            , "\n{\n"
+            , body
+            , "}\n\n"
+            ]
+       in (signature <> ";\n", function)
 
 
 generateExp :: Exp -> GenM CExp
@@ -164,10 +239,17 @@ generateExp = \case
   Unit -> undefined
   Lab lbl -> do
     mkValue TagLabel lbl
-  Lam _ argId _ body -> do
-    -- TODO: Generate actual code for the lambda.
+  e@(Lam _ argId _ body) -> do
     name <- fresh (Just "lam")
-    mkValue TagLam (name, Set.fromList (filter (/= argId) (fv body)))
+    closure <- mkClosure $ Set.fromList $ fv e
+    lift $ pushQ $ Function
+      { funName = name
+      , funHint = "lam"
+      , funArgs = [argId]
+      , funBody = body
+      , funClosure = Just $! closureVars closure
+      }
+    mkValue TagLam (name, closure)
   Rec{} -> undefined
   App funExp argExp -> do
     -- TODO: Directly call statically known top level functions.
@@ -230,6 +312,10 @@ mathOp c a b = do
   pure
     $ liftValue TagInt
     $ bunwords [ access TagInt a', B.char7 c, access TagInt b' ]
+
+functionHeader :: Builder -> Builder -> [Builder] -> Builder
+functionHeader ret name args =
+  ret <> B.char7 ' ' <> callExp name args
 
 -- | Generates a guaranteed fresh name for the current function. The returned
 -- identifier is suitable for use in C code provided that 'infoNameHint' and
@@ -297,6 +383,9 @@ takeAddress (CExp e) = B.char7 '&' <> e
 -- evaluates to a temporary object.
 
 
+-- | Adds some generated code to the output.
+--
+-- /Note:/ It is the callers job to include the trailing semicolon.
 tellStmt :: Builder -> GenM ()
 tellStmt s = do
   lvl <- view infoIndent
@@ -328,6 +417,30 @@ ctype = "union LDST_t"
 lambdaType :: Builder
 lambdaType = "struct LDST_lam_t"
 
+mkClosure :: Set Ident -> GenM Closure
+mkClosure vars = do
+  knownVars <- view infoBindings
+  let (capturedVars, captureExprs) = unzip $
+        Map.restrictKeys knownVars vars
+          & Map.toAscList
+          & fmap (second (unCExp . varToExp))
+  expr <- if null captureExprs
+    then do
+      -- `malloc` of size 0 is not allowed, use a NULL closure instead.
+      pure (B.char7 '0')
+    else do
+      let size = B.intDec (length captureExprs) <> " * " <> sizeofCtype
+      closure <- declareFresh @'Heap ctype $ Just $ callExp funMalloc [size]
+      tellStmt $ callExp funMemcpy
+        [ varName closure
+        , braceList (Just (ctype <> "[]")) captureExprs
+        ]
+      pure $ varName closure
+  pure Closure
+    { closureVars = capturedVars
+    , closureExpr = expr
+    }
+
 mkValue :: Tag a -> a -> GenM CExp
 mkValue tag a = liftValue tag <$> case tag of
   TagInt -> pure $ B.intDec a
@@ -338,22 +451,8 @@ mkValue tag a = liftValue tag <$> case tag of
     CExp y' <- varToExp <$> clone y
     pure $ braceList Nothing [x', y']
   TagLam -> do
-    let (fun, capturedIds) = a
-    capturedVars <- flip Map.restrictKeys capturedIds <$> view infoBindings
-    let varCount = length capturedVars
-    closure <- if varCount == 0
-      then do
-        -- `malloc` of size 0 is not allowed, use a NULL closure instead.
-        pure (B.char7 '0')
-      else do
-        let size = B.intDec varCount <> " * " <> sizeofCtype
-        closure <- declareFresh @'Heap ctype $ Just $ callExp funMalloc [size]
-        tellStmt $ callExp funMemcpy
-          [ varName closure
-          , braceList (Just (ctype <> "[]")) (unCExp . varToExp . snd <$> Map.toAscList capturedVars)
-          ]
-        pure $ varName closure
-    pure $ braceList Nothing [fun, closure]
+    let (fun, closure) = a
+    pure $ braceList Nothing [fun, closureExpr closure]
 
 liftValue :: Tag a -> Builder -> CExp
 liftValue tag a = CExp
@@ -441,6 +540,14 @@ parens = surround (B.char7 '(') (B.char7 ')')
 -- @
 braces :: Builder -> Builder
 braces = surround (B.char7 '{') (B.char7 '}')
+
+-- | Wraps the given builder in brackets.
+--
+-- @
+-- brackets b === surround "[" "]" b
+-- @
+brackets :: Builder -> Builder
+brackets = surround (B.char7 '[') (B.char7 ']')
 
 -- | Escapes an LDST identifier for use in C code. It is based on the
 --   z-encoding used in GHC.
