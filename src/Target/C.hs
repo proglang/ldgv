@@ -38,7 +38,6 @@ import qualified Control.Foldl as L
 import qualified Data.ByteString.Builder as B
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import qualified Paths_ldgv
 
 -- | Represents values lifted into the @LDST_t@ type.
@@ -284,7 +283,7 @@ generateExp = \case
     mkValue TagLabel lbl
   e@(Lam _ argId _ body) -> do
     name <- fresh (Just "lam")
-    closure <- mkClosure $ Set.fromList $ fv e
+    closure <- mkClosure $ fv e
     lift $ pushQ $ Function
       { funName = name
       , funHint = "lam"

@@ -2,7 +2,9 @@ module TCSubtyping where
 
 import Control.Applicative
 import Control.Monad (when, ap)
-import Data.List (union, intersect, nub, sort, (\\))
+import Data.List (nub, sort)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import qualified Config as D
 
@@ -242,8 +244,7 @@ eqvtype' tenv ty1 ty2@(TNatRec e tz tv ts)
           if incache then
             return Kunit        -- TODO!! unhack
             else
-            eqvtype tenv ty1 ty2'
-  -- need to do something about tv1: unfolding should be ok as we have a constant
+            eqvtype tenv ty1 ty2  -- need to do something about tv1: unfolding should be ok as we have a constant
 
 eqvtype' tenv ty1 ty2@(TNatRec val@(Var n) tz tv ts) = 
   do varlookupNat n tenv
@@ -272,10 +273,11 @@ eqvtype tenv t1 t2 = do
   return $ D.trace ("eqvtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ show r) r
 
 -- close a type wrt typing environment
-complete [] tenv ty = ty
+complete :: Set Ident -> TEnv -> Type -> Type
+complete xs tenv ty | Set.null xs = ty
 complete xs ((x, (_, tx)) : tenv) ty =
   if x `elem` xs
-  then complete (xs \\ [x]) tenv (TAbs x tx ty)
+  then complete (Set.delete x xs) tenv (TAbs x tx ty)
   else complete xs tenv ty
 complete xs [] ty =
   error ("complete failed on " ++ pshow ty)

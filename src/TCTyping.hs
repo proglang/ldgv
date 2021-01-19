@@ -2,7 +2,7 @@
 module TCTyping where
 
 import Control.Monad (zipWithM, ap)
-import Data.List ((\\))
+import qualified Data.Set as Set
 
 import qualified Debug.Trace as DT
 import qualified Config as D
@@ -161,7 +161,7 @@ tySynth te e =
         TC.mfail ("Function expected, but got " ++ pshow tf ++ " (" ++ pshow tfu ++ ")")
 
   Pair mul x e1@(Var y) e2 -> do
-    let x' = freshvar x (fv e1 ++ (fv e2 \\ [x]))
+    let x' = freshvar x $ fv e1 <> Set.delete x (fv e2)
         e2' = subst x (Var x') e2
         ty1' = TSingle y
     (ty1, te1) <- tySynth te e1
@@ -171,7 +171,7 @@ tySynth te e =
     strengthen e (TPair mul x' ty1' ty2, te2)
 
   Pair mul x e1 e2 -> do
-    let x' = freshvar x (fv e1 ++ (fv e2 \\ [x]))
+    let x' = freshvar x $ fv e1 <> Set.delete x (fv e2)
         e2' = subst x (Var x') e2
     (ty1, te1) <- tySynth te e1
     (ki1, mu1) <- kiSynth (demoteTE te) ty1

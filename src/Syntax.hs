@@ -1,6 +1,8 @@
 module Syntax where
 
-import Data.List (union, (\\), sortBy, sort)
+import Data.List (foldl', sortBy, sort)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Kinds
 
@@ -128,60 +130,60 @@ type KEnv = [(TIdent, KEnvEntry)]
 
 -- free expression variables
 class Freevars t where
-  fv :: t -> [Ident]
+  fv :: t -> Set Ident
 
 instance Freevars Exp where
-  fv (Let x e1 e2) = fv e1 `union` (fv e2 \\ [x])
-  fv (Plus e1 e2) = fv e1 `union` fv e2
-  fv (Minus e1 e2) = fv e1 `union` fv e2
-  fv (Times e1 e2) = fv e1 `union` fv e2
-  fv (Div e1 e2) = fv e1 `union` fv e2
+  fv (Let x e1 e2) = fv e1 <> Set.delete x (fv e2)
+  fv (Plus e1 e2) = fv e1 <> fv e2
+  fv (Minus e1 e2) = fv e1 <> fv e2
+  fv (Times e1 e2) = fv e1 <> fv e2
+  fv (Div e1 e2) = fv e1 <> fv e2
   fv (Negate e1) = fv e1
-  fv (Int n) = []
-  fv (Var x) = [x]
-  fv Unit = []
-  fv (Lab lab) = []
-  fv (Lam m x t e) = fv t `union` (fv e \\ [x])
-  fv (Rec f x t1 t2 e) = fv t1 `union` fv t2 `union` (fv e \\ [f, x])
-  fv (App e1 e2) = fv e1 `union` fv e2
-  fv (Pair m x e1 e2) = fv e1 `union` (fv e2 \\ [x])
-  fv (LetPair x y e1 e2) = fv e1 `union` (fv e2 \\ [x, y])
+  fv (Int n) = Set.empty
+  fv (Var x) = Set.singleton x
+  fv Unit = Set.empty
+  fv (Lab lab) = Set.empty
+  fv (Lam m x t e) = fv t <> Set.delete x (fv e)
+  fv (Rec f x t1 t2 e) = fv t1 <> fv t2 <> Set.delete f (Set.delete x (fv e))
+  fv (App e1 e2) = fv e1 <> fv e2
+  fv (Pair m x e1 e2) = fv e1 <> Set.delete x (fv e2)
+  fv (LetPair x y e1 e2) = fv e1 <> Set.delete x (Set.delete y (fv e2))
   fv (Fst e1) = fv e1
   fv (Snd e1) = fv e1
   fv (Fork e1) = fv e1
   fv (New ty) = fv ty
   fv (Send e1) = fv e1
   fv (Recv e1) = fv e1
-  fv (Case e cases) = fv e `union` foldr union [] (map (fv . snd) cases)
-  fv (Nat n) = []
-  fv (NatRec e ez x t y tyy es) = fv e `union` fv ez `union` (fv es \\ [x, y]) `union` fv tyy
+  fv (Case e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
+  fv (Nat n) = Set.empty
+  fv (NatRec e ez x t y tyy es) = fv e <> fv ez <> Set.delete x (Set.delete y (fv es)) <> fv tyy
 
 instance Freevars Type where
-  fv TUnit = []
-  fv TInt = []
-  fv TBot = []
-  fv (TName b tn) = []
-  fv (TVar b tv) = []
-  fv (TLab labs) = []
-  fv (TFun m x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv (TPair m x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv (TSend x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv (TRecv x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv (TCase e cases) = fv e `union` foldr union [] (map (fv . snd) cases)
-  fv (TEqn e1 e2 ty) = fv e1 `union` fv e2 `union` fv ty
-  fv (TSingle x) = [x]
-  fv (TNat) = []
-  fv (TNatRec e tz y ts) = fv e `union` fv tz `union` (fv ts \\ [y])
-  fv (TAbs x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
+  fv TUnit = Set.empty
+  fv TInt = Set.empty
+  fv TBot = Set.empty
+  fv (TName b tn) = Set.empty
+  fv (TVar b tv) = Set.empty
+  fv (TLab labs) = Set.empty
+  fv (TFun m x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TPair m x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TSend x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TRecv x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TCase e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
+  fv (TEqn e1 e2 ty) = fv e1 <> fv e2 <> fv ty
+  fv (TSingle x) = Set.singleton x
+  fv TNat = Set.empty
+  fv (TNatRec e tz y ts) = fv e <> fv tz <> Set.delete y (fv ts)
+  fv (TAbs x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
 
 instance Freevars TypeSegment where
   fv ts = fv (segTy ts)
 
 instance (Freevars t) => Freevars [t] where
-  fv xs = foldr union [] $ map fv xs
+  fv xs = foldl' (<>) Set.empty $ map fv xs
 
 instance (Freevars t1, Freevars t2) => Freevars (t1, t2) where
-  fv (x1,x2) = fv x1 `union` fv x2
+  fv (x1, x2) = fv x1 <> fv x2
 
 -- substitution 
 class Substitution t where
@@ -299,11 +301,11 @@ single x tyx ty =
 varsupply :: Ident -> [Ident]
 varsupply x = x : [ x ++ show n | n <- [0..]]
 
--- freshvar template prohibited_vars
-freshvar :: Ident -> [Ident] -> Ident
-freshvar x vars = head [ x' | x' <- varsupply x, not (x' `elem` vars)]
+-- | @freshvar template prohibited_vars@
+freshvar :: Ident -> Set Ident -> Ident
+freshvar x vars = head [ x' | x' <- varsupply x,  x' `Set.notMember` vars]
 
--- equality for types modulo alpha equivalence
+-- | equality for types modulo alpha equivalence
 instance Eq Type where
   TUnit == TUnit = True
   TInt  == TInt  = True
@@ -312,21 +314,21 @@ instance Eq Type where
   TVar b s == TVar b' s' = b == b' && s == s'
   TLab labs == TLab labs'  = sort labs == sort labs'
   TFun m x t1 t2 == TFun n y s1 s2 =
-       m ==n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
+      m == n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TPair m x t1 t2 == TPair n y s1 s2 =
-       m ==n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
+      m == n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TSend x t1 t2 == TSend y s1 s2 =
        t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TRecv x t1 t2 == TRecv y s1 s2 =
        t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TCase e cases == TCase e' cases' =
       labs == labs' && e == e' && and (zipWith (==) scases scases')
     where
@@ -346,11 +348,11 @@ instance Eq Type where
     tz == tz' &&
     tsubst x (TName True z) ts == tsubst x' (TName True z) ts'
     where                       -- TODO: should use free type names
-      z = freshvar x ((fv ts \\ [x]) `union` (fv ts' \\ [x']))
+      z = freshvar x $ Set.delete x (fv ts) <> Set.delete x' (fv ts')
   TAbs x t1 t2 == TAbs y s1 s2 =
        t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   -- catchall
   _ == _ = False
 
