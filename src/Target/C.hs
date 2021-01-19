@@ -153,7 +153,7 @@ header = bunlines
   , "//"
   , ""
   , "#include <stdlib.h>    // malloc"
-  , "#include <string.h>    // memcpy"
+  , "#include <string.h>    // strcmp"
   , ""
   , "// Forward declarations"
   , unCStmt $ terminate ctype
@@ -402,8 +402,7 @@ stmt = declareFresh ctype . unCExp
 clone :: CExp -> GenM (CVar 'Heap)
 clone e = do
   var <- declareFresh ctype $ callExp funMalloc [sizeofCtype]
-  val <- stmt e
-  tellStmt $ terminate $ callExp funMemcpy [ varName var, takeAddress val, sizeofCtype ]
+  tellAssign var e
   pure var
 
 -- | Glues the parts together to yield something looking like a function call.
@@ -411,11 +410,22 @@ clone e = do
 callExp :: Builder -> [Builder] -> Builder
 callExp f args = f <> parens (intercalate ", " args)
 
+tellAssign :: CVar x -> CExp -> GenM ()
+tellAssign var val = tellStmt $ terminate $ bunwords
+  [ unCExp (varToExp var)
+  , B.char7 '='
+  , unCExp val
+  ]
+
+tellAssignI :: CVar 'Heap -> Int -> CExp -> GenM ()
+tellAssignI var idx val = tellStmt $ terminate $ bunwords
+  [ varName var <> brackets (B.intDec idx)
+  , B.char7 '='
+  , unCExp val
+  ]
+
 funMalloc :: Builder
 funMalloc = "malloc"
-
-funMemcpy :: Builder
-funMemcpy = "memcpy"
 
 funStrcmp :: Builder
 funStrcmp = "strcmp"
@@ -466,22 +476,20 @@ lambdaType = "struct LDST_lam_t"
 mkClosure :: Set Ident -> GenM Closure
 mkClosure vars = do
   knownVars <- view infoBindings
-  let (capturedVars, captureExprs) = unzip $
-        Map.restrictKeys knownVars vars
-          & Map.toAscList
-          & fmap (second (unCExp . varToExp))
-  expr <- if null captureExprs
+  let (capturedVars, captureExprs) =
+        unzip
+          $ Map.toAscList
+          $ Map.restrictKeys knownVars vars
+  let capturedCount = length captureExprs
+  expr <- if capturedCount == 0
     then do
-      -- `malloc` of size 0 is not allowed, use a NULL closure instead.
+      -- `malloc` of size zero is not allowed, use a NULL closure instead.
       pure (B.char7 '0')
     else do
       let size = B.intDec (length captureExprs) <> " * " <> sizeofCtype
       closure <- declareFresh @'Heap ctype $ callExp funMalloc [size]
-      tellStmt $ terminate $ callExp funMemcpy
-        [ varName closure
-        , braceList (Just (ctype <> "[]")) captureExprs
-        , size
-        ]
+      ifor_ captureExprs \idx expr ->
+        tellAssignI closure idx (varToExp expr)
       pure $ varName closure
   pure Closure
     { closureVars = capturedVars
