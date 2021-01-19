@@ -42,6 +42,14 @@ actionParser = do
       pure $ interpret inPath
 
     compileParser = do
+      mainCall <- optional $ Opts.strOption $ mconcat
+        [ Opts.long "main"
+        , Opts.short 'm'
+        , Opts.metavar "DECL"
+        , Opts.help "Generate a ‘main()’ function, it evaluates the given \
+            \declaration which must have a type signature and have no \
+            \parameters."
+        ]
       outPath <- optional $ Opts.strOption $ mconcat
         [ Opts.long "output"
         , Opts.short 'o'
@@ -49,7 +57,7 @@ actionParser = do
         , Opts.help "Write the generated C code to FILE or to STDOUT if not given."
         ]
       inPath <- optional inPathArg
-      pure $ compile inPath outPath
+      pure $ compile inPath outPath mainCall
 
     inPathArg = Opts.strArgument $ mconcat
         [ Opts.metavar "SRC-FILE"
@@ -83,13 +91,13 @@ interpret minput debug = do
     (\v -> "Result: " ++ show v)
     (res :: Either SomeException P.Value)
 
-compile :: Maybe FilePath -> Maybe FilePath -> Bool -> IO ()
-compile minput moutput debug = do
+compile :: Maybe FilePath -> Maybe FilePath -> Maybe String -> Bool -> IO ()
+compile minput moutput entryPoint debug = do
   decls <- parseInput minput
   if debug
      then runOutIO $ typecheck decls
      else runOutIgnore $ typecheck decls
-  case C.generate decls of
+  case C.generate entryPoint decls of
     Left err -> do
       hPutStrLn stderr err
       exitFailure

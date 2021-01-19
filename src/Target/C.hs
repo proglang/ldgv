@@ -131,8 +131,8 @@ popQ = QueueT do
     [] -> pure Nothing
     q:qs' -> Just q <$ put qs'
 
-generate :: [Decl] -> Either String Builder
-generate = bimap concatErrors (uncurry joinParts) . validationToEither . foldMap \case
+generate :: Maybe Ident -> [Decl] -> Either String Builder
+generate _entryPoint = bimap concatErrors (uncurry joinParts) . validationToEither . foldMap \case
   DFun name args body _ -> do
     -- Curry the function.
     let lambdaBody = foldr (\(m, idn, ty) -> Lam m idn ty) body args
