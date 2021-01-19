@@ -43,6 +43,9 @@ import qualified Paths_ldgv
 
 -- | Represents values lifted into the @LDST_t@ type.
 newtype CExp = CExp { unCExp :: Builder }
+-- TODO: By using an ADT to differentiate what the expression might represent
+-- we could generate more idiomatic code. This isn't terribly necessary though,
+-- the common C compilers are able to understand our intentions quite well.
 
 data Location = Stack | Heap
 
