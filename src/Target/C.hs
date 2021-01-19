@@ -274,7 +274,7 @@ generateExp = \case
   Succ e -> do
     e' <- stmt =<< generateExp e
     pure $ liftValue TagInt $ access TagInt e' <> "+ 1"
-  NatRec{} -> undefined
+  NatRec{} -> throwError "natrec: not yet implemented"
   Var v -> do
     v' <- view (infoBindings . at v)
     maybe (doesNotExist v) (pure . varToExp) v'
@@ -293,7 +293,7 @@ generateExp = \case
       , funClosure = Just $! closureVars closure
       }
     mkValue TagLam (name, closure)
-  Rec{} -> undefined
+  Rec{} -> throwError "rec: not yet implemented"
   App funExp argExp -> do
     -- TODO: Directly call statically known top level functions.
     lam <- stmt =<< generateExp funExp
@@ -315,11 +315,10 @@ generateExp = \case
     varToExp . fst . accessPair <$> (stmt =<< generateExp e)
   Snd e -> do
     varToExp . snd . accessPair <$> (stmt =<< generateExp e)
-  Fork e -> undefined
-  New t -> undefined
-  Send e -> undefined
-  Recv e -> undefined
-
+  Fork _ -> throwError "fork: not yet implemented"
+  New _ -> throwError "new: not yet implemented"
+  Send _ -> throwError "send: not yet implemented"
+  Recv _ -> throwError "recv: not yet implemented"
   Case e cs -> do
     -- TODO: It is possible to arrange the comparisons to find the correct
     -- branch in O(log n) steps.
