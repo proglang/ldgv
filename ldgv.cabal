@@ -36,6 +36,7 @@ library
                , TCXMonad
                , Typing
                , PrettySyntax
+               , Paths_ldgv
   build-tools: alex, happy
   build-depends: base
                , array
