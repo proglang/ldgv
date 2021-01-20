@@ -30,7 +30,6 @@ import Data.Semigroup
 import Data.Set (Set)
 import Data.String
 import Data.Version
-import Kinds
 import Singletons
 import Syntax
 import Validation
@@ -90,8 +89,10 @@ data Closure = Closure
     -- ^ An expression of type @union LDST_t*@.
   }
 
+type Env = Map Ident (CVar 'Stack)
+
 data Info = Info
-  { _infoBindings :: !(Map Ident (CVar 'Stack))
+  { _infoBindings :: !Env
     -- ^ Mapping from bound variables to the corresponding identifiers in the
     -- generated C code.
 
@@ -132,9 +133,28 @@ popQ = QueueT do
 
 generate :: [Decl] -> Either String Builder
 generate = bimap concatErrors (uncurry joinParts) . validationToEither . foldMap \case
-  DFun name args body _ -> generateFunction name args body
-  _ -> mempty
+  DFun name args body _ -> do
+    let root = Function
+          { funName = functionForC name
+          , funHint = identForC name
+          , funArgs = view _2 <$> args
+          , funBody = body
+          , funClosure = Nothing
+          }
+
+    let addContext err =
+          "in function ‘" ++ name ++ "’:\n" ++ err
+
+    eitherToValidation
+      $ first (pure . addContext)
+      $ generateFunction root
+
+  _ ->
+    -- Nothing to generate for this kind of top level thingy.
+    mempty
+
   where
+    joinParts :: Builder -> Builder -> Builder
     joinParts decls defs = bunlines
       [ header
       , ""
@@ -143,6 +163,8 @@ generate = bimap concatErrors (uncurry joinParts) . validationToEither . foldMap
       , "// Generated code - function definitions"
       , defs
       ]
+
+    concatErrors :: NonEmpty String -> String
     concatErrors = intercalate "\n\n" . toList
 
 header :: Builder
@@ -178,82 +200,64 @@ header = bunlines
     lamTag a b = unCStmt $ terminate $ "  " <> bunwords [a, b]
     ctypePtr = ctype <> B.char7 '*'
 
-generateFunction
-  :: Ident
-  -> [(Multiplicity, Ident, Type)]
-  -> Exp
-  -> Validation (NonEmpty String) (Builder, Builder)
-generateFunction name args body =
-  let addContext err =
-        "in function ‘" ++ name ++ "’:\n" ++ err
-
-      root = Function
-        { funName = functionForC name
-        , funHint = identForC name
-        , funArgs = view _2 <$> args
-        , funBody = body
-        , funClosure = Nothing
-        }
-
-   in eitherToValidation
-        $ first (pure . addContext)
-        $ generateFunction' root
-
-
-generateFunction' :: Function ->  Either String (Builder, Builder)
-generateFunction' topLevelFun = evalQueueT [topLevelFun] $ execWriterT go
+-- | Buids a function signature and an 'Env' binding the arguments to the
+-- function.
+functionSignature :: Function -> (Builder, Env)
+functionSignature fun =
+  L.fold goArgId (funArgs fun)
+    & maybe id addClosure (funClosure fun)
+    & first (functionHeader ctype (funName fun))
   where
-    go = lift popQ >>= \case
-      Nothing -> pure ()
-      Just fun -> do
-        let (sig, bindings) = genSignature fun
-
-        let info = Info
-              { _infoBindings = bindings -- TODO: Other top-level functions
-              , _infoNameHint = funHint fun
-              , _infoFuncHint = funName fun
-              , _infoIndent = 1
-              }
-
-        (_, body) <- lift $ evalRWST (genBody fun) info 0
-        tell $ complete sig body
-        go
-
-    genSignature :: Function -> (Builder, Map Ident (CVar 'Stack))
-    genSignature fun =
-      let (args, bindings) = L.fold goArgId (funArgs fun)
-
-          (args', bindings') =
-            case funClosure fun of
-              Nothing -> (args, bindings)
-              Just clsr ->
-                let clsrName = "ldst_closure"
-                    clsrBindings = Map.fromList
-                      $ zip clsr
-                      $ fmap (\i -> StackVar $ clsrName <> brackets (B.intDec i)) [0..]
-                 in ((ctype <> " *" <> clsrName) : args, bindings <> clsrBindings)
-
-      in (functionHeader ctype (funName fun) args', bindings')
+    addClosure clsr (args0, bindings0) =
+      let name = "ldst_closure" -- This name is always free
+          bindings = Map.fromList
+            $ zip clsr
+            $ fmap (\idx -> StackVar $ name <> idx)
+            $ brackets . B.intDec <$> [0..]
+       in (ctype <> "* " <> name : args0, bindings0 <> bindings)
 
     goArgId = (,)
       <$> (\idn -> ctype <> B.char7 ' ' <> identForC idn) `L.premap` L.list
       <*> (\idn -> (idn, StackVar (identForC idn))) `L.premap` L.map
 
-    genBody :: Function -> GenM ()
-    genBody fun = do
-      result <- generateExp (funBody fun)
-      tellStmt $ terminate $ "return " <> unCExp result
+-- | @functionDeclDef signature body@ returns a pair of @(declaration, definition)@.
+--
+-- The @signature@ should be built by 'functionSignature'.
+functionDeclDef :: Builder -> CStmt -> (Builder, Builder)
+functionDeclDef signature (CStmt body) =
+  let function = mconcat
+        [ signature
+        , "\n{\n"
+        , body
+        , "}\n\n"
+        ]
+   in (signature <> ";\n", function)
 
-    complete :: Builder -> CStmt -> (Builder, Builder)
-    complete signature (CStmt body) =
-      let function = mconcat
-            [ signature
-            , "\n{\n"
-            , body
-            , "}\n\n"
-            ]
-       in (signature <> ";\n", function)
+generateFunction :: Function -> Either String (Builder, Builder)
+generateFunction topLevelFun = evalQueueT [topLevelFun] $ execWriterT go
+  where
+    go = lift popQ >>= \case
+      Nothing -> pure ()
+      Just fun -> lift (generateFunction' fun) >>= tell >> go
 
+generateFunction' :: Function -> QueueT Function (Either String) (Builder, Builder)
+generateFunction' fun = do
+  let (sig, bindings) = functionSignature fun
+
+  let genBody = do
+        result <- generateExp (funBody fun)
+        tellStmt $ terminate $ "return " <> unCExp result
+
+  let info = Info
+        { _infoBindings = bindings
+        , _infoNameHint = funHint fun
+        , _infoFuncHint = funName fun
+        , _infoIndent = 1
+        }
+
+  evalRWST genBody info 0
+    & fmap snd -- We only care about the writer result
+    & fmap (functionDeclDef sig)
 
 generateExp :: Exp -> GenM CExp
 generateExp = \case
