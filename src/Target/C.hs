@@ -73,7 +73,7 @@ data Function = Function
   { funName    :: !Builder
   , funHint    :: !Builder
     -- ^ See '_infoNameHint'.
-  , funArgs    :: ![Ident]
+  , funArgs    :: !(Maybe Ident)
     -- ^ The functions parameters, not including any potential closure arguments.
   , funBody    :: !Exp
   , funClosure :: !(Maybe [Ident])
@@ -134,11 +134,14 @@ popQ = QueueT do
 generate :: [Decl] -> Either String Builder
 generate = bimap concatErrors (uncurry joinParts) . validationToEither . foldMap \case
   DFun name args body _ -> do
+    -- Curry the function.
+    let lambdaBody = foldr (\(m, idn, ty) -> Lam m idn ty) body args
+
     let root = Function
           { funName = functionForC name
           , funHint = identForC name
-          , funArgs = view _2 <$> args
-          , funBody = body
+          , funArgs = Nothing
+          , funBody = lambdaBody
           , funClosure = Nothing
           }
 
@@ -291,7 +294,7 @@ generateExp = \case
     lift $ pushQ $ Function
       { funName = name
       , funHint = "lam"
-      , funArgs = [argId]
+      , funArgs = Just argId
       , funBody = body
       , funClosure = Just $! closureVars closure
       }
