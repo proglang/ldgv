@@ -281,9 +281,12 @@ generateExp = \case
     e' <- stmt =<< generateExp e
     pure $ liftValue TagInt $ access TagInt e' <> "+ 1"
   NatRec{} -> throwError "natrec: not yet implemented"
-  Var v -> do
-    v' <- view (infoBindings . at v)
-    maybe (doesNotExist v) (pure . varToExp) v'
+  Var name -> do
+    -- If there is a bound variable, return its value. Otherwise we assume
+    -- there is a top level symbol with the matching name which we call to
+    -- obtain its value.
+    let topLevelCall = CExp $ callExp (functionForC name) []
+    maybe topLevelCall varToExp <$> view (infoBindings . at name)
   Unit -> do
     pure $ CExp $ parens ctype <> unitInit
   Lab lbl -> do
@@ -344,9 +347,6 @@ generateExp = \case
           lift $ tellStmt $ CStmt "}"
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
     pure $ varToExp result
-
-doesNotExist :: MonadError String m => Ident -> m a
-doesNotExist idn = throwError $ "variable " ++ show idn ++ " does not exist"
 
 scoped :: Ident -> GenM CExp -> (CVar 'Stack -> GenM b) -> GenM b
 scoped idn val body = do
