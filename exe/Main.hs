@@ -13,7 +13,7 @@ import qualified Options.Applicative as Opts
 import MonadOut
 import Parsing
 import System.Exit
-import Typechecker
+import qualified Typechecker as T
 import qualified Interpreter as I
 import qualified ProcessEnvironment as P
 import qualified Syntax
@@ -35,6 +35,9 @@ actionParser = do
       , Opts.command "interpret"
           $ Opts.info interpretParser
           $ Opts.progDesc "Parse, typecheck and interpret an LDGV/LDST program."
+      , Opts.command "typecheck"
+          $ Opts.info typecheckParser
+          $ Opts.progDesc "Only typecheck an LDGV/LDST program."
       ]
 
     interpretParser = do
@@ -59,9 +62,13 @@ actionParser = do
       inPath <- optional inPathArg
       pure $ compile inPath outPath mainCall
 
+    typecheckParser = do
+      inPath <- optional inPathArg
+      pure $ typecheck inPath
+
     inPathArg = Opts.strArgument $ mconcat
         [ Opts.metavar "SRC-FILE"
-        , Opts.help "Read the input from FILE or from STDIN if no argument is given."
+        , Opts.help "Read the input from FILE, uses STDIN if no argument is given."
         ]
 
 actionParserInfo :: Opts.ParserInfo (IO ())
@@ -78,13 +85,24 @@ main = join $ Opts.customExecParser prefs actionParserInfo
   where
     prefs = Opts.prefs Opts.showHelpOnEmpty
 
+typecheck :: Maybe FilePath -> Bool -> IO ()
+typecheck minput debug = do
+  decls <- parseInput minput
+  if debug
+     then runOutIO $ T.typecheck decls
+     else runOutIgnore $ T.typecheck decls
+
+  -- If there were an error, an exception would have already terminated the
+  -- program.
+  putStrLn "Good!"
+
 interpret :: Maybe FilePath -> Bool -> IO ()
 interpret minput debug = do
   res <- try $ do
     decls <- parseInput minput
     if debug
-       then runOutIO $ typecheck decls
-       else runOutIgnore $ typecheck decls
+       then runOutIO $ T.typecheck decls
+       else runOutIgnore $ T.typecheck decls
     I.interpret decls
   putStrLn $ either
     (\v -> "Error: " ++ show v)
@@ -95,8 +113,8 @@ compile :: Maybe FilePath -> Maybe FilePath -> Maybe String -> Bool -> IO ()
 compile minput moutput entryPoint debug = do
   decls <- parseInput minput
   if debug
-     then runOutIO $ typecheck decls
-     else runOutIgnore $ typecheck decls
+     then runOutIO $ T.typecheck decls
+     else runOutIgnore $ T.typecheck decls
   case C.generate entryPoint decls of
     Left err -> do
       hPutStrLn stderr err
