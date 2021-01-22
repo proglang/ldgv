@@ -3,7 +3,18 @@
 This repository contains an implementation of a frontend (parser and
 type checker) and a backend for LDGV.
 
+The syntax is described in `syntax.txt`. The directory `examples/`
+contains some examples, source files end in `.ldgv`.
+
+## Interpreter
+
+There are two ways to run the interpreter, via the [command
+line](#command-line) and via a local [web page](#web-page).
+
+
 ## C backend
+
+The C backend is not yet feature complete:
 
 * [ ] syntax elements
   * [x] variable bindings
@@ -24,48 +35,37 @@ type checker) and a backend for LDGV.
     * [ ] user requested
 * [ ] garbage collector
 
-## Requirements
-
-The [nix packet manager](https://nixos.org/nix/), preferably with a binary cache set up
-like described [here](https://github.com/obsidiansystems/obelisk/blob/master/README.md).
+It is available only via the [command line](#command-line). See there for
+building and running.
 
 
-## Build
+## Building
 
-In the toplevel directory:
+### Command Line
 
-`nix-build -A ghcjs.ldgv`
+To build the command line program the Haskell build tool `cabal` is required with GHC ≥8.6.1.
 
-## Test the Parser
+```
+cabal run :exe:ldgv-exe -- --help
+```
 
-Run
+builds and runs the executable.
 
-`nix-shells -A shells.ghc`
+### Web Page
 
-to go into a nix shell and execute
+To build the webpage the [nix package manager](https://nixos.org/nix/) is
+required, preferably with a binary cache set up as described
+[here](https://github.com/obsidiansystems/obelisk/blob/master/README.md).
 
-`cabal test`
+```
+nix-build -A ghcjs.ldgv
+```
 
-to let [hspec](https://hspec.github.io/) discover and run all tests.
+builds the project. Afterwards there is a `index.html` in `results/bin/ldgv.exe`.
 
-## Usage
 
-After building, you will find an `index.html` in `results/bin/ldgv.exe`.
+## Testing
 
-The input syntax is explained in file `syntax.txt`.
-There are examples in the `examples` directory. Source files end in
-`.ldgv`. 
-
-### Typechecker
-
-`stack run -- examples/node.ldgv`
-
-### Interpreter
-Run
-
-`stack run -- -i examples/simple.ldgv`
-
-to run the typical session types hello world.
-
-There are further test cases in `example-inputs`, but this file contains
-single lines which test subtyping and other features in isolation.
+```
+cabal test
+```
