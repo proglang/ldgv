@@ -3,6 +3,27 @@
 This repository contains an implementation of a frontend (parser and
 type checker) and a backend for LDGV.
 
+## C backend
+
+* [ ] syntax elements
+  * [x] variable bindings
+  * [x] integer literals & math operations
+  * [x] label literals & case expressions
+  * [x] lamdas
+  * [x] call expressions, partial application
+  * [x] pairs construction & destructuring
+  * [ ] recursive bindings
+  * [ ] `natrec`
+  * [ ] `fork`
+  * [ ] channel operations
+    * [ ] `new`
+    * [ ] `recv`
+    * [ ] `send`
+* [ ] entrypoint generation
+    * [ ] `main()`
+    * [ ] user requested
+* [ ] garbage collector
+
 ## Requirements
 
 The [nix packet manager](https://nixos.org/nix/), preferably with a binary cache set up
