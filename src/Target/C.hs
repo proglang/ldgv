@@ -79,6 +79,12 @@ data Function = Function
   , funClosure :: !(Maybe [Ident])
     -- ^ @Just vars@ if the first parameter of the function should be a closure
     -- argument.
+  , funInternal :: !Bool
+    -- ^ @True@ if this function is only used internally and should get
+    -- @static@ linkage.
+    --
+    -- Internal functions originate from lambda expressions while the nullary
+    -- top level functions correspond to non-internal functions.
   }
 
 data Closure = Closure
@@ -143,6 +149,7 @@ generate _entryPoint = bimap concatErrors (uncurry joinParts) . validationToEith
           , funArgs = Nothing
           , funBody = lambdaBody
           , funClosure = Nothing
+          , funInternal = False
           }
 
     let addContext err =
@@ -209,8 +216,12 @@ functionSignature :: Function -> (Builder, Env)
 functionSignature fun =
   L.fold goArgId (funArgs fun)
     & maybe id addClosure (funClosure fun)
-    & first (functionHeader ctype (funName fun))
+    & first (functionHeader retType (funName fun))
   where
+    retType
+      | funInternal fun = "static " <> ctype
+      | otherwise = ctype
+
     addClosure clsr (args0, bindings0) =
       let name = "ldst_closure" -- This name is always free
           bindings = Map.fromList
@@ -300,6 +311,7 @@ generateExp = \case
       , funArgs = Just argId
       , funBody = body
       , funClosure = Just $! closureVars closure
+      , funInternal = True
       }
     mkValue TagLam (name, closure)
   Rec{} -> throwError "rec: not yet implemented"
