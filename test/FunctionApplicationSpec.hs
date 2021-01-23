@@ -3,13 +3,11 @@ import Test.Hspec
 import Test.QuickCheck
 import Control.Exception (evaluate)
 
+import Parsing
 import qualified Tokens as T
 import qualified Grammar as G
 import Syntax
 import Kinds
-
-parse :: String -> [Decl]
-parse = G.parseCalc . T.alexScanTokens
 
 spec :: Spec
 spec = 
