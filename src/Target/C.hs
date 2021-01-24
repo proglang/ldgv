@@ -122,23 +122,23 @@ makeLenses ''Info
 
 type GenM =
   RWST Info CStmt Word
-    (QueueT Function (Either String))
+    (StackT Function (Either String))
 
-newtype QueueT q m a = QueueT { unQueueT :: StateT [q] m a }
+newtype StackT s m a = StackT { unStackT :: StateT [s] m a }
   deriving newtype (Functor, Applicative, Monad, MonadError e, MonadWriter w)
 
-evalQueueT :: Monad m => [q] -> QueueT q m a -> m a
-evalQueueT qs = flip evalStateT qs . unQueueT
+evalStackT :: Monad m => [s] -> StackT s m a -> m a
+evalStackT ss = flip evalStateT ss . unStackT
 
-pushQ :: Monad m => q -> QueueT q m ()
-pushQ q = QueueT $ modify (q :)
+pushStack :: Monad m => s -> StackT s m ()
+pushStack s = StackT $ modify (s :)
 
-popQ :: Monad m => QueueT q m (Maybe q)
-popQ = QueueT do
-  qs <- get
-  case qs of
+popStack :: Monad m => StackT s m (Maybe s)
+popStack = StackT do
+  ss <- get
+  case ss of
     [] -> pure Nothing
-    q:qs' -> Just q <$ put qs'
+    s:ss' -> Just s <$ put ss'
 
 data GenMonoid = GenMonoid
   { genSigs :: !(Map Ident (Maybe (S.Last Type)))
@@ -324,13 +324,13 @@ functionDeclDef signature (CStmt body) =
    in (signature <> ";\n", function)
 
 generateFunction :: Function -> Either String (Builder, Builder)
-generateFunction topLevelFun = evalQueueT [topLevelFun] $ execWriterT go
+generateFunction topLevelFun = evalStackT [topLevelFun] $ execWriterT go
   where
-    go = lift popQ >>= \case
+    go = lift popStack >>= \case
       Nothing -> pure ()
       Just fun -> lift (generateFunction' fun) >>= tell >> go
 
-generateFunction' :: Function -> QueueT Function (Either String) (Builder, Builder)
+generateFunction' :: Function -> StackT Function (Either String) (Builder, Builder)
 generateFunction' fun = do
   let (sig, bindings) = functionSignature fun
 
@@ -381,7 +381,7 @@ generateExp = \case
   e@(Lam _ argId _ body) -> do
     name <- fresh (Just "lam")
     closure <- mkClosure $ fv e
-    lift $ pushQ $ Function
+    lift $ pushStack $ Function
       { funName = name
       , funHint = "lam"
       , funArgs = Just argId
