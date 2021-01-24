@@ -23,8 +23,10 @@ The C backend is not yet feature complete:
   * [x] lamdas
   * [x] call expressions, partial application
   * [x] pairs construction & destructuring
-  * [ ] recursive bindings
-  * [ ] `natrec`
+  * [ ] recursion
+    * [x] recursive bindings
+    * [ ] `natrec`
+    * [ ] transform tail recusion into loops 
   * [ ] `fork`
   * [ ] channel operations
     * [ ] `new`

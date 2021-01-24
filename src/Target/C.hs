@@ -88,6 +88,9 @@ data Function = Function
     --
     -- Internal functions originate from lambda expressions while the nullary
     -- top level functions correspond to non-internal functions.
+  , funRecursive :: !(Maybe Ident)
+    -- ^ @Just ident@ if this function can call itself recursively with
+    -- identifier @ident@.
   }
 
 data Closure = Closure
@@ -166,6 +169,7 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
           , funBody = lambdaBody
           , funClosure = Nothing
           , funInternal = False
+          , funRecursive = Nothing
           }
 
     let addContext err =
@@ -253,11 +257,17 @@ genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
   Just (Just (S.Last ty)) ->
     let (_, mainFunction) = functionDeclDef "int main(void)" $ foldMap stmtLine
           [ terminate $ ctype <> " result = " <> callExp (functionForC mainId) []
+          , -- Prohibit "unused variable" warnings in the generated C code in
+            -- case 'explainExpression' only outputs a static string.
+            terminate "(void)result"
           , explainExpression ty (StackVar "result")
           ]
         stmtLine s = mconcat [ CStmt "  ", s, CStmt "\n" ]
      in Right $ gm { genDefs = genDefs gm <> mainFunction }
 
+-- | Generates a call to @printf@ which tries to output the value of the given
+-- variable according to the given type. In case the type has non-printable
+-- values (e.g. a function type) only the type is printed.
 explainExpression :: Type -> CVar 'Stack -> CStmt
 explainExpression ty0 v0 =
   let format :: Type -> CVar x -> (Endo String, Endo [Builder])
@@ -299,16 +309,23 @@ functionSignature fun =
       | otherwise = ctype
 
     addClosure clsr (args0, bindings0) =
-      let name = "ldst_closure" -- This name is always free
-          bindings = Map.fromList
+      let bindings = Map.fromList
             $ zip clsr
-            $ fmap (\idx -> StackVar $ name <> idx)
+            $ fmap (\idx -> StackVar $ cClosureName <> idx)
             $ brackets . B.intDec <$> [0..]
-       in (ctype <> "* " <> name : args0, bindings0 <> bindings)
+       in (ctype <> "* " <> cClosureName : args0, bindings0 <> bindings)
 
     goArgId = (,)
       <$> (\idn -> ctype <> B.char7 ' ' <> identForC idn) `L.premap` L.list
       <*> (\idn -> (idn, StackVar (identForC idn))) `L.premap` L.map
+
+-- | The parameter name given to the closure argument.
+--
+-- Mainly an implementation detail of 'functionSignature' but required to
+-- generate recursive bindings for the @rec@ construct. See 'generateFunction''
+-- for more information.
+cClosureName :: Builder
+cClosureName = "_ldst_closure"
 
 -- | @functionDeclDef signature body@ returns a pair of @(declaration, definition)@.
 --
@@ -335,8 +352,34 @@ generateFunction' fun = do
   let (sig, bindings) = functionSignature fun
 
   let genBody = do
-        result <- generateExp (funBody fun)
-        tellStmt $ terminate $ "return " <> unCExp result
+        -- Where do we add the binding for recursive functions? It requires
+        -- access to the closure argument, which we don't really want outside
+        -- of 'functionSignature'.
+        --
+        -- On the other hand we can't really do it inside there either because
+        -- we want to declare a variable which holds the LDST_t value,
+        -- requiring us to be inside 'GenM'.
+        --
+        -- For now we fixed the closure argument name globally giving us access
+        -- here.
+        insertRecArg <- case funRecursive fun of
+          Nothing -> pure id
+          Just recId -> do
+            -- It is possible that the recusion name recId shadows the
+            -- functions argument name, but this follows the typechecker rules!
+            -- 
+            -- If
+            --
+            --    val check = rec x (x : Int) : Int = x
+            --
+            -- typechecks 'recId' should *not* shadow an existing variable, if
+            -- it fails to typecheck, it *should* shadow the variable.
+            recVal <- stmt =<< mkValue TagLam (funName fun, Closure [] cClosureName)
+            pure $ infoBindings . at recId ?~ recVal
+
+        local insertRecArg do
+          result <- generateExp (funBody fun)
+          tellStmt $ terminate $ "return " <> unCExp result
 
   let info = Info
         { _infoBindings = bindings
@@ -346,7 +389,7 @@ generateFunction' fun = do
         }
 
   evalRWST genBody info 0
-    & fmap snd -- We only care about the writer result
+    & fmap snd -- We only care about the WriterT result.
     & fmap (functionDeclDef sig)
 
 generateExp :: Exp -> GenM CExp
@@ -388,9 +431,22 @@ generateExp = \case
       , funBody = body
       , funClosure = Just $! closureVars closure
       , funInternal = True
+      , funRecursive = Nothing
       }
     mkValue TagLam (name, closure)
-  Rec{} -> throwError "rec: not yet implemented"
+  e@(Rec recId argId _ _ body) -> do
+    name <- fresh (Just "rec")
+    closure <- mkClosure $ fv e
+    lift $ pushStack $ Function
+      { funName = name
+      , funHint = "rec"
+      , funArgs = Just argId
+      , funBody = body
+      , funClosure = Just $! closureVars closure
+      , funInternal = True
+      , funRecursive = Just recId
+      }
+    mkValue TagLam (name, closure)
   App funExp argExp -> do
     -- TODO: Directly call statically known top level functions.
     lam <- stmt =<< generateExp funExp
