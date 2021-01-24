@@ -34,6 +34,7 @@ The C backend is not yet feature complete:
     * [x] `main(void)`
     * [ ] user requested
 * [ ] garbage collector
+* [ ] tests
 
 It is available only via the [command line](#command-line). See there for
 building and running.
