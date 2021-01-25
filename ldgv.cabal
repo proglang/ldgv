@@ -19,17 +19,17 @@ library
   hs-source-dirs: src
   exposed-modules: Config
                  , Examples
+                 , Grammar
                  , Interpreter
+                 , Kinds
                  , MonadOut
                  , Parsing
                  , ProcessEnvironment
                  , Syntax
                  , Target.C
+                 , Tokens
                  , Typechecker
-  other-modules: Tokens
-               , Grammar
-               , Kinds
-               , Subtyping
+  other-modules: Subtyping
                , TCSubtyping
                , TCTyping
                , TCXMonad
@@ -52,17 +52,13 @@ test-suite ldgv-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   hs-source-dirs: test
-                , src
-  other-modules: Syntax
-               , Grammar
-               , Tokens
-               , Kinds
-               , ArithmeticSpec
+  other-modules: ArithmeticSpec
                , FunctionApplicationSpec
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends: hspec-discover:hspec-discover
   build-tools: alex, happy
   build-depends: base >=4.12 && <5
+               , ldgv
                , array
                , hspec
                , QuickCheck
