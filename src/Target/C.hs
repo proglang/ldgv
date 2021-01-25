@@ -374,7 +374,7 @@ generateFunction' fun = do
             --
             -- typechecks 'recId' should *not* shadow an existing variable, if
             -- it fails to typecheck, it *should* shadow the variable.
-            recVal <- storeVar =<< mkValue TagLam (funName fun, Closure [] cClosureName)
+            recVal <- mkValue TagLam (funName fun, Closure [] cClosureName)
             pure $ infoBindings . at recId ?~ recVal
 
         local insertRecArg do
@@ -402,12 +402,12 @@ generateExp = \case
   Div a b -> mathOp '/' a b
   Negate e -> do
     e' <- generateExp e
-    storeVar $ liftValue TagInt $ B.char7 '-' <> access TagInt e'
-  Int i -> storeVar =<< mkValue TagInt i
-  Nat i -> storeVar =<< mkValue TagInt i
+    liftValue TagInt $ B.char7 '-' <> access TagInt e'
+  Int i -> mkValue TagInt i
+  Nat i -> mkValue TagInt i
   Succ e -> do
     e' <- generateExp e
-    storeVar $ liftValue TagInt $ access TagInt e' <> " + 1"
+    liftValue TagInt $ access TagInt e' <> " + 1"
   NatRec{} -> throwError "natrec: not yet implemented"
   Var name -> do
     -- If there is a bound variable, return its value. Otherwise we assume
@@ -416,7 +416,7 @@ generateExp = \case
     let topLevelCall = CExp $ callExp (functionForC name) []
     storeVar . maybe topLevelCall varToExp =<< view (infoBindings . at name)
   Unit -> storeVar $ CExp $ parens ctype <> unitInit
-  Lab lbl -> storeVar =<< mkValue TagLabel lbl
+  Lab lbl -> mkValue TagLabel lbl
   e@(Lam _ argId _ body) -> do
     name <- fresh (Just "lam")
     closure <- mkClosure $ fv e
@@ -429,7 +429,7 @@ generateExp = \case
       , funInternal = True
       , funRecursive = Nothing
       }
-    storeVar =<< mkValue TagLam (name, closure)
+    mkValue TagLam (name, closure)
   e@(Rec recId argId _ _ body) -> do
     name <- fresh (Just "rec")
     closure <- mkClosure $ fv e
@@ -442,7 +442,7 @@ generateExp = \case
       , funInternal = True
       , funRecursive = Just recId
       }
-    storeVar =<< mkValue TagLam (name, closure)
+    mkValue TagLam (name, closure)
   App funExp argExp -> do
     -- TODO: Directly call statically known top level functions.
     lam <- generateExp funExp
@@ -452,7 +452,7 @@ generateExp = \case
   Pair _ idnA a b -> do
     scoped idnA (generateExp a) \a' -> do
       b' <- generateExp b
-      storeVar =<< mkValue TagPair (varToExp a', varToExp b')
+      mkValue TagPair (varToExp a', varToExp b')
   LetPair idnFst idnSnd pairExp body -> do
     -- Evaluate pairExp first.
     scoped (idnFst ++ "_" ++ idnSnd) (generateExp pairExp) \pairVar ->
@@ -499,8 +499,7 @@ mathOp :: Char -> Exp -> Exp -> GenM (CVar 'Stack)
 mathOp c a b = do
   a' <- generateExp a
   b' <- generateExp b
-  storeVar
-    $ liftValue TagInt
+  liftValue TagInt
     $ bunwords [ access TagInt a', B.char7 c, access TagInt b' ]
 
 functionHeader :: Builder -> Builder -> [Builder] -> Builder
@@ -644,8 +643,8 @@ mkClosure vars = do
     , closureExpr = expr
     }
 
-mkValue :: Tag a -> a -> GenM CExp
-mkValue tag a = liftValue tag <$> case tag of
+mkValue :: Tag a -> a -> GenM (CVar 'Stack)
+mkValue tag a = liftValue tag =<< case tag of
   TagInt -> pure $ B.intDec a
   TagLabel -> pure $ labelForC a
   TagPair -> do
@@ -657,9 +656,10 @@ mkValue tag a = liftValue tag <$> case tag of
     let (fun, closure) = a
     pure $ braceList Nothing [fun, closureExpr closure]
 
-liftValue :: Tag a -> Builder -> CExp
-liftValue tag a = CExp
-  $ braceList (Just ctype)
+liftValue :: Tag a -> Builder -> GenM (CVar 'Stack)
+liftValue tag a = storeVar
+  $ CExp
+  $ braceList Nothing
   $ pure
   $ bunwords
       [ B.char7 '.' <> tagAccessor tag
