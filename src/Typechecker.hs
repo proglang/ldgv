@@ -3,6 +3,7 @@
 module Typechecker (typecheck) where
 
 import Control.Monad
+import Control.Monad.Except
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
@@ -14,53 +15,60 @@ import qualified TCSubtyping as TS
 import qualified TCTyping as TT
 import qualified PrettySyntax as PS
 import Config as C
-import MonadOut (MonadOut(..))
 
 data Seen = SeenSig G.Type | SeenDef
   deriving (Eq)
 
 -- | Typecheck a list of declarations.
-typecheck :: MonadOut m => [G.Decl] -> m ()
+typecheck :: [G.Decl] -> Either String ()
 typecheck decls = do
-  output "-------- Running Typecheck Request --------"
+  C.traceM "-------- Running Typecheck Request --------"
   exec Map.empty [] [] decls
     where
-      runTC :: (PS.Pretty a, PS.Pretty w, MonadOut m) => TC.M r TS.Caches w a -> r -> m a
+      runTC :: (PS.Pretty a, PS.Pretty w) => TC.M r TS.Caches w a -> r -> Either String a
       runTC m kenv =
         case fst $ TC.runM m kenv TS.initCaches of
-          Left err -> fail $ "Error: " ++ err
-          Right res -> fst res <$ printSuccess res
+          Left err -> throwError err
+          Right res -> fst res <$ traceSuccess res
 
-      exec :: MonadOut m => Map G.Ident Seen -> [G.TEnvEntry] -> G.KEnv -> [G.Decl] -> m ()
+      exec :: Map G.Ident Seen -> [G.TEnvEntry] -> G.KEnv -> [G.Decl] -> Either String ()
       exec _ _ _ [] = return ()
       exec seendIds tenv kenv (cmd:cmds) =
         case cmd of
           G.DSub ty1 ty2 -> do
-            output "--- subtyping ---"
+            C.traceM "--- subtyping ---"
             void $ runTC (TS.subtype tenv ty1 ty2) kenv
             exec seendIds tenv kenv cmds
-            -- C.printDebug (S.subtype tenv ty1 ty2)
+
           G.DEqv ty1 ty2 -> do
-            output "--- equivalence ---"
+            C.traceM "--- equivalence ---"
             void $ runTC (TS.eqvtype tenv ty1 ty2) kenv
             exec seendIds tenv kenv cmds
-          G.DSubst x e1 e2 ->
-            C.printDebug (show $ G.subst x e1 e2)
-          G.DLub _ ty1 ty2 ->
-            C.printDebug (S.lub tenv ty1 ty2)
-          G.DGlb _ ty1 ty2 ->
-            C.printDebug (S.glb tenv ty1 ty2)
+
+          G.DSubst x e1 e2 -> do
+            C.traceShowM $ G.subst x e1 e2
+            exec seendIds tenv kenv cmds
+
+          G.DLub _ ty1 ty2 -> do
+            C.traceShowM (S.lub tenv ty1 ty2)
+            exec seendIds tenv kenv cmds
+
+          G.DGlb _ ty1 ty2 -> do
+            C.traceShowM (S.glb tenv ty1 ty2)
+            exec seendIds tenv kenv cmds
+
           G.DSig x m ty -> do
-            output ("--- signature: " ++ x ++ " ---")
+            C.traceM ("--- signature: " ++ x ++ " ---")
             case Map.lookup x seendIds of
               Just (SeenSig _) ->
-                fail $ "duplicate signatures for ‘" ++ x ++ "’"
+                throwError $ "duplicate signatures for ‘" ++ x ++ "’"
               Just SeenDef ->
-                fail $ "signature for ‘" ++ x ++ "’ given after its definition"
+                throwError $ "signature for ‘" ++ x ++ "’ given after its definition"
               Nothing ->
                 exec (Map.insert x (SeenSig ty) seendIds) ((x,(m, ty)) : tenv) kenv cmds 
+
           G.DFun f binds e mty -> do
-            output ("--- type checking: " ++ f ++ " ---")
+            traceM ("--- type checking: " ++ f ++ " ---")
 
             let buildFunction c = foldr (\(m, v, ty) -> c m v ty)
                 buildty = buildFunction G.TFun
@@ -89,16 +97,17 @@ typecheck decls = do
                 return (tenv, maybe id ((:) . eqv) mty cmds)
 
               (Just SeenDef, _) ->
-                fail $ "duplicate definition for ‘" ++ f ++ "’"
+                throwError $ "duplicate definition for ‘" ++ f ++ "’"
 
             exec (Map.insert f SeenDef seendIds) tenv' kenv cmds'
 
           G.DType tid _m k ty -> do
-            output ("--- type declaration: " ++ tid ++ " ---")
+            traceM ("--- type declaration: " ++ tid ++ " ---")
             -- TODO: in general, we need to wait with this check until all types are declared
             let kenv' = (tid, (ty, k)):kenv
             -- C.printDebug (Ty.kiCheck tenv ty k)
             runTC (TT.kiCheck tenv ty k) kenv'
             exec seendIds tenv kenv' cmds
-          _ ->
-            output "uninterpreted"
+
+          G.DAssume _ _ -> do
+            exec seendIds tenv kenv cmds

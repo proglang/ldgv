@@ -1,21 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Control.Exception (evaluate, try, SomeException)
+import Control.Monad
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.Text as T
-import qualified Data.Map as Map
-import Reflex.Dom.Core
+import Data.Bifunctor
 import Language.Javascript.JSaddle
 import Language.Javascript.JSaddle (eval, liftJSM)
-
-import SyntaxDescription (syntaxdescription)
-import Interpreter as I
 import Parsing (parse)
-import Typechecker (typecheck)
-import qualified Examples as E
-import Control.Exception (try, SomeException)
 import ProcessEnvironment as P (Value)
-import BrowserOut
+import Reflex.Dom.Core
+import SyntaxDescription (syntaxdescription)
+import Typechecker (typecheck)
+import qualified Data.Map as Map
+import qualified Data.Text as T
+import qualified Examples as E
+import qualified Interpreter as I
 
 -- head of document
 widgetHead :: DomBuilder t m => m ()
@@ -50,33 +50,49 @@ main = mainWidgetWithHead widgetHead $ divClass "wrapper" $ do
         let lookupExample = (\v -> maybe ("Did not find example file") id (Map.lookup v examplesTextMap))
 
         -- Textarea for source
-        elAttr "textarea" ("id" =: "tSrc" <> "class" =: "source_textarea" <>"spellcheck" =: "false") $ dynText $ fmap (T.pack.lookupExample) dVal
+        let srcAreaAttrs = mconcat
+              [ "id" =: "tSrc"
+              , "class" =: "source_textarea"
+              , "spellcheck" =: "false"
+              , "style" =: "font-family: monospace"
+              ]
+        elAttr "textarea" srcAreaAttrs $ dynText $ fmap (T.pack.lookupExample) dVal
 
         -- set the new text in the textarea on dropdown selection
         performEvent_ $ ffor (fmap lookupExample $ _dropdown_change d) (\s -> liftJSM $ setSrc s)
         -- get the text inside the area on button click
         srcText <- performEvent $ ffor e $ (const $ liftJSM $ textareaget)
    
-        elAttr "textarea" ("id" =: "tOutput" <> "class" =: "output_textarea" <> "readonly" =: "readonly" <> "spellcheck" =: "false") blank
-        el "div" blank
         -- interpret the source text
         doneEv <- performEvent ((\v -> liftIO $ do
             let s = T.unpack v
-            -- clear the old output
-            resetOutput
             res <- try $ do
               let decls = parse s
-              runBrowserOutT $ typecheck decls
-              I.interpret decls
-            return $ either
-              (\v -> "Error: " ++ show v)
-              (\v -> "Result: " ++ show v)
-              (res :: Either SomeException P.Value)
+              -- We have to make sure the result is evaluated inside the 'try'
+              -- since there might be exceptions lurking in the result. These
+              -- would only be uncovered when updating the page and crashing
+              -- the interpreter.
+              --
+              -- Using the deepseq package would probably be even better than a
+              -- poor 'evaluate'.
+              let interpret = I.interpret decls >>= evaluate
+              traverse (const interpret) (typecheck decls)
+
+            let resStrings
+                  :: Either SomeException (Either String P.Value)
+                  -> Either String String
+                resStrings = join . bimap show (second show)
+            return $ either ("Error: " ++) ("Result: " ++) $ resStrings res
           ) <$> srcText)
 
-        -- Dynamic Text and Textarea for output
+        let outputAttrs = mconcat
+              [ "id" =: "tOutput"
+              , "class" =: "output_textarea"
+              , "readonly" =: "readonly"
+              , "spellcheck" =: "false"
+              ]
         output <- holdDyn "" $ fmap T.pack doneEv
-        elAttr "p" ("id" =: "tResult") $ dynText output
+        elAttr "textarea" outputAttrs $ dynText output
 
         -- describe our syntax
         syntaxdescription 
@@ -105,7 +121,3 @@ setSrc = setHtmlElement "tSrc"
 
 setRes :: String -> JSM ()
 setRes = setHtmlElement "tResult"
-
-resetOutput :: JSM ()
-resetOutput = setHtmlElement "tOutput" ""
-
