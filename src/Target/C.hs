@@ -374,12 +374,12 @@ generateFunction' fun = do
             --
             -- typechecks 'recId' should *not* shadow an existing variable, if
             -- it fails to typecheck, it *should* shadow the variable.
-            recVal <- stmt =<< mkValue TagLam (funName fun, Closure [] cClosureName)
+            recVal <- storeVar =<< mkValue TagLam (funName fun, Closure [] cClosureName)
             pure $ infoBindings . at recId ?~ recVal
 
         local insertRecArg do
           result <- generateExp (funBody fun)
-          tellStmt $ terminate $ "return " <> unCExp result
+          tellStmt $ terminate $ "return " <> unCExp (varToExp result)
 
   let info = Info
         { _infoBindings = bindings
@@ -392,7 +392,7 @@ generateFunction' fun = do
     & fmap snd -- We only care about the WriterT result.
     & fmap (functionDeclDef sig)
 
-generateExp :: Exp -> GenM CExp
+generateExp :: Exp -> GenM (CVar 'Stack)
 generateExp = \case
   Let v a b -> do
     scoped v (generateExp a) (const $ generateExp b)
@@ -401,26 +401,22 @@ generateExp = \case
   Times a b -> mathOp '*' a b
   Div a b -> mathOp '/' a b
   Negate e -> do
-    e' <- stmt =<< generateExp e
-    pure $ liftValue TagInt $ B.char7 '-' <> access TagInt e'
-  Int i -> do
-    mkValue TagInt i
-  Nat i -> do
-    mkValue TagInt i
+    e' <- generateExp e
+    storeVar $ liftValue TagInt $ B.char7 '-' <> access TagInt e'
+  Int i -> storeVar =<< mkValue TagInt i
+  Nat i -> storeVar =<< mkValue TagInt i
   Succ e -> do
-    e' <- stmt =<< generateExp e
-    pure $ liftValue TagInt $ access TagInt e' <> "+ 1"
+    e' <- generateExp e
+    storeVar $ liftValue TagInt $ access TagInt e' <> " + 1"
   NatRec{} -> throwError "natrec: not yet implemented"
   Var name -> do
     -- If there is a bound variable, return its value. Otherwise we assume
     -- there is a top level symbol with the matching name which we call to
     -- obtain its value.
     let topLevelCall = CExp $ callExp (functionForC name) []
-    maybe topLevelCall varToExp <$> view (infoBindings . at name)
-  Unit -> do
-    pure $ CExp $ parens ctype <> unitInit
-  Lab lbl -> do
-    mkValue TagLabel lbl
+    storeVar . maybe topLevelCall varToExp =<< view (infoBindings . at name)
+  Unit -> storeVar $ CExp $ parens ctype <> unitInit
+  Lab lbl -> storeVar =<< mkValue TagLabel lbl
   e@(Lam _ argId _ body) -> do
     name <- fresh (Just "lam")
     closure <- mkClosure $ fv e
@@ -433,7 +429,7 @@ generateExp = \case
       , funInternal = True
       , funRecursive = Nothing
       }
-    mkValue TagLam (name, closure)
+    storeVar =<< mkValue TagLam (name, closure)
   e@(Rec recId argId _ _ body) -> do
     name <- fresh (Just "rec")
     closure <- mkClosure $ fv e
@@ -446,28 +442,26 @@ generateExp = \case
       , funInternal = True
       , funRecursive = Just recId
       }
-    mkValue TagLam (name, closure)
+    storeVar =<< mkValue TagLam (name, closure)
   App funExp argExp -> do
     -- TODO: Directly call statically known top level functions.
-    lam <- stmt =<< generateExp funExp
+    lam <- generateExp funExp
     arg <- generateExp argExp
     let (fun, closure) = accessLambda lam
-    pure $ CExp $ callExp fun [closure, unCExp arg]
+    storeVar $ CExp $ callExp fun [closure, unCExp $ varToExp arg]
   Pair _ idnA a b -> do
     scoped idnA (generateExp a) \a' -> do
       b' <- generateExp b
-      mkValue TagPair (varToExp a', b')
+      storeVar =<< mkValue TagPair (varToExp a', varToExp b')
   LetPair idnFst idnSnd pairExp body -> do
     -- Evaluate pairExp first.
     scoped (idnFst ++ "_" ++ idnSnd) (generateExp pairExp) \pairVar ->
       let (valFst, valSnd) = accessPair pairVar
-       in scoped idnFst (pure (varToExp valFst)) \_ ->
-          scoped idnSnd (pure (varToExp valSnd)) \_ ->
+       in scoped idnFst (pure valFst) \_ ->
+          scoped idnSnd (pure valSnd) \_ ->
             generateExp body
-  Fst e -> do
-    varToExp . fst . accessPair <$> (stmt =<< generateExp e)
-  Snd e -> do
-    varToExp . snd . accessPair <$> (stmt =<< generateExp e)
+  Fst e -> fst . accessPair <$> generateExp e
+  Snd e -> snd . accessPair <$> generateExp e
   Fork _ -> throwError "fork: not yet implemented"
   New _ -> throwError "new: not yet implemented"
   Send _ -> throwError "send: not yet implemented"
@@ -478,7 +472,7 @@ generateExp = \case
     --
     -- TODO: Should we assume that the matching branch always exists? Or check
     -- all branches and panic, in case none matches?
-    label <- access TagLabel <$> (stmt =<< generateExp e)
+    label <- access TagLabel <$> generateExp e
     result <- declareFresh @'Stack ctype unitInit
     let buildBranch :: (String, Exp) -> StateT Builder GenM ()
         buildBranch (branchLabel, branchExp) = do
@@ -487,21 +481,25 @@ generateExp = \case
           lift $ tellStmt $ CStmt $ callExp ifB [cmpExp] <> " {"
           lift $ local (infoIndent +~ 1) do
             e' <- generateExp branchExp
-            tellStmt $ terminate $ bunwords [ unCExp (varToExp result), B.char7 '=', unCExp e' ]
+            tellStmt $ terminate $ bunwords
+              [ unCExp (varToExp result)
+              , B.char7 '='
+              , unCExp (varToExp e')
+              ]
           lift $ tellStmt $ CStmt "}"
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
-    pure $ varToExp result
+    pure result
 
-scoped :: Ident -> GenM CExp -> (CVar 'Stack -> GenM b) -> GenM b
+scoped :: Ident -> GenM (CVar 'Stack) -> (CVar 'Stack -> GenM b) -> GenM b
 scoped idn val body = do
-  var <- local (infoNameHint .~ identForC idn) $ stmt =<< val
+  var <- local (infoNameHint .~ identForC idn) val
   local (infoBindings . at idn ?~ var) $ body var
 
-mathOp :: Char -> Exp -> Exp -> GenM CExp
+mathOp :: Char -> Exp -> Exp -> GenM (CVar 'Stack)
 mathOp c a b = do
-  a' <- stmt =<< generateExp a
-  b' <- stmt =<< generateExp b
-  pure
+  a' <- generateExp a
+  b' <- generateExp b
+  storeVar
     $ liftValue TagInt
     $ bunwords [ access TagInt a', B.char7 c, access TagInt b' ]
 
@@ -544,8 +542,8 @@ unitInit :: Builder
 unitInit = "{ 0 }"
 
 -- | Writes the result of the given expression into a fresh variable.
-stmt :: CExp -> GenM (CVar 'Stack)
-stmt = declareFresh ctype . unCExp
+storeVar :: CExp -> GenM (CVar 'Stack)
+storeVar = declareFresh ctype . unCExp
 
 -- | Clones the result of the given expression into a fresh variable which
 -- lives on the heap instead of the stack.
@@ -676,10 +674,10 @@ braceList annot bs =
 access :: Tag a -> CVar x -> Builder
 access tag v = unCExp (varToExp v) <> B.char7 '.' <> tagAccessor tag
 
-accessPair :: CVar x -> (CVar 'Heap, CVar 'Heap)
+accessPair :: CVar x -> (CVar 'Stack, CVar 'Stack)
 accessPair v =
   let b = access TagPair v
-   in (HeapVar $ b <> "[0]", HeapVar $ b <> "[1]")
+   in (StackVar $ b <> "[0]", StackVar $ b <> "[1]")
 
 accessLambda :: CVar x -> (Builder, Builder)
 accessLambda v =
