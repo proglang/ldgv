@@ -3,7 +3,6 @@ module Config where
 
 import qualified Debug.Trace as D
 import PrettySyntax (Pretty, pshow)
-import MonadOut (MonadOut(..))
 
 data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)
@@ -11,20 +10,22 @@ data DebugLevel = DebugNone | DebugAll
 --debugLevel = DebugAll
 debugLevel = DebugNone
 
+trace :: String -> a -> a
 trace s a | debugLevel > DebugNone = D.trace s a
           | otherwise = a
 
+traceM :: Applicative f => String -> f ()
 traceM s | debugLevel > DebugNone = D.traceM s
          | otherwise = pure ()
 
+traceShowM :: (Show a, Applicative f) => a -> f ()
+traceShowM = traceM . show
+
+traceIO :: String -> IO ()
 traceIO s | debugLevel > DebugNone = D.traceIO s
           | otherwise = pure ()
 
--- | helper for prettyprinting results depending on debug level
-printResult :: MonadOut m => (Pretty a, Pretty b) => (Either a b, s) -> m ()
-printResult (Left a, _) = fail ("Error: " ++ pshow a)
-printResult (Right b, _) | debugLevel > DebugNone = output $ "Success: " ++ pshow b
-                         | otherwise = output "Success"
-
-printDebug s | debugLevel > DebugNone = output $ show s
-printDebug s | otherwise = return ()
+traceSuccess :: (Pretty a, Applicative f) => a -> f ()
+traceSuccess a
+  | debugLevel > DebugNone = traceM $ "Success: " ++ pshow a
+  | otherwise = traceM "Success"

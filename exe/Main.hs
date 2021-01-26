@@ -10,7 +10,6 @@ import Data.ByteString.Builder
 import System.IO
 import qualified Options.Applicative as Opts
 
-import MonadOut
 import Parsing
 import System.Exit
 import qualified Typechecker as T
@@ -20,13 +19,7 @@ import qualified Syntax
 import qualified Target.C as C
 
 actionParser :: Opts.Parser (IO ())
-actionParser = do
-  debug <- Opts.switch $ mconcat
-    [ Opts.long "debug"
-    , Opts.help "Display debug output"
-    ]
-  cmd <- commands
-  pure $ cmd debug
+actionParser = commands
   where
     commands = Opts.hsubparser $ mconcat
       [ Opts.command "compile"
@@ -85,37 +78,30 @@ main = join $ Opts.customExecParser prefs actionParserInfo
   where
     prefs = Opts.prefs Opts.showHelpOnEmpty
 
-typecheck :: Maybe FilePath -> Bool -> IO ()
-typecheck minput debug = do
+typecheck :: Maybe FilePath -> IO ()
+typecheck minput = do
   decls <- parseInput minput
-  if debug
-     then runOutIO $ T.typecheck decls
-     else runOutIgnore $ T.typecheck decls
+  case  T.typecheck decls of
+    Right _ -> putStrLn "Good!"
+    Left err -> putStrLn $ "Error: " ++ err
 
-  -- If there were an error, an exception would have already terminated the
-  -- program.
-  putStrLn "Good!"
-
-interpret :: Maybe FilePath -> Bool -> IO ()
-interpret minput debug = do
+interpret :: Maybe FilePath -> IO ()
+interpret minput = do
   res <- try $ do
     decls <- parseInput minput
-    if debug
-       then runOutIO $ T.typecheck decls
-       else runOutIgnore $ T.typecheck decls
+    case T.typecheck decls of
+      Right a -> pure a
+      Left err -> fail $ "Error: " ++ err
     I.interpret decls
   putStrLn $ either
     (\v -> "Error: " ++ show v)
     (\v -> "Result: " ++ show v)
     (res :: Either SomeException P.Value)
 
-compile :: Maybe FilePath -> Maybe FilePath -> Maybe String -> Bool -> IO ()
-compile minput moutput entryPoint debug = do
+compile :: Maybe FilePath -> Maybe FilePath -> Maybe String -> IO ()
+compile minput moutput entryPoint = do
   decls <- parseInput minput
-  if debug
-     then runOutIO $ T.typecheck decls
-     else runOutIgnore $ T.typecheck decls
-  case C.generate entryPoint decls of
+  case T.typecheck decls >> C.generate entryPoint decls of
     Left err -> do
       hPutStrLn stderr err
       exitFailure

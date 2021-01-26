@@ -19,18 +19,17 @@ library
   hs-source-dirs: src
   exposed-modules: Config
                  , Examples
+                 , Grammar
                  , Interpreter
-                 , MonadOut
+                 , Kinds
                  , Parsing
                  , ProcessEnvironment
                  , Syntax
                  , Target.C
+                 , Tokens
                  , Typechecker
-  other-modules: Tokens
-               , Grammar
-               , Kinds
+  other-modules: Subtyping
                , Singletons
-               , Subtyping
                , TCSubtyping
                , TCTyping
                , TCXMonad
@@ -56,17 +55,14 @@ test-suite ldgv-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   hs-source-dirs: test
-                , src
-  other-modules: Syntax
-               , Grammar
-               , Tokens
-               , Kinds
-               , ArithmeticSpec
+  other-modules: ArithmeticSpec
                , FunctionApplicationSpec
+               , FunctionSignaturesSpec
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends: hspec-discover:hspec-discover
   build-tools: alex, happy
   build-depends: base >=4.12 && <5
+               , ldgv
                , array
                , hspec
                , QuickCheck
@@ -94,8 +90,7 @@ executable ldgv-exe
 
 executable ldgv-browser
   main-is: Main.hs
-  other-modules: BrowserOut
-               , SyntaxDescription
+  other-modules: SyntaxDescription
   hs-source-dirs: browser
   build-tools: alex, happy
   build-depends: base >=4.12 && <4.13
@@ -107,8 +102,6 @@ executable ldgv-browser
                , reflex
                , reflex-dom
                , text
-               , mtl
-               , transformers
   default-language: Haskell2010
   if impl(ghcjs)
     ghc-options: -dedupe -Wall
