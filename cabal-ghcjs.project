@@ -1,0 +1,6 @@
+-- Use this file when compiling via ghcjs:
+--
+-- cabal build --project-file=cabal-ghcjs.project
+
+compiler: ghcjs
+packages: .

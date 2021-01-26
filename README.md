@@ -66,6 +66,21 @@ nix-build -A ghcjs.ldgv
 
 builds the project. Afterwards there is a `index.html` in `results/bin/ldgv.exe`.
 
+Incremental builds are not supported by `nix-build`, instead building via
+`nix-shell` and `cabal` is possible:
+
+1. Enter the `nix-shell`, this provides you with `cabal` and `ghcjs`:
+
+      ```
+      nix-shell -A shells.ghcjs
+      ```
+
+2. Use `cabal` inside the new shell, with a custom `--project-file`:
+
+      ```
+      cabal --project-file=cabal-ghcjs.project v2-build
+      ```
+
 
 ## Testing
 
