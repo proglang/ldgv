@@ -1,6 +1,7 @@
+{-# LANGUAGE LambdaCase #-}
 module Typing where
 
-import Control.Monad (zipWithM)
+import Control.Monad (foldM, zipWithM)
 
 import Syntax
 import Kinds
@@ -36,7 +37,7 @@ kiSynth te (TCase e1 cases) = do
   let tlabs = TLab (map fst cases)
   _ <- tyCheck te e1 tlabs
   ks <- mapM (\(lab, elab) -> 
-              kiSynth (("*kis*", (Many, TEqn e1 (Lab lab) tlabs)) : te) elab)
+              kiSynth (("*kis*", (Many, TEqn e1 (Lit $ LLab lab) tlabs)) : te) elab)
              cases
   return (foldr1 kolub ks)
 
@@ -61,34 +62,14 @@ tySynth te e = case e of
     (ty2, te2) <- tySynth ((x, (inject mm, ty1)) : te1) e2
     te2' <- strengthenTop te2
     return (ty2, te2')
-  Plus e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Minus e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Times e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Div e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Negate e1 -> do
-    te1 <- tyCheck te e1 TInt
-    return (TInt, te1)
-  Int n -> return (TInt, te)
+  Math m -> tySynthMath te m
+  Lit l -> return (tySynthLit l, te)
   Var x -> do
     (mm, tyx) <- lookup x te
     mm' <- use mm
     let te' = map upd te
         upd entry@(y, _) = if x == y then (x, (mm', tyx)) else entry
     return (tyx, te')
-  Unit -> return (TUnit, te)
-  Lab la -> return (TLab [la], te)
   Lam mm x tyx e1 -> do
     (kix, mx) <- kiSynth (demoteTE te) tyx
     (ty, te1) <- tySynth ((x, (inject mx, tyx)) : te) e1
@@ -149,7 +130,7 @@ tySynth te e = case e of
     (TRecv x ty1 ty2, te1) <- tySynth te e1
     return (TPair MOne x ty1 ty2, te1)
   Case e1 cases
-    | Just (Lab lab, TLab labels) <- valueEquiv (demoteTE te) e1 ->
+    | Just (Lit (LLab lab), TLab labels) <- valueEquiv (demoteTE te) e1 ->
       do elab <- lookup lab cases
          tySynth te elab
   Case e1@(Var x) cases -> do
@@ -157,7 +138,7 @@ tySynth te e = case e of
         tlabels = TLab labels
     tyCheck (demoteTE te) e1 tlabels
     let flab (lab, elab) = do
-          (tylab, telab) <- tySynth (("*lab-e2*", (Many, TEqn e1 (Lab lab) tlabels)) : te) elab
+          (tylab, telab) <- tySynth (("*lab-e2*", (Many, TEqn e1 (Lit $ LLab lab) tlabels)) : te) elab
           telab' <- strengthenTop telab -- drop the equation
           return (TCase e1 ((lab, tylab) : [(lab', TBot) | lab' <- labels, lab' /= lab]),
                   telab')
@@ -167,6 +148,18 @@ tySynth te e = case e of
     return (ty', te')
   Case _ _ ->
     fail "illegal case expression"
+
+tySynthLit :: Literal -> Type
+tySynthLit = \case
+  LInt _ -> TInt
+  LNat _ -> TNat
+  LLab l -> TLab [l]
+  LUnit  -> TUnit
+
+tySynthMath :: TEnv -> MathOp Exp -> Maybe (Type, TEnv)
+tySynthMath te m = do
+  te' <- foldM (\te' e -> tyCheck te' e TInt) te m
+  return (TInt, te')
 
 tyCheck :: TEnv -> Exp -> Type -> Maybe TEnv
 tyCheck te e ty = do

@@ -115,25 +115,25 @@ Mul : '!' { MOne }
     | { MMany }
 
 AExp
-    : int                    { if $1 < 0 then Int $1 else Nat $1 }
+    : int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
     | var                    { Var $1 }
-    | lab                    { Lab $1 }
+    | lab                    { Lit $ LLab $1 }
     | '(' Exp ')'            { $2 }
 
 Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
-    | Exp '+' Exp            { Plus $1 $3 }
-    | Exp '-' Exp            { Minus $1 $3 }
-    | Exp '*' Exp            { Times $1 $3 }
-    | Exp '/' Exp            { Div $1 $3 }
+    | Exp '+' Exp            { Math $ Add $1 $3 }
+    | Exp '-' Exp            { Math $ Sub $1 $3 }
+    | Exp '*' Exp            { Math $ Mul $1 $3 }
+    | Exp '/' Exp            { Math $ Div $1 $3 }
     | '(' Exp ')'            { $2 }
-    | '-' Exp %prec NEG      { Negate $2 }
-    | int                    { if $1 < 0 then Int $1 else Nat $1 }
+    | '-' Exp %prec NEG      { Math $ Neg $2 }
+    | int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
     | var                    { Var $1 }
-    | lab                    { Lab $1 }
+    | lab                    { Lit $ LLab $1 }
     | case Exp of '{' ExpCases '}'  { Case $2 $5 }
     | natrec Exp '{' Exp ',' var '.' tid '.' '(' var ':' Typ ')' '.' Exp '}'
                              { NatRec $2 $4 $6 $8 $11 $13 $16 }
-    | '()'                   { Unit }
+    | '()'                   { Lit LUnit }
     | lam Mul '(' var ':' Typ ')' Exp        { Lam $2 $4 $6 $8 }
     | rec var '(' var ':' Typ ')' ':' Typ '=' Exp        { Rec $2 $4 $6 $9 $11 }
     | '<' Mul var '=' Exp ',' Exp '>' { Pair $2 $3 $5 $7 }

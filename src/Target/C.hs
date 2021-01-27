@@ -396,15 +396,8 @@ generateExp :: Exp -> GenM (CVar 'Stack)
 generateExp = \case
   Let v a b -> do
     scoped v (generateExp a) (const $ generateExp b)
-  Plus a b -> mathOp '+' a b
-  Minus a b -> mathOp '-' a b
-  Times a b -> mathOp '*' a b
-  Div a b -> mathOp '/' a b
-  Negate e -> do
-    e' <- generateExp e
-    liftValue TagInt $ B.char7 '-' <> access TagInt e'
-  Int i -> mkValue TagInt i
-  Nat i -> mkValue TagInt i
+  Lit l -> generateLiteral l
+  Math m -> generateMath m
   Succ e -> do
     e' <- generateExp e
     liftValue TagInt $ access TagInt e' <> " + 1"
@@ -415,8 +408,6 @@ generateExp = \case
     -- obtain its value.
     let topLevelCall = CExp $ callExp (functionForC name) []
     storeVar . maybe topLevelCall varToExp =<< view (infoBindings . at name)
-  Unit -> storeVar $ CExp $ parens ctype <> unitInit
-  Lab lbl -> mkValue TagLabel lbl
   e@(Lam _ argId _ body) -> do
     name <- fresh (Just "lam")
     closure <- mkClosure $ fv e
@@ -473,7 +464,7 @@ generateExp = \case
     -- TODO: Should we assume that the matching branch always exists? Or check
     -- all branches and panic, in case none matches?
     label <- access TagLabel <$> generateExp e
-    result <- declareFresh @'Stack ctype unitInit
+    result <- newUnitVar
     let buildBranch :: (String, Exp) -> StateT Builder GenM ()
         buildBranch (branchLabel, branchExp) = do
           ifB <- get <* put "else if "
@@ -490,17 +481,32 @@ generateExp = \case
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
     pure result
 
+generateMath :: MathOp Exp -> GenM (CVar 'Stack)
+generateMath = liftValue TagInt <=< \case
+  Add a b -> math '+' a b
+  Sub a b -> math '-' a b
+  Mul a b -> math '*' a b
+  Div a b -> math '/' a b
+  Neg a   -> do
+    a' <- generateExp a
+    pure $ B.char7 '-' <> access TagInt a'
+  where
+    math c a b = do
+      a' <- generateExp a
+      b' <- generateExp b
+      pure $ bunwords [ access TagInt a', B.char7 c, access TagInt b' ]
+
+generateLiteral :: Literal -> GenM (CVar 'Stack)
+generateLiteral = \case
+  LInt i -> mkValue TagInt i
+  LNat n -> mkValue TagInt n
+  LLab l -> mkValue TagLabel l
+  LUnit  -> newUnitVar
+
 scoped :: Ident -> GenM (CVar 'Stack) -> (CVar 'Stack -> GenM b) -> GenM b
 scoped idn val body = do
   var <- local (infoNameHint .~ identForC idn) val
   local (infoBindings . at idn ?~ var) $ body var
-
-mathOp :: Char -> Exp -> Exp -> GenM (CVar 'Stack)
-mathOp c a b = do
-  a' <- generateExp a
-  b' <- generateExp b
-  liftValue TagInt
-    $ bunwords [ access TagInt a', B.char7 c, access TagInt b' ]
 
 functionHeader :: Builder -> Builder -> [Builder] -> Builder
 functionHeader ret name args =
@@ -537,8 +543,8 @@ declareFresh varType initExp = do
          SStack -> StackVar name
          SHeap -> HeapVar name
 
-unitInit :: Builder
-unitInit = "{ 0 }"
+newUnitVar :: GenM (CVar 'Stack)
+newUnitVar = storeVar (CExp "{ 0 }")
 
 -- | Writes the result of the given expression into a fresh variable.
 storeVar :: CExp -> GenM (CVar 'Stack)

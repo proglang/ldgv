@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module PrettySyntax (Pretty(), pretty, pshow) where
 
 import Kinds
@@ -81,23 +82,12 @@ instance Pretty Exp where
   pretty (Let id e1 e2) =
     pretty "let" <+> pretty id <+> equals <+> pretty e1 <+> pretty "in" <+> 
     pretty e2
-  pretty (Plus e1 e2) = 
-    pretty e1 <+> pretty "+" <+> pretty e2
-  pretty (Minus e1 e2) = 
-    pretty e1 <+> pretty "-" <+> pretty e2
-  pretty (Times e1 e2) = 
-    pretty e1 <+> pretty "*" <+> pretty e2
-  pretty (Div e1 e2) = 
-    pretty e1 <+> pretty "/" <+> pretty e2
-  pretty (Negate e) =
-    pretty "-" <> pretty e
-  pretty (Int i) = 
-    pretty i
   pretty (Var id) =
     pretty id
-  pretty Unit =
-    pretty "()"
-  pretty (Lab s) = plab s
+  pretty (Lit l) =
+    pretty l
+  pretty (Math m) =
+    pretty m
   pretty (Lam m id t e) =
     pretty "fun" <> pretty m <+> ptyped id t <+>
     pretty e
@@ -118,8 +108,6 @@ instance Pretty Exp where
   pretty (Recv e) = pretty "recv" <+> pretty e
   pretty (Case e ses) = 
     pcase e ses
-  pretty (Nat n) =
-    pretty n
   pretty (Succ e) =
     pretty "succ" <+> pretty e
   pretty (NatRec e ez x t y tyy es) =
@@ -127,3 +115,18 @@ instance Pretty Exp where
     braces (pretty ez <> comma <+>
            pretty x <> dot <+>
            pretty t <> dot <+> ptyped y tyy <> dot <+> pretty es)
+
+instance Pretty Literal where
+  pretty = \case
+    LInt i -> pretty i
+    LNat n -> pretty n
+    LLab l -> plab l
+    LUnit  -> pretty "()"
+
+instance Pretty e => Pretty (MathOp e) where
+  pretty = \case
+    Add a b -> pretty a <+> pretty "+" <+> pretty b
+    Sub a b -> pretty a <+> pretty "-" <+> pretty b
+    Mul a b -> pretty a <+> pretty "*" <+> pretty b
+    Div a b -> pretty a <+> pretty "/" <+> pretty b
+    Neg a   -> pretty "-" <> pretty a

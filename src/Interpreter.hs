@@ -1,5 +1,7 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Interpreter (interpret) where
+
 import qualified Config as C
 import Syntax
 import Control.Concurrent.Chan as Chan
@@ -7,8 +9,6 @@ import Control.Concurrent (forkIO)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State as S
-import qualified Tokens
-import qualified Grammar as G
 
 -- | interpret the "main" value in an ldgv file given over stdin
 interpret :: [Decl] -> IO Value
@@ -43,9 +43,7 @@ interpret' e =
   M.ap
   (return (\val -> C.trace ("Leaving interpretation of " ++ show e ++ " with value " ++ show val) val)) $
   case C.trace ("Invoking interpretation on " ++ show e) e of
-  Int i -> return $ VInt i
-  Nat i -> return $ VInt i
-  Succ e -> mathHelper (+) (Int 1) e
+  Succ e -> interpretMath $ Add (Lit (LInt 1)) e
   exp@(NatRec e1 e2 i1 t1 i2 t e3) -> do
   -- returns a function indexed over e1 (should be a variable pointing to a Nat)
   -- e1 should be the recursive variable which gets decreased each time the
@@ -74,18 +72,13 @@ interpret' e =
                  let f = \arg -> do
                                  liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env) 
                  return $ VFun f 
-  Unit -> return VUnit
   Var s -> pmlookup s
-  Lab s -> return $ VLabel s
   Let s e1 e2 -> do
       v  <- interpret' e1
       createPMEntry (s, v)
       interpret' e2
-  Plus e1 e2 ->  mathHelper (+) e1 e2
-  Minus e1 e2 ->  mathHelper (-) e1 e2
-  Times e1 e2 ->  mathHelper (*) e1 e2
-  Div e1 e2 ->  mathHelper quot e1 e2
-  Negate e1 ->  mathHelper (-) (Int 0) e1
+  Math m -> interpretMath m
+  Lit l -> return (interpretLit l)
   App e1 e2 -> do
       _ <- liftIO $ C.traceIO $ "Arguments for " ++ show e1 ++ " are: "  ++ show e2
       -- interpret e1 first, because the innermost application
@@ -157,15 +150,27 @@ interpret' e =
             Just e' -> interpret' e'
   e -> do fail ("Expression " ++ show e ++ " not implemented")
 
+interpretLit :: Literal -> Value
+interpretLit = \case
+  LInt i -> VInt i
+  LNat n -> VInt n
+  LLab l -> VLabel l
+  LUnit  -> VUnit
 
--- | helper function for mathematical operations
-mathHelper op e1 e2 = do
-    v1 <- interpret' e1
-    v2 <- interpret' e2
-    liftIO $ putStrLn $ "MathHelper works on " ++ show v1 ++ " and " ++ show v2
-    return $ case (v1, v2) of
-      (VInt a, VInt b) -> VInt (op a b)
-
+interpretMath :: MathOp Exp -> InterpretM
+interpretMath = \case
+  Add a b -> f (+) a b
+  Sub a b -> f (-) a b
+  Mul a b -> f (*) a b
+  Div a b -> f quot a b
+  Neg a   -> f (-) (Lit (LInt 0)) a
+  where
+    f op a b = do
+      v1 <- interpret' a
+      v2 <- interpret' b
+      liftIO $ putStrLn $ "interpretMath works on " ++ show v1 ++ " and " ++ show v2
+      return $ case (v1, v2) of
+        (VInt a, VInt b) -> VInt (op a b)
 
 createPEnv :: [Decl] -> PEnv
 createPEnv = map createEntry 

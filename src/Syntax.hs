@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveTraversable #-}
 module Syntax where
 
 import Data.List (foldl', sortBy, sort)
@@ -11,18 +12,11 @@ type TIdent = String
 type Nat = Int
 
 data Exp = Let Ident Exp Exp
-         | Plus Exp Exp
-         | Minus Exp Exp
-         | Times Exp Exp
-         | Div Exp Exp
-         | Negate Exp
-         | Int Int
-         | Nat Nat
+         | Math (MathOp Exp)
+         | Lit Literal
          | Succ Exp
          | NatRec Exp Exp Ident TIdent Ident Type Exp
          | Var Ident
-         | Unit
-         | Lab String
          | Lam Multiplicity Ident Type Exp
          | Rec Ident Ident Type Type Exp
          | App Exp Exp
@@ -36,6 +30,21 @@ data Exp = Let Ident Exp Exp
          | Recv Exp
          | Case Exp [(String, Exp)]
   deriving (Show,Eq)
+
+data MathOp e
+  = Add e e
+  | Sub e e
+  | Mul e e
+  | Div e e
+  | Neg e
+  deriving (Show, Eq, Functor, Foldable, Traversable)
+
+data Literal
+  = LInt !Int
+  | LNat !Nat
+  | LLab !String
+  | LUnit
+  deriving (Show, Eq)
 
 data Type = TUnit
           | TInt
@@ -134,15 +143,9 @@ class Freevars t where
 
 instance Freevars Exp where
   fv (Let x e1 e2) = fv e1 <> Set.delete x (fv e2)
-  fv (Plus e1 e2) = fv e1 <> fv e2
-  fv (Minus e1 e2) = fv e1 <> fv e2
-  fv (Times e1 e2) = fv e1 <> fv e2
-  fv (Div e1 e2) = fv e1 <> fv e2
-  fv (Negate e1) = fv e1
-  fv (Int n) = Set.empty
+  fv (Math m) = fv m
+  fv (Lit _) = Set.empty
   fv (Var x) = Set.singleton x
-  fv Unit = Set.empty
-  fv (Lab lab) = Set.empty
   fv (Lam m x t e) = fv t <> Set.delete x (fv e)
   fv (Rec f x t1 t2 e) = fv t1 <> fv t2 <> Set.delete f (Set.delete x (fv e))
   fv (App e1 e2) = fv e1 <> fv e2
@@ -155,8 +158,11 @@ instance Freevars Exp where
   fv (Send e1) = fv e1
   fv (Recv e1) = fv e1
   fv (Case e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
-  fv (Nat n) = Set.empty
+  fv (Succ e) = fv e
   fv (NatRec e ez x t y tyy es) = fv e <> fv ez <> Set.delete x (Set.delete y (fv es)) <> fv tyy
+
+instance Freevars e => Freevars (MathOp e) where
+  fv = foldMap fv
 
 instance Freevars Type where
   fv TUnit = Set.empty
@@ -194,13 +200,11 @@ instance Substitution Exp where
     where
     sb orig@(Var s) = if x == s then exp else orig
     sb (Let y e1 e2) = Let y (sb e1) (if x == y then e2 else sb e2)
-    sb (Plus e1 e2) = Plus (sb e1) (sb e2)
-    sb (Minus e1 e2) = Minus (sb e1) (sb e2)
-    sb (Times e1 e2) = Times (sb e1) (sb e2)
-    sb (Div e1 e2) = Div (sb e1) (sb e2)
-    sb (Negate e1) = Negate (sb e1)
-    sb (Lam m y ty e1) | x /= y = Lam m y (subst x exp ty) (sb e1)
-    sb (Lam m y ty e1) | x == y = Lam m y (subst x exp ty) e1
+    sb (Math m) = Math (subst x exp m)
+    sb (Lit l) = Lit l
+    sb (Lam m y ty e1)
+      | x /= y = Lam m y (subst x exp ty) (sb e1)
+      | otherwise = Lam m y (subst x exp ty) e1
     sb (Rec f y tyx ty e1) = Rec f y (subst x exp tyx) 
                                      (if x /= y then subst x exp ty else ty)
                                      (if x /= f && x /= y then sb e1 else e1)
@@ -211,11 +215,15 @@ instance Substitution Exp where
     sb (Snd e1) = Snd (sb e1)
     sb (LetPair y1 y2 e1 e2) = LetPair y1 y2 (sb e1) (if x /= y1 && x /= y2 then sb e2 else e2)
     sb (Fork e1) = Fork (sb e1)
+    sb (New t) = New t
     sb (Send e1) = Send (sb e1)
     sb (Recv e1) = Recv (sb e1)
+    sb (Succ e1) = Succ (sb e1)
     sb (NatRec e ez y t z tyz es) = 
       NatRec (sb e) (sb ez) y t z (subst x exp tyz) (if x /= y && x /= z then sb es else es)
-    sb orig = orig       -- sloppy!
+
+instance Substitution e => Substitution (MathOp e) where
+  subst x = fmap . subst x
 
 instance Substitution Type where
   subst x exp (TCase val cases) =
@@ -377,4 +385,4 @@ tsubst tn tyn ty = ts ty
         TCase e cases -> TCase e (map (\(l, t) -> (l, ts t)) cases)
         TEqn e1 e2 t -> TEqn e1 e2 (ts t)
         TSingle x -> ty
-    
+        TUnit -> TUnit

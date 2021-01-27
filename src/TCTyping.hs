@@ -1,7 +1,8 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 module TCTyping where
 
-import Control.Monad (zipWithM, ap)
+import Control.Monad (foldM, zipWithM, ap)
 import qualified Data.Set as Set
 
 import qualified Debug.Trace as DT
@@ -53,7 +54,7 @@ kiSynth te (TCase e1 cases) = do
   let tlabs = TLab (map fst cases)
   _ <- tyCheck te e1 tlabs
   ks <- mapM (\(lab, elab) -> 
-              kiSynth (("*kis*", (Many, TEqn e1 (Lab lab) tlabs)) : te) elab)
+              kiSynth (("*kis*", (Many, TEqn e1 (Lit $ LLab lab) tlabs)) : te) elab)
              cases
   return (foldr1 kolub ks)
 kiSynth te (TSingle x) = do
@@ -111,35 +112,14 @@ tySynth te e =
     (ki1, mm) <- kiSynth (demoteTE te1) ty1
     (ty2, te2) <- tySynth ((x, (inject mm, ty1)) : te1) e2
     strengthen e (ty2, te2) -- x
-  Plus e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Minus e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Times e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Div e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Negate e1 -> do
-    te1 <- tyCheck te e1 TInt
-    return (TInt, te1)
-  Int n -> return (TInt, te)
-  Nat n -> return (TNat, te)
+  Math m -> tySynthMath te m
+  Lit l -> return (tySynthLit l, te)
   Var x -> do
     (mm, tyx) <- maybe (TC.mfail ("No variable " ++ show x)) return $ lookup x te
     mm' <- maybe (TC.mfail ("Illegal use of linear variable " ++ show x)) return $ use mm
     let te' = map upd te
         upd entry@(y, _) = if x == y then (x, (mm', tyx)) else entry
     return (tyx, te')
-  Unit -> return (TUnit, te)
-  Lab la -> return (TLab [la], te)
   Lam mm x tyx e1 -> do
     (kix, mx) <- kiSynth (demoteTE te) tyx
     (ty, te1) <- tySynth ((x, (inject mx, tyx)) : te) e1
@@ -254,7 +234,7 @@ tySynth te e =
       _ ->
         TC.mfail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
   Case e1 cases
-    | Just (Lab lab, TLab labels) <- valueEquiv (demoteTE te) e1 ->
+    | Just (Lit (LLab lab), TLab labels) <- valueEquiv (demoteTE te) e1 ->
       do elab <- maybe (TC.mfail ("No case for label " ++ show lab)) return $ lookup lab cases
          tySynth te elab
   Case e1@(Var x) cases -> do
@@ -262,7 +242,7 @@ tySynth te e =
         tlabels = TLab labels
     _ <- tyCheck (demoteTE te) e1 tlabels
     let flab (lab, elab) = do
-          (tylab, teq_telab) <- tySynth (("*lab-e2*", (Many, TEqn e1 (Lab lab) tlabels)) : te) elab
+          (tylab, teq_telab) <- tySynth (("*lab-e2*", (Many, TEqn e1 (Lit $ LLab lab) tlabels)) : te) elab
           return ((lab, tylab), tail teq_telab)
     ty_te_s <- mapM flab cases
     ty' <- tcaseM te e1 tlabels (map fst ty_te_s)
@@ -310,6 +290,18 @@ tySynth te e =
       return (rty, tez)
   _ ->
     TC.mfail ("Unhandled expression: " ++ pshow e)
+
+tySynthLit :: Literal -> Type
+tySynthLit = \case
+  LInt _ -> TInt
+  LNat _ -> TNat
+  LLab l -> TLab [l]
+  LUnit  -> TUnit
+
+tySynthMath :: TEnv -> MathOp Exp -> TCM (Type, TEnv)
+tySynthMath te m = do
+  te' <- foldM (\te' e -> tyCheck te' e TInt) te m
+  return (TInt, te')
 
 tyCheck :: TEnv -> Exp -> Type -> TCM TEnv
 tyCheck te e ty = do
