@@ -2,7 +2,7 @@
 module Config where
 
 import qualified Debug.Trace as D
-import PrettySyntax (Pretty, pshow)
+import Syntax.Pretty (Pretty, pshow)
 
 data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)

@@ -9,10 +9,9 @@ import qualified Data.Set as Set
 import qualified Config as D
 
 import Syntax
+import Syntax.Pretty
 import Kinds
 import qualified TCXMonad as TC
-
-import PrettySyntax
 
 type Cache = [(Type, Type)]
 

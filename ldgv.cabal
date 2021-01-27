@@ -30,11 +30,11 @@ library
                  , Typechecker
   other-modules: Subtyping
                , Singletons
+               , Syntax.Pretty
                , TCSubtyping
                , TCTyping
                , TCXMonad
                , Typing
-               , PrettySyntax
                , Paths_ldgv
   build-tools: alex, happy
   build-depends: base

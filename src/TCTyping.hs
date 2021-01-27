@@ -9,12 +9,11 @@ import qualified Debug.Trace as DT
 import qualified Config as D
 
 import Syntax
+import Syntax.Pretty
 import Kinds
 import TCSubtyping
 import qualified TCXMonad as TC
 import qualified TCSubtyping as TC
-
-import PrettySyntax
 
 -- type TCM a = TC.M KEnv a
 

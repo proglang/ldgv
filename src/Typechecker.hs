@@ -7,13 +7,13 @@ import Control.Monad.Except
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
-import qualified Syntax as G
-import qualified Subtyping as S
 import qualified Kinds as K
-import qualified TCXMonad as TC
+import qualified Subtyping as S
+import qualified Syntax as G
+import qualified Syntax.Pretty as PS
 import qualified TCSubtyping as TS
 import qualified TCTyping as TT
-import qualified PrettySyntax as PS
+import qualified TCXMonad as TC
 import Config as C
 
 data Seen = SeenSig G.Type | SeenDef
