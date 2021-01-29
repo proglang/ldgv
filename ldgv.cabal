@@ -25,6 +25,7 @@ library
                  , Parsing
                  , ProcessEnvironment
                  , Syntax
+                 , Syntax.CPS
                  , Target.C
                  , Tokens
                  , Typechecker
