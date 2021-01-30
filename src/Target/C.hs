@@ -46,7 +46,8 @@ import qualified Paths_ldgv
 newtype CExp = CExp { unCExp :: Builder }
 -- TODO: By using an ADT to differentiate what the expression might represent
 -- we could generate more idiomatic code. This isn't terribly necessary though,
--- the common C compilers are able to understand our intentions quite well.
+-- the common C compilers are able to understand and optimize our intentions
+-- quite well.
 
 data Location = Stack | Heap
 
@@ -92,6 +93,8 @@ data Function = Function
     -- ^ @Just ident@ if this function can call itself recursively with
     -- identifier @ident@.
   }
+-- TODO: In the current implementation, a function can have either both an
+-- argument and a closure or neither. This should be made explicit in the type.
 
 data Closure = Closure
   { closureVars :: ![Ident]
@@ -101,6 +104,7 @@ data Closure = Closure
     -- ^ An expression of type @union LDST_t*@.
   }
 
+-- | A mapping from locally bound variables to their corresponding 'CVar'.
 type Env = Map Ident (CVar 'Stack)
 
 data Info = Info
@@ -296,8 +300,19 @@ explainExpression ty0 v0 =
       fmt' = (showString "result: " . fmt) "\n"
    in terminate $ callExp "printf" (escapedCString fmt' : args [])
 
--- | Buids a function signature and an 'Env' binding the arguments to the
--- function.
+-- | Builds a function signature, an 'Env' binding the arguments to the
+-- function, including variables bound through the closure.
+--
+-- The function signature convention is
+--
+-- @
+-- void /function-name/(
+--    struct LDST_t *closure,
+--    struct LDST_t argument)
+-- @
+--
+-- where @closure@ and @argument@ are only present for non-toplevel bindings,
+-- including the curried forms of toplevel bindings.
 functionSignature :: Function -> (Builder, Env)
 functionSignature fun =
   L.fold goArgId (funArgs fun)
