@@ -5,14 +5,25 @@
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wall #-}
 module Syntax.CPS
-  ( Val(..)
+  ( toCPS
+
+    -- * CPS Types
+  , Val(..)
   , Exp(..)
   , Continuation
-  , toCPS
+
+    -- * Re-exports from "Syntax"
+  , Ident
+  , TIdent
+  , Literal(..)
+  , MathOp(..)
+  , Type(..)
+  , Freevars(..)
   ) where
 
 import Control.Monad.Cont
 import Control.Monad.Reader
+import Data.Foldable
 import Data.Set (Set)
 import Kinds (Multiplicity)
 import Syntax hiding (Exp(..))
@@ -36,16 +47,48 @@ data Exp
   = Return {-ContIdent-} Val
   | Let Ident Val Exp
   | LetPair Ident Ident Val Exp
+  | LetCont {-ContIdent-} Continuation Exp
   | Call Val Val (Maybe Continuation)
     -- ^ Represents a tail call if no continuation is given.
   | Case Val [(String, Exp)]
   | NatRec Val Val Ident TIdent Ident Type (Maybe Continuation) Exp
-  | LetCont {-ContIdent-} Continuation Exp
   | Recv Val (Maybe Continuation)
     -- ^ Represents a "tail recv" if no continuation is given
   deriving (Show, Eq)
 
 type Continuation = (Ident, Exp)
+
+instance Freevars Val where
+  fv = \case
+    Lit _ -> Set.empty
+    Var v -> Set.singleton v
+    Lam _ x t e -> fv t <> Set.delete x (fv e)
+    Rec f x t1 t2 e -> fv t1 <> fv t2 <> Set.delete f (Set.delete x (fv e))
+    Math m -> fv m
+    Succ e -> fv e
+    Pair e1 e2 -> fv e1 <> fv e2
+    New ty -> fv ty
+    Send e -> fv e
+    Fork e -> fv e
+
+instance Freevars Exp where
+  fv = \case
+    Return v -> fv v
+    Let x v e -> fv v <> Set.delete x (fv e)
+    LetPair x y v e -> fv v <> Set.delete x (Set.delete y (fv e))
+    LetCont k e -> contFV k <> fv e
+    Call a b mk -> fv a <> fv b <> foldMap contFV mk
+    Case v cs -> foldl' (<>) (fv v) $ map (fv . snd) cs
+    NatRec v z x _t y tyy mk s -> mconcat
+      [ fv v
+      , fv z
+      , Set.delete x (Set.delete y (fv s))
+      , fv tyy
+      , foldMap contFV mk
+      ]
+    Recv v mk -> fv v <> foldMap contFV mk
+    where
+      contFV (x, k) = Set.delete x (fv k)
 
 toCPS :: S.Exp -> Exp
 toCPS e = flip runReader (fv e) $ fromExp' e
