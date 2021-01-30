@@ -50,6 +50,8 @@ data Exp
   | LetCont {-ContIdent-} Continuation Exp
   | Call Val Val (Maybe Continuation)
     -- ^ Represents a tail call if no continuation is given.
+  | TLCall Ident (Maybe Continuation)
+    -- ^ A call to a top level function.
   | Case Val [(String, Exp)]
   | NatRec Val Val Ident TIdent Ident Type (Maybe Continuation) Exp
   | Recv Val (Maybe Continuation)
@@ -78,6 +80,10 @@ instance Freevars Exp where
     LetPair x y v e -> fv v <> Set.delete x (Set.delete y (fv e))
     LetCont k e -> contFV k <> fv e
     Call a b mk -> fv a <> fv b <> foldMap contFV mk
+    TLCall x mk ->
+      -- FIXME: Should x really be considered a free variable, or implicitly
+      -- bound by the top level definitions?
+      Set.insert x (foldMap contFV mk)
     Case v cs -> foldl' (<>) (fv v) $ map (fv . snd) cs
     NatRec v z x _t y tyy mk s -> mconcat
       [ fv v
@@ -99,7 +105,11 @@ fromExp e = runContT (fromExpC e)
 fromExpC :: S.Exp -> ContT Exp (Reader (Set Ident)) Val
 fromExpC = \case
   S.Lit l -> pure (Lit l)
-  S.Var v -> pure (Var v)
+  S.Var v -> do
+    vars <- ask
+    if v `Set.member` vars
+       then pure (Var v)
+       else captured $ pure . TLCall v . Just
   S.Lam m x t e -> lift $
     Lam m x t <$> bound x (fromExp' e)
   S.App e1 e2 -> do
@@ -150,6 +160,11 @@ getPair f e = do
 
 fromExp' :: S.Exp -> Reader (Set Ident) Exp
 fromExp' = \case
+  S.Var v -> do
+    vars <- ask
+    if v `Set.member` vars
+       then trivial (S.Var v)
+       else pure $ TLCall v Nothing
   S.App e1 e2 -> flip runContT pure do
     Call <$> fromExpC e1 <*> fromExpC e2 <*> pure Nothing
   S.Let x e1 e2 -> fromExp e1 \v ->
@@ -165,7 +180,6 @@ fromExp' = \case
     pure $ Recv v Nothing
 
   e@S.Lit{}  -> trivial e
-  e@S.Var{}  -> trivial e
   e@S.Succ{} -> trivial e
   e@S.Math{} -> trivial e
   e@S.Fst{}  -> trivial e
