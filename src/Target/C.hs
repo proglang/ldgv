@@ -27,6 +27,7 @@ import Data.ByteString.Builder (Builder)
 import Data.Foldable
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map (Map)
+import Data.Proxy
 import Data.Semigroup as S
 import Data.Set (Set)
 import Data.String
@@ -42,13 +43,21 @@ import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Paths_ldgv
 
--- | Represents values lifted into the @LDST_t@ type.
-newtype CExp = CExp { unCExp :: Builder }
+-- | Type level tag for values.
+data V
+
+-- | Type level tag for lambdas.
+data L
+
+-- | Represents values lifted into the type correspoding to @t@.
+newtype CExp t = CExp { unCExp :: Builder }
 -- TODO: By using an ADT to differentiate what the expression might represent
 -- we could generate more idiomatic code. This isn't terribly necessary though,
 -- the common C compilers are able to understand and optimize our intentions
 -- quite well.
 
+-- | A type-level tag that captures wether varaibles are accessed directly (=
+-- @Stack@) or through a pointer (= @Heap@, which is a bit of a misnomer).
 data Location = Stack | Heap
 
 data SLocation x where
@@ -60,9 +69,9 @@ type instance The Location = SLocation
 instance Known 'Stack where sing = SStack
 instance Known 'Heap where sing = SHeap
 
-data CVar x where
-  StackVar :: !Builder -> CVar 'Stack
-  HeapVar :: !Builder -> CVar 'Heap
+data CVar t x where
+  StackVar :: !Builder -> CVar t 'Stack
+  HeapVar :: !Builder -> CVar t 'Heap
 
 newtype CStmt = CStmt { unCStmt :: Builder }
   deriving newtype (Semigroup, Monoid)
@@ -70,7 +79,7 @@ newtype CStmt = CStmt { unCStmt :: Builder }
 data Tag a where
   TagInt :: Tag Int
   TagLabel :: Tag String
-  TagPair :: Tag (CExp, CExp)
+  TagPair :: Tag (CExp V, CExp V)
   TagLam :: Tag (Builder, Closure)
 
 data Function = Function
@@ -105,7 +114,7 @@ data Closure = Closure
   }
 
 -- | A mapping from locally bound variables to their corresponding 'CVar'.
-type Env = Map Ident (CVar 'Stack)
+type Env = Map Ident (CVar V 'Stack)
 
 data Info = Info
   { _infoBindings :: !Env
@@ -126,6 +135,15 @@ data Info = Info
   }
 
 makeLenses ''Info
+
+class CType t where
+  typeName :: proxy t -> Builder
+
+instance CType V where
+  typeName _ = ctype
+
+instance CType L where
+  typeName _ = cLambdaType
 
 type GenM =
   RWST Info CStmt Word
@@ -224,9 +242,9 @@ genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
 -- | Generates a call to @printf@ which tries to output the value of the given
 -- variable according to the given type. In case the type has non-printable
 -- values (e.g. a function type) only the type is printed.
-explainExpression :: Type -> CVar 'Stack -> CStmt
+explainExpression :: Type -> CVar V 'Stack -> CStmt
 explainExpression ty0 v0 =
-  let format :: Type -> CVar x -> (Endo String, Endo [Builder])
+  let format :: Type -> CVar V x -> (Endo String, Endo [Builder])
       format ty v = case ty of
         TUnit -> literal "()"
         TInt -> formatted "Int %d" $ access TagInt v
@@ -359,7 +377,7 @@ generateFunction' fun = do
     & fmap snd -- We only care about the WriterT result.
     & fmap (functionDeclDef sig)
 
-generateExp :: Exp -> GenM (CVar 'Stack)
+generateExp :: Exp -> GenM (CVar V 'Stack)
 generateExp = \case
   Let v a b -> do
     scoped v (generateExp a) (const $ generateExp b)
@@ -448,7 +466,7 @@ generateExp = \case
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
     pure result
 
-generateMath :: MathOp Exp -> GenM (CVar 'Stack)
+generateMath :: MathOp Exp -> GenM (CVar V 'Stack)
 generateMath = liftValue TagInt <=< \case
   Add a b -> math '+' a b
   Sub a b -> math '-' a b
@@ -463,14 +481,14 @@ generateMath = liftValue TagInt <=< \case
       b' <- generateExp b
       pure $ bunwords [ access TagInt a', B.char7 c, access TagInt b' ]
 
-generateLiteral :: Literal -> GenM (CVar 'Stack)
+generateLiteral :: Literal -> GenM (CVar V 'Stack)
 generateLiteral = \case
   LInt i -> mkValue TagInt i
   LNat n -> mkValue TagInt n
   LLab l -> mkValue TagLabel l
   LUnit  -> newUnitVar
 
-scoped :: Ident -> GenM (CVar 'Stack) -> (CVar 'Stack -> GenM b) -> GenM b
+scoped :: Ident -> GenM (CVar V 'Stack) -> (CVar V 'Stack -> GenM b) -> GenM b
 scoped idn val body = do
   var <- local (infoNameHint .~ identForC idn) val
   local (infoBindings . at idn ?~ var) $ body var
@@ -494,11 +512,11 @@ fresh funKind = do
     Just fk -> (\h -> h <> B.char7 '_' <> fk) <$> view infoFuncHint
   pure $ hint <> B.char7 '_' <> B.wordHex n
 
-declareFresh :: forall x. Known x => Builder -> Builder -> GenM (CVar x)
-declareFresh varType initExp = do
+declareFresh :: forall x t. (Known x, CType t) => Builder -> GenM (CVar t x)
+declareFresh initExp = do
   name <- fresh Nothing
   tellStmt $ terminate $ mconcat
-    [ varType
+    [ typeName @t Proxy
     , case sing @_ @x of
         SStack -> " "
         SHeap -> " *"
@@ -510,12 +528,12 @@ declareFresh varType initExp = do
          SStack -> StackVar name
          SHeap -> HeapVar name
 
-newUnitVar :: GenM (CVar 'Stack)
+newUnitVar :: GenM (CVar V 'Stack)
 newUnitVar = storeVar (CExp "{ 0 }")
 
 -- | Writes the result of the given expression into a fresh variable.
-storeVar :: CExp -> GenM (CVar 'Stack)
-storeVar = declareFresh ctype . unCExp
+storeVar :: CType t => CExp t -> GenM (CVar t 'Stack)
+storeVar = declareFresh . unCExp
 
 mkClosure :: Set Ident -> GenM Closure
 mkClosure vars = do
@@ -531,7 +549,7 @@ mkClosure vars = do
       pure (B.char7 '0')
     else do
       let size = B.intDec (length captureExprs) <> " * " <> sizeofCtype
-      closure <- declareFresh @'Heap ctype $ callExp funMalloc [size]
+      closure <- declareFresh @'Heap $ callExp funMalloc [size]
       ifor_ captureExprs \idx expr ->
         tellAssignI closure idx (varToExp expr)
       pure $ varName closure
@@ -540,7 +558,7 @@ mkClosure vars = do
     , closureExpr = expr
     }
 
-mkValue :: Tag a -> a -> GenM (CVar 'Stack)
+mkValue :: Tag a -> a -> GenM (CVar V 'Stack)
 mkValue tag a = liftValue tag =<< case tag of
   TagInt -> pure $ B.intDec a
   TagLabel -> pure $ labelForC a
@@ -553,7 +571,7 @@ mkValue tag a = liftValue tag =<< case tag of
     let (fun, closure) = a
     pure $ braceList Nothing [fun, closureExpr closure]
 
-liftValue :: Tag a -> Builder -> GenM (CVar 'Stack)
+liftValue :: Tag a -> Builder -> GenM (CVar V 'Stack)
 liftValue tag a = storeVar
   $ CExp
   $ braceList Nothing
@@ -566,9 +584,9 @@ liftValue tag a = storeVar
 
 -- | Clones the result of the given expression into a fresh variable which
 -- lives on the heap instead of the stack.
-clone :: CExp -> GenM (CVar 'Heap)
+clone :: CExp V -> GenM (CVar V 'Heap)
 clone e = do
-  var <- declareFresh ctype $ callExp funMalloc [sizeofCtype]
+  var <- declareFresh $ callExp funMalloc [sizeofCtype]
   tellAssign var e
   pure var
 
@@ -577,14 +595,14 @@ clone e = do
 callExp :: Builder -> [Builder] -> Builder
 callExp f args = f <> parens (intercalate ", " args)
 
-tellAssign :: CVar x -> CExp -> GenM ()
+tellAssign :: CVar t x -> CExp t -> GenM ()
 tellAssign var val = tellStmt $ terminate $ bunwords
   [ unCExp (varToExp var)
   , B.char7 '='
   , unCExp val
   ]
 
-tellAssignI :: CVar 'Heap -> Int -> CExp -> GenM ()
+tellAssignI :: CVar t 'Heap -> Int -> CExp t -> GenM ()
 tellAssignI var idx val = tellStmt $ terminate $ bunwords
   [ varName var <> brackets (B.intDec idx)
   , B.char7 '='
@@ -600,7 +618,7 @@ funStrcmp = "strcmp"
 sizeofCtype :: Builder
 sizeofCtype = callExp "sizeof" [ctype]
 
-takeAddress :: CVar x -> Builder
+takeAddress :: CVar t x -> Builder
 takeAddress = \case
   StackVar v -> B.char7 '&' <> v
   HeapVar v -> v
@@ -725,25 +743,28 @@ braceList :: Maybe Builder -> [Builder] -> Builder
 braceList annot bs =
   foldMap parens annot <> braces (intercalate ", " bs)
 
-access :: Tag a -> CVar x -> Builder
-access tag v = unCExp (varToExp v) <> B.char7 '.' <> tagAccessor tag
+accessRaw :: CVar t x -> Builder -> Builder
+accessRaw v x = unCExp (varToExp v) <> B.char7 '.' <> x
 
-accessPair :: CVar x -> (CVar 'Stack, CVar 'Stack)
+access :: Tag a -> CVar V x -> Builder
+access tag v = accessRaw v (tagAccessor tag)
+
+accessPair :: CVar V x -> (CVar V 'Stack, CVar V 'Stack)
 accessPair v =
   let b = access TagPair v
    in (StackVar $ b <> "[0]", StackVar $ b <> "[1]")
 
-accessLambda :: CVar x -> (Builder, Builder)
+accessLambda :: CVar V x -> (Builder, Builder)
 accessLambda v =
   let b = access TagLam v
    in (b <> ".lam_fp", b <> ".lam_closure")
 
-varToExp :: CVar x -> CExp
+varToExp :: CVar t x -> CExp t
 varToExp = CExp . \case
   StackVar v -> v
   HeapVar v -> parens (B.char7 '*' <> v)
 
-varName :: CVar x -> Builder
+varName :: CVar t x -> Builder
 varName = \case
   StackVar n -> n
   HeapVar n -> n
