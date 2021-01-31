@@ -30,7 +30,6 @@ library
                  , Tokens
                  , Typechecker
   other-modules: Subtyping
-               , Singletons
                , Syntax.Pretty
                , TCSubtyping
                , TCTyping
