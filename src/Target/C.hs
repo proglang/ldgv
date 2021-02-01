@@ -606,19 +606,10 @@ mkClosure vars = do
         unzip
           $ Map.toAscList
           $ Map.restrictKeys knownVars vars
-  let capturedCount = length captureExprs
-  expr <- if capturedCount == 0
-    then do
-      -- `malloc` of size zero is not allowed, use a NULL closure instead.
-      pure nullPointer
-    else do
-      let size = B.intDec (length captureExprs) <> " * " <> cSizeof @V Proxy
-      closure <- declareFresh $ callExp funMalloc [size]
-      itraverse_ (tellAssignI closure) captureExprs
-      pure $ toCExp closure
+  expr <- cloneAll captureExprs
   pure Closure
     { closureVars = capturedVars
-    , closureExpr = expr
+    , closureExpr = toCExp expr
     }
 
 mkLambda :: Builder -> Closure -> GenM (CExp L)
@@ -637,7 +628,10 @@ accessContinuation :: CVar K -> (CVar L, CVar (Pointer K))
 accessContinuation v = (CVar (accessRaw v "k_lam"), CVar (accessRaw v "k_next"))
 
 accessPointer :: CVar (Pointer t) -> CVar t
-accessPointer (CVar v) = CVar $ parens $ B.char7 '*' <> v
+accessPointer = accessI 0
+
+accessI :: Int -> CVar (Pointer t) -> CVar t
+accessI i (CVar v) = CVar $ v <> brackets (B.intDec i)
 
 mkValue :: Tag a -> a -> GenM (CVar V)
 mkValue tag a = liftValue tag =<< case tag of
@@ -645,9 +639,7 @@ mkValue tag a = liftValue tag =<< case tag of
   TagLabel -> pure $ labelForC a
   TagPair -> do
     let (x, y) = a
-    x' <- unCExp . toCExp <$> clone x
-    y' <- unCExp . toCExp <$> clone y
-    pure $ braceList [x', y']
+    unCExp . toCExp <$> cloneAll [x, y]
   TagLam -> pure $ unCExp a
 
 liftValue :: Tag a -> Builder -> GenM (CVar V)
@@ -664,9 +656,15 @@ liftValue tag a = storeVar
 -- | Clones the result of the given expression into a fresh variable which
 -- lives on the heap instead of the stack.
 clone :: forall t e. (CType t, ExpLike e) => e t -> GenM (CVar (Pointer t))
-clone e = do
-  var <- declareFresh $ callExp funMalloc [cSizeof @t Proxy]
-  tellAssignI var 0 e
+clone = cloneAll . pure
+
+-- | Clones a list of values, if the list is empty the null pointer is used.
+cloneAll :: forall t e. (CType t, ExpLike e) => [e t] -> GenM (CVar (Pointer t))
+cloneAll [] = storeVar nullPointer
+cloneAll exprs = do
+  let n = length exprs
+  var <- declareFresh $ callExp funMalloc [B.intDec n <+> B.char7 '*' <+> cSizeof @t Proxy]
+  itraverse_ (tellAssignI var) exprs
   pure var
 
 nullPointer :: CExp (Pointer t)
@@ -677,12 +675,11 @@ nullPointer = CExp $ B.char7 '0'
 callExp :: Builder -> [Builder] -> Builder
 callExp f args = f <> parens (intercalate ", " args)
 
+tellAssign :: ExpLike e => CVar t -> e t -> GenM ()
+tellAssign (CVar v) val = tellStmt $ terminate $ bunwords [v, B.char7 '=', unCExp (toCExp val)]
+
 tellAssignI :: ExpLike e => CVar (Pointer t) -> Int -> e t -> GenM ()
-tellAssignI (CVar var) idx val = tellStmt $ terminate $ bunwords
-  [ var <> brackets (B.intDec idx)
-  , B.char7 '='
-  , unCExp $ toCExp val
-  ]
+tellAssignI v idx = tellAssign (accessI idx v)
 
 funMalloc :: Builder
 funMalloc = "malloc"
@@ -745,7 +742,7 @@ glueCode decls defs = bunlines
 -- union LDST_t {
 --   int val_int;
 --   const char *val_label;
---   union LDST_t *val_pair[2];
+--   union LDST_t *val_pair;
 --   struct LDST_lam_t val_lam;
 -- };
 -- @
@@ -841,8 +838,8 @@ access tag v = accessRaw v (tagAccessor tag)
 
 accessPair :: CVar V -> (CVar V, CVar V)
 accessPair v =
-  let b = access TagPair v
-   in (CVar $ b <> "[0]", CVar $ b <> "[1]")
+  let b = CVar $ access TagPair v :: CVar (Pointer V)
+   in (accessI 0 b, accessI 1 b)
 
 accessValLambda :: CVar V -> CVar L
 accessValLambda = CVar . access TagLam
@@ -858,8 +855,8 @@ tagType :: Tag a -> Builder -> Builder
 tagType tag n = bunwords case tag of
   TagInt   -> ["int", n]
   TagLabel -> ["const char*", n]
-  TagPair  -> [ctype <> B.char7 '*', n <> "[2]"]
-  TagLam   -> [cLambdaType, n]
+  TagPair  -> [typeName @(Pointer V) Proxy, n]
+  TagLam   -> [typeName @L Proxy, n]
 
 -- | Concatenates two builders using a single space character.
 (<+>) :: Builder -> Builder -> Builder
