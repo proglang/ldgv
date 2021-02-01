@@ -419,29 +419,31 @@ generateVal = \case
     -- node.
     asks \env -> env ^?! infoBindings . ix name
   e@(Lam _ argId _ body) -> do
-    name <- fresh (Just "lam")
+    name <- fresh (Just 'l')
     closure <- mkClosure $ fv e
+    hint <- view infoNameHint
     lift $ pushStack $ Function
       { funHeader = FunctionHeader
           { funName = name
           , funArgs = Just (closureVars closure, argId)
           , funInternal = True
           }
-      , funHint = "lam"
+      , funHint = hint
       , funBody = body
       , funRecursive = Nothing
       }
     mkValue TagLam =<< mkLambda name closure
   e@(Rec recId argId _ _ body) -> do
-    name <- fresh (Just "rec")
+    name <- fresh (Just 'r')
     closure <- mkClosure $ fv e
+    hint <- view infoNameHint
     lift $ pushStack $ Function
       { funHeader = FunctionHeader
           { funName = name
           , funArgs = Just (closureVars closure, argId)
           , funInternal = True
           }
-      , funHint = "rec"
+      , funHint = hint
       , funBody = body
       , funRecursive = Just recId
       }
@@ -523,15 +525,16 @@ generateLiteral = \case
 generateContinuationM :: Maybe Continuation -> GenM (CVar (Pointer K))
 generateContinuationM Nothing = view infoContinuation
 generateContinuationM (Just (resId, kbody)) = do
-  kname <- fresh (Just "k")
+  kname <- fresh (Just 'k')
   closure <- mkClosure (fv kbody)
+  hint <- view infoNameHint
   lift $ pushStack Function
     { funHeader = FunctionHeader
         { funName = kname
         , funArgs = Just (closureVars closure, resId)
         , funInternal = True
         }
-    , funHint = "k"
+    , funHint = hint
     , funBody = kbody
     , funRecursive = Nothing
     }
@@ -570,13 +573,13 @@ functionHeader ret name args =
 -- If the first argument is @Just /funKind/@ the name is guaranteed to be fresh
 -- for the whole module and @fresh@ uses 'infoFuncHint' instead of
 -- 'infoNameHint' with @/funKind/@ appended before the unique id.
-fresh :: Maybe Builder -> GenM Builder
+fresh :: Maybe Char -> GenM Builder
 fresh funKind = do
   n <- get <* modify' (+1)
   hint <- case funKind of
-    Nothing -> view infoNameHint
-    Just fk -> (\h -> h <> B.char7 '_' <> fk) <$> view infoFuncHint
-  pure $ hint <> B.char7 '_' <> B.wordHex n
+    Nothing -> (\h -> h <> B.char7 '_') <$> view infoNameHint
+    Just c  -> (\h -> h <> B.char7 '_' <> B.char7 c) <$> view infoFuncHint
+  pure $ hint <> B.wordHex n
 
 declareFresh :: forall t. CType t => Builder -> GenM (CVar t)
 declareFresh initExp = do
