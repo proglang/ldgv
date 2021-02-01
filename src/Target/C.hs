@@ -379,7 +379,7 @@ generateFunction' fun = do
             --
             -- typechecks 'recId' should *not* shadow an existing variable, if
             -- it fails to typecheck, it *should* shadow the variable.
-            recVal <- mkValue TagLam . varToExp =<< mkLambda' (funName fun) (CExp cClosureName)
+            recVal <- mkValue TagLam . toCExp =<< mkLambda' (funName fun) (CExp cClosureName)
             pure $ infoBindings . at recId ?~ recVal
 
         local insertRecArg $
@@ -405,7 +405,7 @@ generateVal = \case
     -- there is a top level symbol with the matching name which we call to
     -- obtain its value.
     let topLevelCall = CExp $ callExp (functionForC name) []
-    storeVar . maybe topLevelCall varToExp =<< view (infoBindings . at name)
+    storeVar . maybe topLevelCall toCExp =<< view (infoBindings . at name)
   e@(Lam _ argId _ body) -> do
     name <- fresh (Just "lam")
     closure <- mkClosure $ fv e
@@ -439,7 +439,7 @@ generateVal = \case
   Pair a b -> do
     a' <- generateVal a
     b' <- generateVal b
-    mkValue TagPair (varToExp a', varToExp b')
+    mkValue TagPair (toCExp a', toCExp b')
   Fork _ -> throwError "fork: not yet implemented"
   New _ -> throwError "new: not yet implemented"
   Send _ -> throwError "send: not yet implemented"
@@ -519,8 +519,8 @@ generateContinuationM (Just (resId, kbody)) = do
     , funRecursive = Nothing
     }
   klam <- mkLambda kname closure
-  kvar <- mkContinuation klam . varToExp =<< view infoContinuation
-  clone $ varToExp kvar
+  kvar <- mkContinuation klam =<< view infoContinuation
+  clone kvar
 
 invokeContinuation :: ExpLike e => e V -> GenM ()
 invokeContinuation e = do
@@ -577,8 +577,8 @@ newUnitVar :: GenM (CVar V)
 newUnitVar = storeVar (CExp "{ 0 }")
 
 -- | Writes the result of the given expression into a fresh variable.
-storeVar :: CType t => CExp t -> GenM (CVar t)
-storeVar = declareFresh . unCExp
+storeVar :: (CType t, ExpLike e) => e t -> GenM (CVar t)
+storeVar = declareFresh . unCExp . toCExp
 
 mkClosure :: Set Ident -> GenM Closure
 mkClosure vars = do
@@ -595,25 +595,24 @@ mkClosure vars = do
     else do
       let size = B.intDec (length captureExprs) <> " * " <> cSizeof @V Proxy
       closure <- declareFresh $ callExp funMalloc [size]
-      ifor_ captureExprs \idx expr ->
-        tellAssignI closure idx (varToExp expr)
-      pure $ varToExp closure
+      itraverse_ (tellAssignI closure) captureExprs
+      pure $ toCExp closure
   pure Closure
     { closureVars = capturedVars
     , closureExpr = expr
     }
 
 mkLambda :: Builder -> Closure -> GenM (CExp L)
-mkLambda fun = fmap varToExp . mkLambda' fun . closureExpr
+mkLambda fun = fmap toCExp . mkLambda' fun . closureExpr
 
-mkLambda' :: Builder -> CExp (Pointer V) -> GenM (CVar L)
-mkLambda' fun closure = declareFresh $ braceList [fun, unCExp closure]
+mkLambda' :: ExpLike e => Builder -> e (Pointer V) -> GenM (CVar L)
+mkLambda' fun closure = declareFresh $ braceList [fun, unCExp $ toCExp closure]
 
 accessLambda :: CVar L -> (Builder, CExp Closure)
 accessLambda v = (accessRaw v "lam_fp", CExp $ accessRaw v "lam_closure")
 
-mkContinuation :: CExp L -> CExp (Pointer K) -> GenM (CVar K)
-mkContinuation lambda next = declareFresh $ braceList [unCExp lambda, unCExp next]
+mkContinuation :: (ExpLike e1, ExpLike e2) => e1 L -> e2 (Pointer K) -> GenM (CVar K)
+mkContinuation lambda next = declareFresh $ braceList [unCExp $ toCExp lambda, unCExp $ toCExp next]
 
 accessContinuation :: CVar K -> (CVar L, CVar (Pointer K))
 accessContinuation v = (CVar (accessRaw v "k_lam"), CVar (accessRaw v "k_next"))
@@ -627,8 +626,8 @@ mkValue tag a = liftValue tag =<< case tag of
   TagLabel -> pure $ labelForC a
   TagPair -> do
     let (x, y) = a
-    x' <- unCExp . varToExp <$> clone x
-    y' <- unCExp . varToExp <$> clone y
+    x' <- unCExp . toCExp <$> clone x
+    y' <- unCExp . toCExp <$> clone y
     pure $ braceList [x', y']
   TagLam -> pure $ unCExp a
 
@@ -645,7 +644,7 @@ liftValue tag a = storeVar
 
 -- | Clones the result of the given expression into a fresh variable which
 -- lives on the heap instead of the stack.
-clone :: forall t. CType t => CExp t -> GenM (CVar (Pointer t))
+clone :: forall t e. (CType t, ExpLike e) => e t -> GenM (CVar (Pointer t))
 clone e = do
   var <- declareFresh $ callExp funMalloc [cSizeof @t Proxy]
   tellAssignI var 0 e
@@ -659,11 +658,11 @@ nullPointer = CExp $ B.char7 '0'
 callExp :: Builder -> [Builder] -> Builder
 callExp f args = f <> parens (intercalate ", " args)
 
-tellAssignI :: CVar (Pointer t) -> Int -> CExp t -> GenM ()
-tellAssignI var idx val = tellStmt $ terminate $ bunwords
-  [ unCExp (varToExp var) <> brackets (B.intDec idx)
+tellAssignI :: ExpLike e => CVar (Pointer t) -> Int -> e t -> GenM ()
+tellAssignI (CVar var) idx val = tellStmt $ terminate $ bunwords
+  [ var <> brackets (B.intDec idx)
   , B.char7 '='
-  , unCExp val
+  , unCExp $ toCExp val
   ]
 
 funMalloc :: Builder
@@ -816,7 +815,7 @@ braceList :: [Builder] -> Builder
 braceList bs = braces (intercalate ", " bs)
 
 accessRaw :: CVar t -> Builder -> Builder
-accessRaw v x = unCExp (varToExp v) <> B.char7 '.' <> x
+accessRaw (CVar v) x = v <> B.char7 '.' <> x
 
 access :: Tag a -> CVar V -> Builder
 access tag v = accessRaw v (tagAccessor tag)
@@ -828,9 +827,6 @@ accessPair v =
 
 accessValLambda :: CVar V -> CVar L
 accessValLambda = CVar . access TagLam
-
-varToExp :: CVar t -> CExp t
-varToExp (CVar v) = CExp v
 
 tagAccessor :: Tag a -> Builder
 tagAccessor = \case
