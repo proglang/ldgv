@@ -36,7 +36,6 @@ import Data.Version
 import Numeric
 import Syntax.CPS
 import Validation
-import qualified Control.Foldl as L
 import qualified Data.ByteString.Builder as B
 import qualified Data.Char as C
 import qualified Data.List as List
@@ -74,22 +73,24 @@ data Tag a where
   TagPair :: Tag (CExp V, CExp V)
   TagLam :: Tag (CExp L)
 
-data Function = Function
-  { funName    :: !Builder
-  , funHint    :: !Builder
-    -- ^ See '_infoNameHint'.
-  , funArgs    :: !(Maybe Ident)
-    -- ^ The functions parameters, not including any potential closure arguments.
-  , funBody    :: !Exp
-  , funClosure :: !(Maybe [Ident])
-    -- ^ @Just vars@ if the first parameter of the function should be a closure
-    -- argument.
+data FunctionHeader = FunctionHeader
+  { funName :: !Builder
+  , funArgs :: !(Maybe ([Ident], Ident))
+    -- ^ A pair of the identifiers carried by the closure parameter and the
+    -- functions argument.
   , funInternal :: !Bool
     -- ^ @True@ if this function is only used internally and should get
     -- @static@ linkage.
     --
     -- Internal functions originate from lambda expressions while the nullary
     -- top level functions correspond to non-internal functions.
+  }
+
+data Function = Function
+  { funHeader  :: !FunctionHeader
+  , funHint    :: !Builder
+    -- ^ See '_infoNameHint'.
+  , funBody    :: !Exp
   , funRecursive :: !(Maybe Ident)
     -- ^ @Just ident@ if this function can call itself recursively with
     -- identifier @ident@.
@@ -195,12 +196,13 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
     let lambdaBody = foldr (\(m, idn, ty) -> S.Lam m idn ty) body args
 
     let root = Function
-          { funName = functionForC name
+          { funHeader = FunctionHeader
+              { funName = functionForC name
+              , funArgs = Nothing
+              , funInternal = False
+              }
           , funHint = identForC name
-          , funArgs = Nothing
           , funBody = toCPS lambdaBody
-          , funClosure = Nothing
-          , funInternal = False
           , funRecursive = Nothing
           }
 
@@ -214,6 +216,9 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
       $ generateFunction root
 
   S.DSig name _ typ ->
+    -- TODO: When we encounter a signature we also have to emit this functions
+    -- top-level reference declaration, otherwise it will be missing when the
+    -- function is used but no definition is given.
     pure $ mempty{ genSigs = Map.singleton name $ Just $ S.Last typ }
 
   _ ->
@@ -296,10 +301,9 @@ explainExpression ty0 v0 =
 -- where @closure@ and @argument@ are only present for non-toplevel bindings,
 -- including the curried forms of toplevel bindings. If this changes
 -- 'cFunPtrDecl' has to be adjusted as well.
-functionSignature :: Function -> (Builder, Env, CVar (Pointer K))
+functionSignature :: FunctionHeader -> (Builder, Env, CVar (Pointer K))
 functionSignature fun =
-  L.fold goArgId (funArgs fun)
-    & maybe id addClosure (funClosure fun)
+  foldMap listArgs (funArgs fun)
     & addContinuation
     & first (functionHeader retType (funName fun))
     & \(sig, bindings) -> (sig, bindings, CVar cContName)
@@ -311,16 +315,16 @@ functionSignature fun =
     addContinuation =
       _1 %~ (cContType <> "* " <> cContName :)
 
-    addClosure clsr (args0, bindings0) =
-      let bindings = Map.fromList
-            $ zip clsr
-            $ fmap (\idx -> CVar $ cClosureName <> idx)
-            $ brackets . B.intDec <$> [0..]
-       in (ctype <> "* " <> cClosureName : args0, bindings0 <> bindings)
-
-    goArgId = (,)
-      <$> (\idn -> ctype <> B.char7 ' ' <> identForC idn) `L.premap` L.list
-      <*> (\idn -> (idn, CVar (identForC idn))) `L.premap` L.map
+    listArgs (closure, argId) =
+      ( [ typeName @(Pointer V) Proxy <+> cClosureName
+        , typeName @V Proxy <+> identForC argId
+        ]
+      , Map.insert argId (CVar (identForC argId))
+          $ Map.fromList
+          $ zip closure
+          $ fmap (\idx -> CVar $ cClosureName <> idx)
+          $ brackets . B.intDec <$> [0..]
+      )
 
     cContName = "_ldst_k"
 
@@ -354,7 +358,8 @@ generateFunction topLevelFun = evalStackT [topLevelFun] $ execWriterT go
 
 generateFunction' :: Function -> StackT Function (Either String) (Builder, Builder)
 generateFunction' fun = do
-  let (sig, bindings, initialK) = functionSignature fun
+  let (sig, bindings, initialK) = functionSignature (funHeader fun)
+  let name = funName $ funHeader fun
 
   let genBody = do
         -- Where do we add the binding for recursive functions? It requires
@@ -379,7 +384,7 @@ generateFunction' fun = do
             --
             -- typechecks 'recId' should *not* shadow an existing variable, if
             -- it fails to typecheck, it *should* shadow the variable.
-            recVal <- mkValue TagLam . toCExp =<< mkLambda' (funName fun) (CExp cClosureName)
+            recVal <- mkValue TagLam . toCExp =<< mkLambda' name (CExp cClosureName)
             pure $ infoBindings . at recId ?~ recVal
 
         local insertRecArg $
@@ -389,7 +394,7 @@ generateFunction' fun = do
         { _infoBindings = bindings
         , _infoContinuation = initialK
         , _infoNameHint = funHint fun
-        , _infoFuncHint = funName fun
+        , _infoFuncHint = name
         , _infoIndent = 1
         }
 
@@ -410,12 +415,13 @@ generateVal = \case
     name <- fresh (Just "lam")
     closure <- mkClosure $ fv e
     lift $ pushStack $ Function
-      { funName = name
+      { funHeader = FunctionHeader
+          { funName = name
+          , funArgs = Just (closureVars closure, argId)
+          , funInternal = True
+          }
       , funHint = "lam"
-      , funArgs = Just argId
       , funBody = body
-      , funClosure = Just $! closureVars closure
-      , funInternal = True
       , funRecursive = Nothing
       }
     mkValue TagLam =<< mkLambda name closure
@@ -423,12 +429,13 @@ generateVal = \case
     name <- fresh (Just "rec")
     closure <- mkClosure $ fv e
     lift $ pushStack $ Function
-      { funName = name
+      { funHeader = FunctionHeader
+          { funName = name
+          , funArgs = Just (closureVars closure, argId)
+          , funInternal = True
+          }
       , funHint = "rec"
-      , funArgs = Just argId
       , funBody = body
-      , funClosure = Just $! closureVars closure
-      , funInternal = True
       , funRecursive = Just recId
       }
     mkValue TagLam =<< mkLambda name closure
@@ -510,12 +517,13 @@ generateContinuationM (Just (resId, kbody)) = do
   kname <- fresh (Just "k")
   closure <- mkClosure (fv kbody)
   lift $ pushStack Function
-    { funName = kname
+    { funHeader = FunctionHeader
+        { funName = kname
+        , funArgs = Just (closureVars closure, resId)
+        , funInternal = True
+        }
     , funHint = "k"
-    , funArgs = Just resId
     , funBody = kbody
-    , funClosure = Just $! closureVars closure
-    , funInternal = True
     , funRecursive = Nothing
     }
   klam <- mkLambda kname closure
@@ -942,6 +950,7 @@ escapedCString = surround (B.char7 '"') (B.char7 '"') . B.string7 . concatMap \c
   in
   if | c == '"' -> ['\\', '"']
      | c == '\\' -> ['\\', '\\']
+     | c == '\n' -> ['\\', 'n'] -- Not strictly necessary.
      | C.isAscii c && C.isPrint c -> [c]
      | C.isAscii c -> '\\':'x':hexPadded 2
      | otherwise -> '\\':'U':hexPadded 8

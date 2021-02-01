@@ -42,7 +42,6 @@ library
                , bytestring
                , containers
                , file-embed
-               , foldl
                , lens
                , mtl
                , prettyprinter
