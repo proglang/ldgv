@@ -33,7 +33,7 @@ The C backend is not yet feature complete:
     * [ ] `recv`
     * [ ] `send`
 * [ ] entrypoint generation
-    * [x] `main(void)`
+    * [ ] `main(void)`
     * [ ] user requested
 * [ ] garbage collector
 * [ ] tests

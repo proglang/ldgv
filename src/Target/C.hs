@@ -251,7 +251,9 @@ genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
   Just Nothing -> Left $
     "entry point: no type signature for identifier ‘" <> mainId <> "’"
 
-  Just (Just (S.Last ty)) ->
+  Just (Just (S.Last _ty)) ->
+    Left "entry point generation is currently broken"
+  {-
     let (_, mainFunction) = functionDeclDef "int main(void)" $ foldMap stmtLine
           [ terminate $ ctype <> " result = " <> callExp (functionForC mainId) []
           , -- Prohibit "unused variable" warnings in the generated C code in
@@ -261,12 +263,13 @@ genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
           ]
         stmtLine s = mconcat [ CStmt "  ", s, CStmt "\n" ]
      in Right $ gm { genDefs = genDefs gm <> mainFunction }
+  -}
 
 -- | Generates a call to @printf@ which tries to output the value of the given
 -- variable according to the given type. In case the type has non-printable
 -- values (e.g. a function type) only the type is printed.
-explainExpression :: Type -> CVar V -> CStmt
-explainExpression ty0 v0 =
+_explainExpression :: Type -> CVar V -> CStmt
+_explainExpression ty0 v0 =
   let format :: Type -> CVar V -> (Endo String, Endo [Builder])
       format ty v = case ty of
         TUnit -> literal "()"
