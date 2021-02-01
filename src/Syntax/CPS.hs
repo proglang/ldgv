@@ -96,18 +96,35 @@ instance Freevars Exp where
     where
       contFV (x, k) = Set.delete x (fv k)
 
-toCPS :: S.Exp -> Exp
-toCPS e = flip runReader (fv e) $ fromExp' e
+-- | Keeps track of the used variables in an expression. @varsUsed@ should
+-- always be a superset of @varsBound@. The former includes all initially free
+-- variables while the latter is used to keep track of all bound variables.
+--
+-- @varsUsed@ is the set of identifiers we shouldn't use when creating fresh
+-- variables, @varsBound@ is used to distinguish used variables between local
+-- value accesses and top level calls.
+data Vars = Vars
+  { varsUsed :: !(Set Ident)
+  , varsBound :: !(Set Ident)
+  }
 
-fromExp :: S.Exp -> (Val -> Reader (Set Ident) Exp) -> Reader (Set Ident) Exp
+toCPS :: S.Exp -> Exp
+toCPS e = flip runReader vars $ fromExp' e
+  where
+    vars = Vars
+      { varsUsed = fv e
+      , varsBound = mempty
+      }
+
+fromExp :: S.Exp -> (Val -> Reader Vars Exp) -> Reader Vars Exp
 fromExp e = runContT (fromExpC e)
 
-fromExpC :: S.Exp -> ContT Exp (Reader (Set Ident)) Val
+fromExpC :: S.Exp -> ContT Exp (Reader Vars) Val
 fromExpC = \case
   S.Lit l -> pure (Lit l)
   S.Var v -> do
-    vars <- ask
-    if v `Set.member` vars
+    vBound <- isBound v
+    if vBound
        then pure (Var v)
        else captured $ pure . TLCall v . Just
   S.Lam m x t e -> lift $
@@ -148,21 +165,20 @@ fromExpC = \case
     v <- fromExpC e
     captured $ pure . Recv v . Just
 
-getPair :: (forall a. (a, a) -> a) -> S.Exp -> ContT Exp (Reader (Set Ident)) Val
+getPair :: (forall a. (a, a) -> a) -> S.Exp -> ContT Exp (Reader Vars) Val
 getPair f e = do
   v <- fromExpC e
   ContT \k -> do
-    vars <- ask
-    let xfst = freshvar "fst" vars
-        xsnd = freshvar "snd" vars
-        x = Var $ f (xfst, xsnd)
+    xfst <- fresh "fst"
+    xsnd <- fresh "snd"
+    let x = Var $ f (xfst, xsnd)
     LetPair xfst xsnd v <$> bound2 xfst xsnd (k x)
 
-fromExp' :: S.Exp -> Reader (Set Ident) Exp
+fromExp' :: S.Exp -> Reader Vars Exp
 fromExp' = \case
   S.Var v -> do
-    vars <- ask
-    if v `Set.member` vars
+    vBound <- isBound v
+    if vBound
        then trivial (S.Var v)
        else pure $ TLCall v Nothing
   S.App e1 e2 -> flip runContT pure do
@@ -193,14 +209,21 @@ fromExp' = \case
   where
     trivial e = fromExp e (pure . Return)
 
-captured :: (Continuation -> Reader (Set Ident) Exp) -> ContT Exp (Reader (Set Ident)) Val
+captured :: (Continuation -> Reader Vars Exp) -> ContT Exp (Reader Vars) Val
 captured f = do
-  vars <- ask
-  let a = freshvar "a" vars
+  a <- fresh "a"
   ContT \k -> f . (a,) =<< bound a (k (Var a))
 
-bound :: MonadReader (Set Ident) m => Ident -> m a -> m a
-bound x = local (Set.insert x)
+bound :: MonadReader Vars m => Ident -> m a -> m a
+bound x = local \(Vars v w) -> Vars (Set.insert x v) (Set.insert x w)
 
-bound2 :: MonadReader (Set Ident) m => Ident -> Ident -> m a -> m a
-bound2 x y = local (Set.insert x . Set.insert y)
+bound2 :: MonadReader Vars m => Ident -> Ident -> m a -> m a
+bound2 x y = bound x . bound y
+
+isBound :: MonadReader Vars m => Ident -> m Bool
+isBound ident = do
+  vars <- ask
+  pure $ ident `Set.member` varsBound vars
+
+fresh :: MonadReader Vars m => Ident -> m Ident
+fresh ident = asks $ freshvar ident . varsUsed

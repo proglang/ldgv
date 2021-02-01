@@ -413,12 +413,11 @@ generateFunction' fun = do
 generateVal :: Val -> GenM (CVar V)
 generateVal = \case
   Lit l -> generateLiteral l
-  Var name -> do
-    -- If there is a bound variable, return its value. Otherwise we assume
-    -- there is a top level symbol with the matching name which we call to
-    -- obtain its value.
-    let topLevelCall = CExp $ callExp (functionForC name) []
-    storeVar . maybe topLevelCall toCExp =<< view (infoBindings . at name)
+  Var name ->
+    -- The unsafe operator (^?!) is "safe" here because if the variable is not
+    -- locally bound the CPS transformation should have generated a 'TLCall'
+    -- node.
+    asks \env -> env ^?! infoBindings . ix name
   e@(Lam _ argId _ body) -> do
     name <- fresh (Just "lam")
     closure <- mkClosure $ fv e
@@ -478,7 +477,9 @@ generateExp = \case
     arg <- generateVal argExp
     k <- generateContinuationM mk
     invoke (accessValLambda lam) k arg
-  TLCall _ _ -> throwError "TLCall: not yet implemented"
+  TLCall funId mk -> do
+    k <- generateContinuationM mk
+    invoke' (functionForC funId) k []
   Case e cs -> do
     -- TODO: It is possible to arrange the comparisons to find the correct
     -- branch in O(log n) steps.
@@ -548,11 +549,10 @@ invokeContinuation e = do
 invoke :: (ExpLike e1, ExpLike e2) => CVar L -> e1 (Pointer K) -> e2 V -> GenM ()
 invoke lam k val = do
   let (fun, closure) = accessLambda lam
-  tellStmt $ terminate $ callExp fun
-    [ unCExp $ toCExp k
-    , unCExp closure
-    , unCExp $ toCExp val
-    ]
+  invoke' fun k [unCExp closure, unCExp (toCExp val)]
+
+invoke' :: ExpLike e => Builder -> e (Pointer K) -> [Builder] -> GenM ()
+invoke' fun k args = tellStmt $ terminate $ callExp fun $ unCExp (toCExp k) : args
 
 scoped :: Ident -> GenM (CVar V) -> (CVar V -> GenM b) -> GenM b
 scoped idn val body = do
