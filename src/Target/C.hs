@@ -196,11 +196,7 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
     let lambdaBody = foldr (\(m, idn, ty) -> S.Lam m idn ty) body args
 
     let root = Function
-          { funHeader = FunctionHeader
-              { funName = functionForC name
-              , funArgs = Nothing
-              , funInternal = False
-              }
+          { funHeader = topLevelHeader name
           , funHint = identForC name
           , funBody = toCPS lambdaBody
           , funRecursive = Nothing
@@ -215,11 +211,16 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
       $ bimap (pure . addContext) (uncurry $ GenMonoid identMap)
       $ generateFunction root
 
-  S.DSig name _ typ ->
-    -- TODO: When we encounter a signature we also have to emit this functions
+  S.DSig name _ typ -> do
+    -- When we encounter a signature we also have to emit this functions
     -- top-level reference declaration, otherwise it will be missing when the
     -- function is used but no definition is given.
-    pure $ mempty{ genSigs = Map.singleton name $ Just $ S.Last typ }
+    let (sig, _, _) = functionSignature $ topLevelHeader name
+    let gen = mempty
+          { genSigs = Map.singleton name $ Just $ S.Last typ
+          , genDecls = sig <> ";\n"
+          }
+    pure gen
 
   _ ->
     -- Nothing to generate for this kind of top level thingy.
@@ -234,6 +235,13 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
 
     concatErrors :: NonEmpty String -> String
     concatErrors = intercalate "\n\n" . toList
+
+topLevelHeader :: Ident -> FunctionHeader
+topLevelHeader funIdent = FunctionHeader
+  { funName = functionForC funIdent
+  , funArgs = Nothing
+  , funInternal = False
+  }
 
 genMainFunction :: Ident -> GenMonoid -> Either String GenMonoid
 genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
