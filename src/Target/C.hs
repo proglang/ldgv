@@ -105,7 +105,7 @@ newtype CExp t = CExp { unCExp :: Builder }
 -- | Represents a variable reference of type @t@.
 newtype CVar t = CVar { unCVar :: Builder }
 
-newtype CStmt = CStmt Builder
+newtype CStmt = CStmt { unCStmt :: Builder }
   deriving newtype (Semigroup, Monoid)
 
 data Tag a where
@@ -295,25 +295,40 @@ genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
   Just Nothing -> Left $
     "entry point: no type signature for identifier ‘" <> mainId <> "’"
 
-  Just (Just (S.Last _ty)) ->
-    Left "entry point generation is currently broken"
-  {-
+  Just (Just (S.Last ty)) ->
     let (_, mainFunction) = functionDeclDef "int main(void)" $ foldMap stmtLine
-          [ terminate $ ctype <> " result = " <> callExp (functionForC mainId) []
-          , -- Prohibit "unused variable" warnings in the generated C code in
-            -- case 'explainExpression' only outputs a static string.
-            terminate "(void)result"
-          , explainExpression ty (CVar "result")
+          [ terminate $ varDeclaration valueVar
+          , assignStmt (varDeclaration resultVar) $ callExp "ldst__run"
+              [ B.char7 '&' <> unCVar valueVar
+              , functionForC mainId
+              , unCExp nullPointer
+              , unCExp nullPointer
+              ]
+          , checkResult resultVar
+          , explainExpression ty valueVar
           ]
         stmtLine s = mconcat [ CStmt "  ", s, CStmt "\n" ]
+        valueVar = CVar @V "value"
+        resultVar = CVar @R "res"
+        assignStmt x y = terminate $ x <+> B.char7 '=' <+> y
      in Right $ gm { genDefs = genDefs gm <> mainFunction }
-  -}
+
+checkResult :: CVar R -> CStmt
+checkResult (CVar res) = CStmt $ bunlines
+  [ callExp "switch " [res] <+> B.char7 '{'
+  , unCStmt $ terminate "case LDST__ok: break"
+  , unCStmt $ terminate $ "case LDST__no_mem: fputs(\"out of memory\", stderr); return " <> res
+  , unCStmt $ terminate $ "case LDST__deadlock: fputs(\"deadlock\", stderr); return " <> res
+  , unCStmt $ terminate $ "case LDST__unmatched_label: fputs(\"unmatched label\", stderr); return " <> res
+  , unCStmt $ terminate $ "default: fputs(\"unknown error\", stderr); return " <> res
+  , B.char7 '}'
+  ]
 
 -- | Generates a call to @printf@ which tries to output the value of the given
 -- variable according to the given type. In case the type has non-printable
 -- values (e.g. a function type) only the type is printed.
-_explainExpression :: Type -> CVar V -> CStmt
-_explainExpression ty0 v0 =
+explainExpression :: Type -> CVar V -> CStmt
+explainExpression ty0 v0 =
   let format :: Type -> CVar V -> (Endo String, Endo [Builder])
       format ty v = case ty of
         TUnit -> literal "()"
@@ -794,7 +809,9 @@ chanReceive (toCExp -> CExp k) (toCExp -> CExp chan) =
   tellStmt $ cReturn $ callExp "ldst__chan_recv" [k, chan]
 
 forkLambda :: ExpLike e => e L -> GenM ()
-forkLambda = callChecked "ldst__fork" . pure . unCExp . toCExp
+forkLambda l = do
+  arg0 <- newUnitVar
+  callChecked "ldst__fork" [unCExp (toCExp l), unCVar arg0]
 
 callChecked :: Builder -> [Builder] -> GenM ()
 callChecked fun args = do

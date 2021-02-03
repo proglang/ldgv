@@ -17,6 +17,7 @@ enum LDST_res_t {
   LDST__unmatched_label,
 };
 
+typedef enum LDST_res_t (*LDST_fp0_t)(struct LDST_cont_t *);
 typedef enum LDST_res_t (*LDST_fp_t)(struct LDST_cont_t *, void *, union LDST_t);
 
 struct LDST_lam_t {
@@ -36,15 +37,6 @@ union LDST_t {
   struct LDST_chan_t  *val_chan;
   const char          *val_label;
 };
-
-
-/// Invokes the given continuation.
-static enum LDST_res_t ldst__invoke(struct LDST_cont_t *k, union LDST_t value) {
-  struct LDST_lam_t lam = k->k_lam;
-  struct LDST_cont_t *next = k->k_next;
-  free(k);
-  return lam.lam_fp(next, lam.lam_closure, value);
-}
 
 
 /// Creates a new channel.
@@ -69,4 +61,18 @@ enum LDST_res_t ldst__chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *chann
 ///
 /// If currently no thread is executing this will start execution and only
 /// return when all threads forked inside `op` and `op` itsel have completed.
-enum LDST_res_t ldst__fork(struct LDST_lam_t op);
+enum LDST_res_t ldst__fork(struct LDST_lam_t op, union LDST_t value);
+
+enum LDST_res_t ldst__run(union LDST_t *result, LDST_fp0_t f, int n, union LDST_t *args);
+
+
+/// Invokes the given continuation.
+static inline enum LDST_res_t ldst__invoke(struct LDST_cont_t *k, union LDST_t value) {
+  if (!k)
+    return LDST__ok;
+
+  struct LDST_lam_t lam = k->k_lam;
+  struct LDST_cont_t *next = k->k_next;
+  free(k);
+  return lam.lam_fp(next, lam.lam_closure, value);
+}
