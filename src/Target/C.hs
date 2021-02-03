@@ -81,6 +81,15 @@ data C
 data K
 
 -- | Type level tag for @enum LDST_res_t@.
+-- 
+-- @
+-- enum LDST_res_t {
+--   LDST__ok,
+--   LDST__no_mem,
+--   LDST__deadlock,
+--   LDST__unmatched_label,
+-- };
+-- @
 data R
 
 -- | Type level tag for a pointer to @a@.
@@ -515,6 +524,7 @@ generateExp = \case
           lift $ local (infoIndent +~ 1) $ generateExp branchExp
           lift $ tellStmt $ CStmt "}"
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
+    tellStmt $ cReturn "LDST__unmatched_label"
   NatRec{} -> throwError "natrec: not yet implemented"
   Recv e mk -> do
     c <- accessValChannel <$> generateVal e

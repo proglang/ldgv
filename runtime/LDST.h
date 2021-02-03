@@ -12,6 +12,7 @@ enum LDST_res_t {
   LDST__ok,
   LDST__no_mem,
   LDST__deadlock,
+  LDST__unmatched_label,
 };
 
 typedef enum LDST_res_t (*LDST_fp_t)(struct LDST_cont_t *, void *, union LDST_t);
