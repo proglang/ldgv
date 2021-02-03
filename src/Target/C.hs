@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
@@ -44,27 +45,58 @@ import qualified Paths_ldgv
 import qualified Syntax as S
 
 -- | Type level tag for values.
+--
+-- @
+-- union LDST_t {
+--   int val_int;
+--   const char *val_label;
+--   union LDST_t *val_pair;
+--   struct LDST_lam_t val_lam;
+-- };
+-- @
 data V
 
 -- | Type level tag for lambdas.
+--
+-- @
+-- struct LDST_lam_t {
+--   LDST_fp fp;
+--   LDST_t *closure;
+-- };
+-- @
 data L
 
+-- | Type level tag for channels.
+data C
+
 -- | Type level tag for continuations.
+--
+-- @
+-- struct LDST_cont_t {
+--    LDST_fp fp;
+--    union LDST_t *closure;
+--    union LDST_cont_t *cont;
+-- };
+-- @
 data K
+
+-- | Type level tag for @enum LDST_res_t@.
+data R
 
 -- | Type level tag for a pointer to @a@.
 data Pointer a
 
--- | Represents values lifted into the type correspoding to @t@.
+-- | Represents an expression of type @t@.
 newtype CExp t = CExp { unCExp :: Builder }
 -- TODO: By using an ADT to differentiate what the expression might represent
 -- we could generate more idiomatic code. This isn't terribly necessary though,
 -- the common C compilers are able to understand and optimize our intentions
 -- quite well.
 
-newtype CVar t = CVar Builder
+-- | Represents a variable reference of type @t@.
+newtype CVar t = CVar { unCVar :: Builder }
 
-newtype CStmt = CStmt { unCStmt :: Builder }
+newtype CStmt = CStmt Builder
   deriving newtype (Semigroup, Monoid)
 
 data Tag a where
@@ -72,6 +104,7 @@ data Tag a where
   TagLabel :: Tag String
   TagPair :: Tag (CExp V, CExp V)
   TagLam :: Tag (CExp L)
+  TagChan :: Tag (CExp (Pointer C))
 
 data FunctionHeader = FunctionHeader
   { funName :: !Builder
@@ -134,25 +167,25 @@ makeLenses ''Info
 
 class ExpLike e where
   toCExp :: e t -> CExp t
-
 instance ExpLike CExp where
   toCExp = id
-
 instance ExpLike CVar where
   toCExp = coerce
 
 class CType t where
   typeName :: proxy t -> Builder
-
 instance CType V where
-  typeName _ = ctype
-
+  typeName _ = "union LDST_t"
 instance CType L where
-  typeName _ = cLambdaType
-
+  typeName _ = "struct LDST_lam_t"
+instance CType C where
+  typeName _ = "struct LDST_chan_t"
 instance CType K where
-  typeName _ = cContType
-
+  typeName _ = "struct LDST_cont_t"
+instance CType R where
+  typeName _ = cResType
+instance CType () where
+  typeName _ = "void"
 instance CType a => CType (Pointer a) where
   typeName _ = typeName @a Proxy <> B.char7 '*'
 
@@ -303,49 +336,47 @@ _explainExpression ty0 v0 =
 -- The function signature convention is
 --
 -- @
--- void /function-name/(
+-- enum LDST_res_t /function-name/(
 --    struct LDST_cont_t *continuation,
---    struct LDST_t *closure,
+--    void *closure,
 --    struct LDST_t argument)
 -- @
 --
 -- where @closure@ and @argument@ are only present for non-toplevel bindings,
--- including the curried forms of toplevel bindings. If this changes
--- 'cFunPtrDecl' has to be adjusted as well.
-functionSignature :: FunctionHeader -> (Builder, Env, CVar (Pointer K))
+-- including the curried forms of toplevel bindings.
+functionSignature :: FunctionHeader -> (Builder, GenM Env, CVar (Pointer K))
 functionSignature fun =
-  foldMap listArgs (funArgs fun)
+  maybe ([], pure mempty) listArgs (funArgs fun)
     & addContinuation
     & first (functionHeader retType (funName fun))
-    & \(sig, bindings) -> (sig, bindings, CVar cContName)
+    & \(sig, mkBindings) -> (sig, mkBindings, cContVar)
   where
-    retType
-      | funInternal fun = "static void"
-      | otherwise = "void"
+    retType = mconcat
+      [ if funInternal fun then "static " else mempty
+      , typeName @R Proxy
+      ]
 
     addContinuation =
-      _1 %~ (cContType <> "* " <> cContName :)
+      _1 %~ (varDeclaration cContVar :)
 
+    listArgs :: ([Ident], Ident) -> ([Builder], GenM Env)
     listArgs (closure, argId) =
-      ( [ typeName @(Pointer V) Proxy <+> cClosureName
-        , typeName @V Proxy <+> identForC argId
-        ]
-      , Map.insert argId (CVar (identForC argId))
-          $ Map.fromList
-          $ zip closure
-          $ fmap (\idx -> CVar $ cClosureName <> idx)
-          $ brackets . B.intDec <$> [0..]
-      )
+      let argVar = CVar @V $ identForC argId
+          params = [varDeclaration cClosureVar, varDeclaration argVar]
+          bindings = do
+            let closureVar = cast @(Pointer V) cClosureVar
+            vars <- ifor closure \i ident -> local (infoNameHint .~ identForC ident) do
+              (ident,) <$> storeVar (accessI i closureVar)
+            pure
+              $ Map.insert argId (CVar (identForC argId))
+              $ Map.fromList vars
+       in (params, bindings)
 
-    cContName = "_ldst_k"
+    cContVar :: CVar (Pointer K)
+    cContVar = CVar "_ldst_k"
 
--- | The parameter name given to the closure argument.
---
--- Mainly an implementation detail of 'functionSignature' but required to
--- generate recursive bindings for the @rec@ construct. See 'generateFunction''
--- for more information.
-cClosureName :: Builder
-cClosureName = "_ldst_closure"
+cClosureVar :: CVar (Pointer ())
+cClosureVar = CVar "_ldst_closure"
 
 -- | @functionDeclDef signature body@ returns a pair of @(declaration, definition)@.
 --
@@ -369,10 +400,12 @@ generateFunction topLevelFun = evalStackT [topLevelFun] $ execWriterT go
 
 generateFunction' :: Function -> StackT Function (Either String) (Builder, Builder)
 generateFunction' fun = do
-  let (sig, bindings, initialK) = functionSignature (funHeader fun)
+  let (sig, mkBindings, initialK) = functionSignature (funHeader fun)
   let name = funName $ funHeader fun
 
   let genBody = do
+        bindings <- mkBindings
+
         -- Where do we add the binding for recursive functions? It requires
         -- access to the closure argument, which we don't really want outside
         -- of 'functionSignature'.
@@ -395,14 +428,14 @@ generateFunction' fun = do
             --
             -- typechecks 'recId' should *not* shadow an existing variable, if
             -- it fails to typecheck, it *should* shadow the variable.
-            recVal <- mkValue TagLam . toCExp =<< mkLambda' name (CExp cClosureName)
+            recVal <- mkValue TagLam . toCExp =<< mkLambda' name cClosureName
             pure $ infoBindings . at recId ?~ recVal
 
-        local insertRecArg $
+        local (\info -> info & infoBindings <>~ bindings & insertRecArg) $
           generateExp (funBody fun)
 
   let info = Info
-        { _infoBindings = bindings
+        { _infoBindings = mempty
         , _infoContinuation = initialK
         , _infoNameHint = funHint fun
         , _infoFuncHint = name
@@ -422,35 +455,11 @@ generateVal = \case
     -- node.
     asks \env -> env ^?! infoBindings . ix name
   e@(Lam _ argId _ body) -> do
-    name <- fresh (Just 'l')
-    closure <- mkClosure $ fv e
-    hint <- view infoNameHint
-    lift $ pushStack $ Function
-      { funHeader = FunctionHeader
-          { funName = name
-          , funArgs = Just (closureVars closure, argId)
-          , funInternal = True
-          }
-      , funHint = hint
-      , funBody = body
-      , funRecursive = Nothing
-      }
-    mkValue TagLam =<< mkLambda name closure
+    lam <- pushFunction 'l' (fv e) Nothing argId body
+    mkValue TagLam lam
   e@(Rec recId argId _ _ body) -> do
-    name <- fresh (Just 'r')
-    closure <- mkClosure $ fv e
-    hint <- view infoNameHint
-    lift $ pushStack $ Function
-      { funHeader = FunctionHeader
-          { funName = name
-          , funArgs = Just (closureVars closure, argId)
-          , funInternal = True
-          }
-      , funHint = hint
-      , funBody = body
-      , funRecursive = Just recId
-      }
-    mkValue TagLam =<< mkLambda name closure
+    lam <- pushFunction 'r' (fv e) (Just recId) argId body
+    mkValue TagLam lam
   Math m -> generateMath m
   Succ e -> do
     e' <- generateVal e
@@ -459,9 +468,20 @@ generateVal = \case
     a' <- generateVal a
     b' <- generateVal b
     mkValue TagPair (toCExp a', toCExp b')
-  Fork _ -> throwError "fork: not yet implemented"
-  New _ -> throwError "new: not yet implemented"
-  Send _ -> throwError "send: not yet implemented"
+  Fork e -> do
+    let free = fv e
+    lam <- pushFunction 'f' free Nothing (S.freshvar "unit" free) e
+    forkLambda lam
+    unit <- newUnitVar
+    -- This unit value will probably not get used.
+    tellStmt $ terminate $ unCVar $ cast @() unit
+    pure unit
+  New _ -> do
+    chan <- mkValue TagChan . toCExp =<< newChannel
+    mkValue TagPair (toCExp chan, toCExp chan)
+  Send e -> do
+    chan <- accessValChannel <$> generateVal e
+    mkValue TagLam . toCExp =<< chanSendLambda chan
 
 generateExp :: Exp -> GenM ()
 generateExp = \case
@@ -501,7 +521,27 @@ generateExp = \case
           lift $ tellStmt $ CStmt "}"
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
   NatRec{} -> throwError "natrec: not yet implemented"
-  Recv _ _ -> throwError "recv: not yet implemented"
+  Recv e mk -> do
+    c <- accessValChannel <$> generateVal e
+    k <- generateContinuationM mk
+    chanReceive k c
+
+pushFunction :: Char -> Set Ident -> Maybe Ident -> Ident -> Exp -> GenM (CExp L)
+pushFunction c freevars mRecId argId body = do
+  name <- fresh (Just c)
+  closure <- mkClosure freevars
+  hint <- view infoNameHint
+  lift $ pushStack $ Function
+    { funHeader = FunctionHeader
+        { funName = name
+        , funArgs = Just (closureVars closure, argId)
+        , funInternal = True
+        }
+    , funHint = hint
+    , funBody = body
+    , funRecursive = mRecId
+    }
+  mkLambda name closure
 
 generateMath :: MathOp Val -> GenM (CVar V)
 generateMath = liftValue TagInt <=< \case
@@ -555,10 +595,10 @@ invokeContinuation e = do
 invoke :: (ExpLike e1, ExpLike e2) => CVar L -> e1 (Pointer K) -> e2 V -> GenM ()
 invoke lam k val = do
   let (fun, closure) = accessLambda lam
-  invoke' fun k [unCExp closure, unCExp (toCExp val)]
+  invoke' fun k [closure, unCExp (toCExp val)]
 
 invoke' :: ExpLike e => Builder -> e (Pointer K) -> [Builder] -> GenM ()
-invoke' fun k args = tellStmt $ terminate $ callExp fun $ unCExp (toCExp k) : args
+invoke' fun k args = tellStmt $ cReturn $ callExp fun $ unCExp (toCExp k) : args
 
 scoped :: Ident -> GenM (CVar V) -> (CVar V -> GenM b) -> GenM b
 scoped idn val body = do
@@ -587,13 +627,12 @@ fresh funKind = do
 declareFresh :: forall t. CType t => Builder -> GenM (CVar t)
 declareFresh initExp = do
   name <- fresh Nothing
-  tellStmt $ terminate $ bunwords
-    [ typeName @t Proxy
-    , name
-    , B.char7 '='
-    , initExp
-    ]
-  pure $ CVar name
+  let var = CVar name
+  tellStmt $ terminate $ varDeclaration var <+> B.char7 '=' <+> initExp
+  pure var
+
+varDeclaration :: forall t. CType t => CVar t -> Builder
+varDeclaration (CVar v) = typeName @t Proxy <+> v
 
 newUnitVar :: GenM (CVar V)
 newUnitVar = storeVar (CExp "{ 0 }")
@@ -616,13 +655,13 @@ mkClosure vars = do
     }
 
 mkLambda :: Builder -> Closure -> GenM (CExp L)
-mkLambda fun = fmap toCExp . mkLambda' fun . closureExpr
+mkLambda fun = fmap toCExp . mkLambda' fun . unCExp . closureExpr
 
-mkLambda' :: ExpLike e => Builder -> e (Pointer V) -> GenM (CVar L)
-mkLambda' fun closure = declareFresh $ braceList [fun, unCExp $ toCExp closure]
+mkLambda' :: Builder -> Builder -> GenM (CVar L)
+mkLambda' fun closure = declareFresh $ braceList [fun, closure]
 
-accessLambda :: CVar L -> (Builder, CExp Closure)
-accessLambda v = (accessRaw v "lam_fp", CExp $ accessRaw v "lam_closure")
+accessLambda :: CVar L -> (Builder, Builder)
+accessLambda v = (accessRaw v "lam_fp", accessRaw v "lam_closure")
 
 mkContinuation :: (ExpLike e1, ExpLike e2) => e1 L -> e2 (Pointer K) -> GenM (CVar K)
 mkContinuation lambda next = declareFresh $ braceList [unCExp $ toCExp lambda, unCExp $ toCExp next]
@@ -636,6 +675,12 @@ accessPointer = accessI 0
 accessI :: Int -> CVar (Pointer t) -> CVar t
 accessI i (CVar v) = CVar $ v <> brackets (B.intDec i)
 
+cast :: forall t' t. CType t' => CVar t -> CVar t'
+cast (CVar v) = CVar $ parens $ parens (typeName @t' Proxy) <> v
+
+takeAddress :: (ExpLike e, CType t) => e t -> GenM (CVar (Pointer t))
+takeAddress = declareFresh . (B.char7 '&' <>) . unCExp . toCExp
+
 mkValue :: Tag a -> a -> GenM (CVar V)
 mkValue tag a = liftValue tag =<< case tag of
   TagInt -> pure $ B.intDec a
@@ -644,6 +689,7 @@ mkValue tag a = liftValue tag =<< case tag of
     let (x, y) = a
     unCExp . toCExp <$> cloneAll [x, y]
   TagLam -> pure $ unCExp a
+  TagChan -> pure $ unCExp a
 
 liftValue :: Tag a -> Builder -> GenM (CVar V)
 liftValue tag a = storeVar
@@ -711,19 +757,7 @@ header = bunlines
   , "#include <stdio.h>"
   , "#include <stdlib.h>    // malloc"
   , "#include <string.h>    // strcmp"
-  , ""
-  , "// Forward declarations"
-  , unCStmt $ terminate ctype
-  , unCStmt $ terminate cLambdaType
-  , unCStmt $ terminate cContType
-  , ""
-    -- The definition for the lambda type has to come first, because both the
-    -- continuation type and the main LDST_t union contain non-pointer fields.
-  , "// Type declarations"
-  , cFunPtrDecl
-  , cLambdaTypeDecl
-  , cContTypeDecl
-  , ctypeDecl
+  , "#include \"LDST.h\""
   ]
 
 -- | Concatenates a builder containing the function signatures and a builder
@@ -739,96 +773,36 @@ glueCode decls defs = bunlines
   , defs
   ]
 
--- | The type of all LDST values in the generated C code.
---
--- @
--- union LDST_t {
---   int val_int;
---   const char *val_label;
---   union LDST_t *val_pair;
---   struct LDST_lam_t val_lam;
--- };
--- @
-ctype :: Builder
-ctype = "union LDST_t"
+cResType :: Builder
+cResType = "enum LDST_res_t"
 
-ctypeDecl :: Builder
-ctypeDecl = compoundDefinition ctype
-  [ tag TagInt
-  , tag TagLabel
-  , tag TagLam
-  , tag TagPair
-  ]
-  where
-    tag t = tagType t (tagAccessor t)
+newChannel :: GenM (CVar (Pointer C))
+newChannel = do
+  chan <- storeVar nullPointer
+  chanAddress <- takeAddress chan
+  callChecked "ldst__chan_new" [unCVar chanAddress]
+  pure chan
 
--- | The type of lambdas and closures in the generated C code.
---
--- @
--- struct LDST_lam_t {
---   LDST_fp fp;
---   LDST_t *closure;
--- };
--- @
-cLambdaType :: Builder
-cLambdaType = "struct LDST_lam_t"
+chanSendLambda :: ExpLike e => e (Pointer C) -> GenM (CVar L)
+chanSendLambda = mkLambda' "ldst__chan_send" . unCExp . toCExp
 
-cLambdaTypeDecl :: Builder
-cLambdaTypeDecl = compoundDefinition cLambdaType
-  [ cFunPtr <+> "lam_fp"
-  , ctype <+> "*lam_closure"
-  ]
+chanReceive :: (ExpLike e1, ExpLike e2) => e1 (Pointer K) -> e2 (Pointer C) -> GenM ()
+chanReceive (toCExp -> CExp k) (toCExp -> CExp chan) =
+  tellStmt $ cReturn $ callExp "ldst__chan_recv" [k, chan]
 
--- | The type of continuations in the generated C code.
---
--- @
--- struct LDST_cont_t {
---    LDST_fp fp;
---    union LDST_t *closure;
---    union LDST_cont_t *cont;
--- };
--- @
-cContType :: Builder
-cContType = "struct LDST_cont_t"
+forkLambda :: ExpLike e => e L -> GenM ()
+forkLambda = callChecked "ldst__fork" . pure . unCExp . toCExp
 
-cContTypeDecl :: Builder
-cContTypeDecl = compoundDefinition cContType
-  [ cLambdaType <+> "k_lam"
-  , cContType <+> "*k_next"
-  ]
+callChecked :: Builder -> [Builder] -> GenM ()
+callChecked fun args = do
+  resVar <- local (infoNameHint .~ "res") do
+    declareFresh @R $ callExp fun args
+  returnNotOk resVar
 
--- | The type of pointers to non-toplevel functions.
---
--- @
--- typedef void (*LDST_fp)(struct LDST_cont_t*, union LDST_t*, union LDST_t);
--- @
---
--- If this changes the signature generation in 'functionSignature' has to
--- be adjusted as well.
-cFunPtr :: Builder
-cFunPtr = "LDST_fp_t"
-
-cFunPtrDecl :: Builder
-cFunPtrDecl = mconcat
-  [ "typedef "
-  , functionHeader "void" (parens $ pointer <> cFunPtr)
-      [ cContType <> pointer
-      , ctype <> pointer
-      , ctype
-      ]
-  , B.char7 ';'
-  ]
-  where
-    pointer = B.char7 '*'
-
--- | Generates a definition of a compound type, that is a struct or union type.
---
--- The first argument is the name including either @"struct "@ or @"union @" at
--- the beginning, the field declarations should not be terminated with a
--- semicolon.
-compoundDefinition :: Builder -> [Builder] -> Builder
-compoundDefinition name fields =
-  intercalate "\n  " (name <> " {" : fmap (<> B.char7 ';') fields) <> "\n};"
+returnNotOk :: CVar R -> GenM ()
+returnNotOk (CVar res) = do
+  tellStmt $ CStmt $ callExp "if " $ pure $ res <> " != LDST__ok"
+  local (infoIndent +~ 1) $ tellStmt $ cReturn res
 
 braceList :: [Builder] -> Builder
 braceList bs = braces (intercalate ", " bs)
@@ -847,21 +821,17 @@ accessPair v =
 accessValLambda :: CVar V -> CVar L
 accessValLambda = CVar . access TagLam
 
+accessValChannel :: CVar V -> CVar (Pointer C)
+accessValChannel = CVar . access TagChan
+
 tagAccessor :: Tag a -> Builder
 tagAccessor = \case
   TagInt   -> "val_int"
   TagLabel -> "val_label"
   TagPair  -> "val_pair"
   TagLam   -> "val_lam"
+  TagChan  -> "val_chan"
 
-tagType :: Tag a -> Builder -> Builder
-tagType tag n = bunwords case tag of
-  TagInt   -> ["int", n]
-  TagLabel -> ["const char*", n]
-  TagPair  -> [typeName @(Pointer V) Proxy, n]
-  TagLam   -> [typeName @L Proxy, n]
-
--- | Concatenates two builders using a single space character.
 (<+>) :: Builder -> Builder -> Builder
 a <+> b = a <> B.char7 ' ' <> b
 infixr 6 <+>
@@ -924,6 +894,9 @@ brackets = surround (B.char7 '[') (B.char7 ']')
 terminate :: Builder -> CStmt
 terminate b = CStmt $ b <> B.char7 ';'
 
+cReturn :: Builder -> CStmt
+cReturn b = terminate $ "return " <> b
+
 -- | Escapes an LDST identifier for use in C code. It is based on the
 --   z-encoding used in GHC.
 --
@@ -944,7 +917,7 @@ identForC = foldMap \case
 -- | Turn an identifier into a function name suitable in the generated C code.
 -- It uses the encoding from 'identForC' and prepends @"ldst__"@
 functionForC :: Ident -> Builder
-functionForC idn = "ldst__" <> identForC idn
+functionForC idn = "ldst_" <> identForC idn
 
 labelForC :: String -> Builder
 labelForC = escapedCString
