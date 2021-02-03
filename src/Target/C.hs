@@ -106,9 +106,17 @@ data Tag a where
   TagLam :: Tag (CExp L)
   TagChan :: Tag (CExp (Pointer C))
 
+data FunctionArgs = FunctionArgs
+  { funClosure  :: [Ident]
+  , funArgIdent :: Ident
+  , funRecIdent :: Maybe Ident
+    -- ^ @Just ident@ if this function can call itself recursively with
+    -- identifier @ident@.
+  }
+
 data FunctionHeader = FunctionHeader
   { funName :: !Builder
-  , funArgs :: !(Maybe ([Ident], Ident))
+  , funArgs :: !(Maybe FunctionArgs)
     -- ^ A pair of the identifiers carried by the closure parameter and the
     -- functions argument.
   , funInternal :: !Bool
@@ -124,12 +132,7 @@ data Function = Function
   , funHint    :: !Builder
     -- ^ See '_infoNameHint'.
   , funBody    :: !Exp
-  , funRecursive :: !(Maybe Ident)
-    -- ^ @Just ident@ if this function can call itself recursively with
-    -- identifier @ident@.
   }
--- TODO: In the current implementation, a function can have either both an
--- argument and a closure or neither. This should be made explicit in the type.
 
 data Closure = Closure
   { closureVars :: ![Ident]
@@ -232,7 +235,6 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
           { funHeader = topLevelHeader name
           , funHint = identForC name
           , funBody = toCPS lambdaBody
-          , funRecursive = Nothing
           }
 
     let addContext err =
@@ -346,7 +348,7 @@ _explainExpression ty0 v0 =
 -- including the curried forms of toplevel bindings.
 functionSignature :: FunctionHeader -> (Builder, GenM Env, CVar (Pointer K))
 functionSignature fun =
-  maybe ([], pure mempty) listArgs (funArgs fun)
+  maybe ([], pure mempty) (signatureParameters (funName fun) cClosureVar) (funArgs fun)
     & addContinuation
     & first (functionHeader retType (funName fun))
     & \(sig, mkBindings) -> (sig, mkBindings, cContVar)
@@ -359,24 +361,44 @@ functionSignature fun =
     addContinuation =
       _1 %~ (varDeclaration cContVar :)
 
-    listArgs :: ([Ident], Ident) -> ([Builder], GenM Env)
-    listArgs (closure, argId) =
-      let argVar = CVar @V $ identForC argId
-          params = [varDeclaration cClosureVar, varDeclaration argVar]
-          bindings = do
-            let closureVar = cast @(Pointer V) cClosureVar
-            vars <- ifor closure \i ident -> local (infoNameHint .~ identForC ident) do
-              (ident,) <$> storeVar (accessI i closureVar)
-            pure
-              $ Map.insert argId (CVar (identForC argId))
-              $ Map.fromList vars
-       in (params, bindings)
-
     cContVar :: CVar (Pointer K)
     cContVar = CVar "_ldst_k"
 
-cClosureVar :: CVar (Pointer ())
-cClosureVar = CVar "_ldst_closure"
+    cClosureVar :: CVar (Pointer ())
+    cClosureVar = CVar "_ldst_closure"
+
+signatureParameters :: Builder -> CVar (Pointer ()) -> FunctionArgs -> ([Builder], GenM Env)
+signatureParameters name voidClosure args = (params, bindings)
+  where
+    argVar = CVar @V $ identForC $ funArgIdent args
+    params = [varDeclaration voidClosure, varDeclaration argVar]
+
+    bindings = do
+      let closureVar = cast @(Pointer V) voidClosure
+
+      vars <- ifor (funClosure args) \i ident ->
+        local (infoNameHint .~ identForC ident) do
+          (ident,) <$> storeVar (accessI i closureVar)
+
+      insertRecArg <- case funRecIdent args of
+        Nothing -> pure id
+        Just recId -> do
+          -- It is possible that the recursion name recId shadows the functions
+          -- argument name, but this follows the typechecker rules!
+          -- 
+          -- Use the following code to doublecheck:
+          --
+          --    val check = rec x (x : Int) : Int = x
+          --
+          -- If it typechecks 'recId' should *not* shadow an existing variable,
+          -- if it fails to typecheck, it *should* shadow the variable.
+          recVal <- mkValue TagLam . toCExp =<< mkLambda' name (unCVar voidClosure)
+          pure $ Map.insert recId recVal
+
+      pure
+        $ insertRecArg
+        $ Map.insert (funArgIdent args) argVar
+        $ Map.fromList vars
 
 -- | @functionDeclDef signature body@ returns a pair of @(declaration, definition)@.
 --
@@ -401,44 +423,17 @@ generateFunction topLevelFun = evalStackT [topLevelFun] $ execWriterT go
 generateFunction' :: Function -> StackT Function (Either String) (Builder, Builder)
 generateFunction' fun = do
   let (sig, mkBindings, initialK) = functionSignature (funHeader fun)
-  let name = funName $ funHeader fun
 
   let genBody = do
         bindings <- mkBindings
-
-        -- Where do we add the binding for recursive functions? It requires
-        -- access to the closure argument, which we don't really want outside
-        -- of 'functionSignature'.
-        --
-        -- On the other hand we can't really do it inside there either because
-        -- we want to declare a variable which holds the LDST_t value,
-        -- requiring us to be inside 'GenM'.
-        --
-        -- For now we fixed the closure argument name globally giving us access
-        -- here.
-        insertRecArg <- case funRecursive fun of
-          Nothing -> pure id
-          Just recId -> do
-            -- It is possible that the recusion name recId shadows the
-            -- functions argument name, but this follows the typechecker rules!
-            -- 
-            -- If
-            --
-            --    val check = rec x (x : Int) : Int = x
-            --
-            -- typechecks 'recId' should *not* shadow an existing variable, if
-            -- it fails to typecheck, it *should* shadow the variable.
-            recVal <- mkValue TagLam . toCExp =<< mkLambda' name cClosureName
-            pure $ infoBindings . at recId ?~ recVal
-
-        local (\info -> info & infoBindings <>~ bindings & insertRecArg) $
+        local (infoBindings <>~ bindings) $
           generateExp (funBody fun)
 
   let info = Info
         { _infoBindings = mempty
         , _infoContinuation = initialK
         , _infoNameHint = funHint fun
-        , _infoFuncHint = name
+        , _infoFuncHint = funName $ funHeader fun
         , _infoIndent = 1
         }
 
@@ -534,12 +529,15 @@ pushFunction c freevars mRecId argId body = do
   lift $ pushStack $ Function
     { funHeader = FunctionHeader
         { funName = name
-        , funArgs = Just (closureVars closure, argId)
+        , funArgs = Just FunctionArgs
+            { funClosure = closureVars closure
+            , funArgIdent = argId
+            , funRecIdent = mRecId
+            }
         , funInternal = True
         }
     , funHint = hint
     , funBody = body
-    , funRecursive = mRecId
     }
   mkLambda name closure
 
@@ -574,12 +572,15 @@ generateContinuationM (Just (resId, kbody)) = do
   lift $ pushStack Function
     { funHeader = FunctionHeader
         { funName = kname
-        , funArgs = Just (closureVars closure, resId)
+        , funArgs = Just FunctionArgs
+            { funClosure = closureVars closure
+            , funArgIdent = resId
+            , funRecIdent = Nothing
+            }
         , funInternal = True
         }
     , funHint = hint
     , funBody = kbody
-    , funRecursive = Nothing
     }
   klam <- mkLambda kname closure
   kvar <- mkContinuation klam =<< view infoContinuation
