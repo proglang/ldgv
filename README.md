@@ -27,14 +27,14 @@ The C backend is not yet feature complete:
     * [x] recursive bindings
     * [ ] `natrec`
     * [ ] transform tail recusion into loops 
-  * [ ] `fork`
-  * [ ] channel operations
-    * [ ] `new`
-    * [ ] `recv`
-    * [ ] `send`
-* [ ] entrypoint generation
-    * [ ] `main(void)`
-    * [ ] user requested
+  * [x] `fork`
+  * [x] channel operations
+    * [x] `new`
+    * [x] `recv`
+    * [x] `send`
+* [x] entrypoint generation
+    * [x] `main(void)`
+    * [x] user requested (via `ldst__run`)
 * [ ] garbage collector
 * [ ] tests
 
