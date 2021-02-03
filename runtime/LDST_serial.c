@@ -67,13 +67,6 @@ static bool should_suspend(struct LDST_cont_t *k, struct LDST_chan_t *chan) {
   return true;
 }
 
-static enum LDST_res_t invoke(struct LDST_cont_t *k, union LDST_t value) {
-  struct LDST_lam_t lam = k->k_lam;
-  struct LDST_cont_t *next = k->k_next;
-  free(k);
-  return lam.lam_fp(next, lam.lam_closure, value);
-}
-
 static enum LDST_res_t make_recv_result(struct LDST_chan_t *chan, union LDST_t value, union LDST_t *result) {
   union LDST_t *recieved_pair = malloc(2 * sizeof(union LDST_t));
   if (!recieved_pair)
@@ -108,7 +101,7 @@ enum LDST_res_t ldst__chan_send(struct LDST_cont_t *k, void *channel, union LDST
   // Continue the current thread.
   reset_channel(chan);
   value.val_chan = chan;
-  return invoke(k, value);
+  return ldst__invoke(k, value);
 }
 
 enum LDST_res_t ldst__chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *chan) {
@@ -130,7 +123,7 @@ enum LDST_res_t ldst__chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *chan)
 
   // Continue the current thread.
   reset_channel(chan);
-  return invoke(k, value);
+  return ldst__invoke(k, value);
 }
 
 static enum LDST_res_t run_runnables() {
@@ -144,7 +137,7 @@ static enum LDST_res_t run_runnables() {
   struct LDST_queue_t *runnable;
   while (res == LDST__ok && (runnable = Runnables)) {
     Runnables = runnable->q_next;
-    res = invoke(runnable->q_cont, runnable->q_val);
+    res = ldst__invoke(runnable->q_cont, runnable->q_val);
     free(runnable);
   }
 

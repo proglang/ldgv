@@ -599,9 +599,7 @@ generateContinuationM (Just (resId, kbody)) = do
 invokeContinuation :: ExpLike e => e V -> GenM ()
 invokeContinuation e = do
   k <- view infoContinuation
-  let (klam, knext) = accessContinuation $ accessPointer k
-  -- TODO: free the used continuation.
-  invoke klam knext e
+  invoke' "ldst__invoke" k [unCExp (toCExp e)]
 
 invoke :: (ExpLike e1, ExpLike e2) => CVar L -> e1 (Pointer K) -> e2 V -> GenM ()
 invoke lam k val = do
@@ -676,12 +674,6 @@ accessLambda v = (accessRaw v "lam_fp", accessRaw v "lam_closure")
 
 mkContinuation :: (ExpLike e1, ExpLike e2) => e1 L -> e2 (Pointer K) -> GenM (CVar K)
 mkContinuation lambda next = declareFresh $ braceList [unCExp $ toCExp lambda, unCExp $ toCExp next]
-
-accessContinuation :: CVar K -> (CVar L, CVar (Pointer K))
-accessContinuation v = (CVar (accessRaw v "k_lam"), CVar (accessRaw v "k_next"))
-
-accessPointer :: CVar (Pointer t) -> CVar t
-accessPointer = accessI 0
 
 accessI :: Int -> CVar (Pointer t) -> CVar t
 accessI i (CVar v) = CVar $ v <> brackets (B.intDec i)

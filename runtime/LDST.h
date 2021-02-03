@@ -3,6 +3,8 @@
 //
 // Public interface to the LDST backends.
 
+#include <stdlib.h>
+
 union LDST_t;
 struct LDST_lam_t;
 struct LDST_cont_t;
@@ -34,6 +36,15 @@ union LDST_t {
   struct LDST_chan_t  *val_chan;
   const char          *val_label;
 };
+
+
+/// Invokes the given continuation.
+static enum LDST_res_t ldst__invoke(struct LDST_cont_t *k, union LDST_t value) {
+  struct LDST_lam_t lam = k->k_lam;
+  struct LDST_cont_t *next = k->k_next;
+  free(k);
+  return lam.lam_fp(next, lam.lam_closure, value);
+}
 
 
 /// Creates a new channel.
