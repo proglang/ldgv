@@ -41,6 +41,7 @@ val lServer (c : TServer) : End =
 	  send c4 'EOS
 	}
 
+val main : Int
 val main = 
      let <a, b> = (new TClient) in
      let y = fork (lServer b) in
