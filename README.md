@@ -40,6 +40,19 @@ The C backend is not yet feature complete:
 It is available only via the [command line](#command-line). See there for
 building and running.
 
+The generated C code is dependent on the files in `runtime/`:
+
+* `LDST.h` defines the data structures and interfaces to the scheduler and
+  channel handler.
+* `LDST.c` contains implementations of helper functions for which there is no
+  need to generate them every time.
+* `LDST_serial.c` contains a serial implementation of a scheduler and channel
+  handler.
+
+When compiling the generated code an optimization level of at least `-O2`
+should be considered, with this the common compilers (clang, gcc) will
+transform the abundant number of tail calls into jumps.
+
 
 ## Building
 
