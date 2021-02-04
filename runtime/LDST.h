@@ -38,6 +38,7 @@ union LDST_t {
   const char          *val_label;
 };
 
+// Backend interface.
 
 /// Creates a new channel.
 enum LDST_res_t ldst__chan_new(struct LDST_chan_t **chan);
@@ -63,7 +64,22 @@ enum LDST_res_t ldst__chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *chann
 /// return when all threads forked inside `op` and `op` itsel have completed.
 enum LDST_res_t ldst__fork(struct LDST_lam_t op, union LDST_t value);
 
+
+// Supporting functions.
+
+// Runs the given top level function `f` by applying the `n` arguments in
+// `args` and storing the result in `result`.
+//
+// `result` should point to a valid memory location.
+//
+// If `n` is zero, `args` may be the null pointer. If the result is a lambda
+// function, channel or pair containing either of these, `args` has to be valid
+// for as long as `result` is valid. Otherwise `args` must only be valid for
+// the duration of the call to `ldst__run`.
 enum LDST_res_t ldst__run(union LDST_t *result, LDST_fp0_t f, int n, union LDST_t *args);
+
+// Implementation detail of `natrec`.
+enum LDST_res_t ldst__nat_fold(struct LDST_cont_t *k, void *closure, union LDST_t value);
 
 
 /// Invokes the given continuation.

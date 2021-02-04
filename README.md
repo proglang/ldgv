@@ -16,17 +16,16 @@ line](#command-line) and via a local [web page](#web-page).
 
 The C backend is not yet feature complete:
 
-* [ ] syntax elements
+* [x] syntax elements
   * [x] variable bindings
   * [x] integer literals & math operations
   * [x] label literals & case expressions
   * [x] lamdas
   * [x] call expressions, partial application
   * [x] pairs construction & destructuring
-  * [ ] recursion
+  * [x] recursion
     * [x] recursive bindings
-    * [ ] `natrec`
-    * [ ] transform tail recusion into loops 
+    * [x] `natrec`
   * [x] `fork`
   * [x] channel operations
     * [x] `new`

@@ -53,7 +53,7 @@ data Exp
   | TLCall Ident (Maybe Continuation)
     -- ^ A call to a top level function.
   | Case Val [(String, Exp)]
-  | NatRec Val Val Ident TIdent Ident Type (Maybe Continuation) Exp
+  | NatRec Val Val Ident TIdent Ident Type Exp
   | Recv Val (Maybe Continuation)
     -- ^ Represents a "tail recv" if no continuation is given
   deriving (Show, Eq)
@@ -85,12 +85,11 @@ instance Freevars Exp where
       -- bound by the top level definitions?
       Set.insert x (foldMap contFV mk)
     Case v cs -> foldl' (<>) (fv v) $ map (fv . snd) cs
-    NatRec v z x _t y tyy mk s -> mconcat
+    NatRec v z x _t y tyy s -> mconcat
       [ fv v
       , fv z
       , Set.delete x (Set.delete y (fv s))
       , fv tyy
-      , foldMap contFV mk
       ]
     Recv v mk -> fv v <> foldMap contFV mk
     where
@@ -155,7 +154,7 @@ fromExpC = \case
   S.NatRec e z n tyv x t s -> do
     c <- NatRec <$> fromExpC e <*> fromExpC z
     captured \k ->
-      c n tyv x t (Just k) <$> bound2 n x (fromExp' s)
+      LetCont k . c n tyv x t <$> bound2 n x (fromExp' s)
   S.Fork e -> do
     vars <- ask
     pure $ Fork $ flip runReader vars $ fromExp e (pure . Return)
@@ -189,7 +188,7 @@ fromExp' = \case
     Case v <$> traverse (traverse fromExp') cs
   S.NatRec e z n tyv x t s -> flip runContT pure do
     c <- NatRec <$> fromExpC e <*> fromExpC z
-    lift $ c n tyv x t Nothing <$> bound2 n x (fromExp' s)
+    lift $ c n tyv x t <$> bound2 n x (fromExp' s)
   S.LetPair x1 x2 e1 e2 -> fromExp e1 \v ->
     LetPair x1 x2 v <$> bound2 x1 x2 (fromExp' e2)
   S.Recv e -> fromExp e \v ->

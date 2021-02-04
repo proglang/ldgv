@@ -34,6 +34,7 @@ import Data.Semigroup as S
 import Data.Set (Set)
 import Data.String
 import Data.Version
+import Kinds
 import Numeric
 import Syntax.CPS
 import Validation
@@ -41,6 +42,7 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.Char as C
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Paths_ldgv
 import qualified Syntax as S
 
@@ -491,10 +493,6 @@ generateVal = \case
     let free = fv e
     lam <- pushFunction 'f' free Nothing (S.freshvar "unit" free) e
     forkLambda lam
-    unit <- newUnitVar
-    -- This unit value will probably not get used.
-    tellStmt $ terminate $ unCVar $ cast @() unit
-    pure unit
   New _ -> do
     chan <- mkValue TagChan . toCExp =<< newChannel
     mkValue TagPair (toCExp chan, toCExp chan)
@@ -534,13 +532,32 @@ generateExp = \case
     let buildBranch :: (String, Exp) -> StateT Builder GenM ()
         buildBranch (branchLabel, branchExp) = do
           ifB <- get <* put "else if "
-          let cmpExp = callExp funStrcmp [label, labelForC branchLabel] <> " == 0"
+          let cmpExp = callExp funStrcmp [label, labelForC branchLabel] <+> " == 0"
           lift $ tellStmt $ CStmt $ callExp ifB [cmpExp] <> " {"
           lift $ local (infoIndent +~ 1) $ generateExp branchExp
           lift $ tellStmt $ CStmt "}"
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
     tellStmt $ cReturn "LDST__unmatched_label"
-  NatRec{} -> throwError "natrec: not yet implemented"
+  NatRec e z n _ x t s -> do
+    e' <- generateVal e
+    z' <- generateVal z
+
+    let vars = Set.delete n $ Set.delete x $ fv s
+    s' <- pushFunction 'n' vars Nothing n $ Return $ Lam MMany x t s
+    f  <- mkValue TagLam s'
+
+    -- Create the closure for ldst__nat_fold
+    --  1. f (= s')
+    --  2. n (= e')
+    --  3. i
+    i  <- mkValue TagInt 0
+    closure <- cloneAll [f, e', i]
+
+    -- Call into `ldst__nat_fold`.
+    k <- view infoContinuation
+    natFold <- mkLambda' "ldst__nat_fold" $ unCVar closure
+    invoke natFold k z'
+
   Recv e mk -> do
     c <- accessValChannel <$> generateVal e
     k <- generateContinuationM mk
@@ -590,26 +607,11 @@ generateLiteral = \case
 
 generateContinuationM :: Maybe Continuation -> GenM (CVar (Pointer K))
 generateContinuationM Nothing = view infoContinuation
-generateContinuationM (Just (resId, kbody)) = do
-  kname <- fresh (Just 'k')
-  closure <- mkClosure (fv kbody)
-  hint <- view infoNameHint
-  lift $ pushStack Function
-    { funHeader = FunctionHeader
-        { funName = kname
-        , funArgs = Just FunctionArgs
-            { funClosure = closureVars closure
-            , funArgIdent = resId
-            , funRecIdent = Nothing
-            }
-        , funInternal = True
-        }
-    , funHint = hint
-    , funBody = kbody
-    }
-  klam <- mkLambda kname closure
-  kvar <- mkContinuation klam =<< view infoContinuation
-  clone kvar
+generateContinuationM (Just (resId, kbody)) =
+  clone =<< join do
+    mkContinuation
+      <$> pushFunction 'k' (fv kbody) Nothing resId kbody
+      <*> view infoContinuation
 
 invokeContinuation :: ExpLike e => e V -> GenM ()
 invokeContinuation e = do
@@ -808,10 +810,11 @@ chanReceive :: (ExpLike e1, ExpLike e2) => e1 (Pointer K) -> e2 (Pointer C) -> G
 chanReceive (toCExp -> CExp k) (toCExp -> CExp chan) =
   tellStmt $ cReturn $ callExp "ldst__chan_recv" [k, chan]
 
-forkLambda :: ExpLike e => e L -> GenM ()
+forkLambda :: ExpLike e => e L -> GenM (CVar V)
 forkLambda l = do
-  arg0 <- newUnitVar
-  callChecked "ldst__fork" [unCExp (toCExp l), unCVar arg0]
+  unit <- newUnitVar
+  callChecked "ldst__fork" [unCExp (toCExp l), unCVar unit]
+  pure unit
 
 callChecked :: Builder -> [Builder] -> GenM ()
 callChecked fun args = do

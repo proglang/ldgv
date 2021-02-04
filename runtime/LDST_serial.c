@@ -4,7 +4,6 @@
 // Serial LDST backend.
 
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "LDST.h"
@@ -160,64 +159,4 @@ enum LDST_res_t ldst__fork(struct LDST_lam_t op, union LDST_t value) {
   }
 
   return run_runnables();
-}
-
-struct RunInfo {
-  bool applied0;
-  int n;
-  union LDST_t *args;
-  union LDST_t *result;
-};
-
-static enum LDST_res_t run_impl(struct LDST_cont_t *k_then, void *run_info, union LDST_t value) {
-  struct RunInfo *info = run_info;
-  if (info->applied0 && info->n == 0) {
-    // Store the result and continue with the given continuation.
-    *info->result = value;
-    return ldst__invoke(k_then, value);
-  }
-
-  struct RunInfo *new_info = malloc(sizeof(struct RunInfo));
-  if (!new_info) {
-    return LDST__no_mem;
-  }
-
-  struct LDST_cont_t *k_now = malloc(sizeof(struct LDST_cont_t));
-  if (!k_now) {
-    free(new_info);
-    return LDST__no_mem;
-  }
-
-  k_now->k_lam.lam_fp = run_impl;
-  k_now->k_lam.lam_closure = new_info;
-  k_now->k_next = k_then;
-
-  new_info->n        = info->n;
-  new_info->args     = info->args;
-  new_info->result   = info->result;
-  new_info->applied0 = true;
-
-  if (!info->applied0) {
-    LDST_fp0_t fp0 = (LDST_fp0_t)value.val_lam.lam_fp;
-    return fp0(k_now);
-  }
-
-  new_info->n -= 1;
-  new_info->args += 1;
-  struct LDST_lam_t lam = value.val_lam;
-  return lam.lam_fp(k_now, lam.lam_closure, info->args[0]);
-}
-
-enum LDST_res_t ldst__run( union LDST_t *result, LDST_fp0_t f, int n, union LDST_t *args) {
-  struct RunInfo *info = malloc(sizeof(struct RunInfo));
-  if (!info)
-    return LDST__no_mem;
-
-  info->applied0 = false;
-  info->n = n;
-  info->args = args;
-  info->result = result;
-  struct LDST_lam_t lambda = { run_impl, info };
-  union LDST_t arg0 = { .val_lam = { (LDST_fp_t)f, 0 } };
-  return ldst__fork(lambda, arg0);
 }
