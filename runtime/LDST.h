@@ -7,6 +7,17 @@
 #define LDST_H__
 
 #include <stdlib.h>
+#include <stddef.h>
+
+#ifdef LDST_USE_GC
+# define LDST__ALLOC(sz)  ldst__gc_alloc(sz)
+# define LDST__FREE(p)    ((void)p)
+# define LDST__DO_GC(f)   ldst__gc(f)
+#else
+# define LDST__ALLOC(sz)  malloc(sz)
+# define LDST__FREE(p)    free(p)
+# define LDST__DO_GC(f)   ((void)f)
+#endif  // LDST_USE_GC
 
 union LDST_t;
 struct LDST_lam_t;
@@ -18,6 +29,7 @@ enum LDST_res_t {
   LDST__no_mem,
   LDST__deadlock,
   LDST__unmatched_label,
+  LDST__err_unknown,
 };
 
 typedef enum LDST_res_t (*LDST_fp0_t)(struct LDST_cont_t *);
@@ -92,8 +104,30 @@ static inline enum LDST_res_t ldst__invoke(struct LDST_cont_t *k, union LDST_t v
 
   struct LDST_lam_t lam = k->k_lam;
   struct LDST_cont_t *next = k->k_next;
-  free(k);
+  LDST__FREE(k);
   return lam.lam_fp(next, lam.lam_closure, value);
 }
+
+// Garbage collector.
+
+/// A pointer to a function used for enumerating GC roots.
+///
+/// The value of `*context` is at the functions disposal, the first time it is
+/// called it will be the `NULL` pointer.
+typedef void *(*gc_root_visitor_t)(void **context);
+
+/// Allocates memory of `size` bytes.
+///
+/// The memory will be automatically freed during a call to `ldst__gc` when
+/// it isn't reachable from any of the visited roots.
+///
+/// If allocation fails the result will be the NULL pointer.
+void *ldst__gc_alloc(size_t size);
+
+/// Run the garbage collector.
+///
+/// The `visitor` is responsible for enumerating all current roots. It will be
+/// called for new roots as long as it does not return a `NULL` pointer.
+void ldst__gc(gc_root_visitor_t visitor);
 
 #endif  // LDST_H__

@@ -732,7 +732,7 @@ cloneAll :: forall t e. (CType t, ExpLike e) => [e t] -> GenM (CVar (Pointer t))
 cloneAll [] = storeVar nullPointer
 cloneAll exprs = do
   let n = length exprs
-  var <- declareFresh $ callExp funMalloc [B.intDec n <+> B.char7 '*' <+> cSizeof @t Proxy]
+  var <- declareFresh $ callExp "LDST__ALLOC" [B.intDec n <+> B.char7 '*' <+> cSizeof @t Proxy]
   itraverse_ (tellAssignI var) exprs
   pure var
 
@@ -749,9 +749,6 @@ tellAssign (CVar v) val = tellStmt $ terminate $ bunwords [v, B.char7 '=', unCEx
 
 tellAssignI :: ExpLike e => CVar (Pointer t) -> Int -> e t -> GenM ()
 tellAssignI v idx = tellAssign (accessI idx v)
-
-funMalloc :: Builder
-funMalloc = "malloc"
 
 funStrcmp :: Builder
 funStrcmp = "strcmp"

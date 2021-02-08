@@ -4,15 +4,15 @@
 // Serial LDST backend.
 
 #include <stdbool.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include "LDST.h"
 
-struct LDST_queue_t {
+typedef struct cont_stack {
   union  LDST_t           q_val;
   struct LDST_cont_t     *q_cont;
-  struct LDST_queue_t    *q_next;
-};
+  struct cont_stack      *q_next;
+} cont_stack_t;
 
 struct LDST_chan_t {
   union LDST_t            chan_value;
@@ -21,10 +21,14 @@ struct LDST_chan_t {
 
 static bool Executing = false;
 static int BlockedCount = 0;
-static struct LDST_queue_t *Runnables = 0;
+static cont_stack_t *Runnables = 0;
+
+static void *visit_roots(void **info) {
+  return *info == 0 ? *info = Runnables : 0;
+}
 
 static enum LDST_res_t enqueue(struct LDST_cont_t *cont, union LDST_t value) {
-  struct LDST_queue_t *runnable = malloc(sizeof(struct LDST_queue_t));
+  cont_stack_t *runnable = LDST__ALLOC(sizeof(cont_stack_t));
   if (!runnable) {
     return LDST__no_mem;
   }
@@ -41,7 +45,7 @@ static void reset_channel(struct LDST_chan_t *chan) {
 }
 
 enum LDST_res_t ldst__chan_new(struct LDST_chan_t **chan) {
-  struct LDST_chan_t *new_chan = malloc(sizeof(struct LDST_chan_t));
+  struct LDST_chan_t *new_chan = LDST__ALLOC(sizeof(struct LDST_chan_t));
   if (!new_chan)
     return LDST__no_mem;
 
@@ -62,7 +66,7 @@ static bool should_suspend(struct LDST_cont_t *k, struct LDST_chan_t *chan) {
 }
 
 static enum LDST_res_t make_recv_result(struct LDST_chan_t *chan, union LDST_t value, union LDST_t *result) {
-  union LDST_t *received_pair = malloc(2 * sizeof(union LDST_t));
+  union LDST_t *received_pair = LDST__ALLOC(2 * sizeof(union LDST_t));
   if (!received_pair)
     return LDST__no_mem;
 
@@ -87,7 +91,7 @@ enum LDST_res_t ldst__chan_send(struct LDST_cont_t *k, void *channel, union LDST
   }
   res = enqueue(chan->chan_cont, value);
   if (res != LDST__ok) {
-    free(value.val_pair);
+    LDST__FREE(value.val_pair);
     return res;
   }
 
@@ -127,11 +131,12 @@ static enum LDST_res_t run_runnables() {
   Executing = true;
 
   enum LDST_res_t res = LDST__ok;
-  struct LDST_queue_t *runnable;
+  cont_stack_t *runnable;
   while (res == LDST__ok && (runnable = Runnables)) {
     Runnables = runnable->q_next;
     res = ldst__invoke(runnable->q_cont, runnable->q_val);
-    free(runnable);
+    LDST__DO_GC(visit_roots);
+    LDST__FREE(runnable);
   }
 
   Executing = false;
@@ -145,7 +150,7 @@ static enum LDST_res_t run_runnables() {
 }
 
 enum LDST_res_t ldst__fork(struct LDST_lam_t op, union LDST_t value) {
-  struct LDST_cont_t *k = malloc(sizeof(struct LDST_cont_t));
+  struct LDST_cont_t *k = LDST__ALLOC(sizeof(struct LDST_cont_t));
   if (!k) {
     return LDST__no_mem;
   }
@@ -154,7 +159,7 @@ enum LDST_res_t ldst__fork(struct LDST_lam_t op, union LDST_t value) {
   k->k_next = 0;
   enum LDST_res_t res = enqueue(k, value);
   if (res != LDST__ok) {
-    free(k);
+    LDST__FREE(k);
     return res;
   }
 
