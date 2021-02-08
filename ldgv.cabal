@@ -83,6 +83,7 @@ executable ldgv-exe
     -Wincomplete-record-updates
     -Wpartial-fields
     -Wredundant-constraints
+    -rtsopts
   if impl(ghcjs)
     buildable: False
 
