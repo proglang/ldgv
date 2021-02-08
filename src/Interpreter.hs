@@ -168,7 +168,7 @@ interpretMath = \case
     f op a b = do
       v1 <- interpret' a
       v2 <- interpret' b
-      liftIO $ putStrLn $ "interpretMath works on " ++ show v1 ++ " and " ++ show v2
+      C.traceIO $ "interpretMath works on " ++ show v1 ++ " and " ++ show v2
       return $ case (v1, v2) of
         (VInt a, VInt b) -> VInt (op a b)
 

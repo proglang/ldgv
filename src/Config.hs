@@ -3,6 +3,7 @@ module Config where
 
 import qualified Debug.Trace as D
 import Syntax.Pretty (Pretty, pshow)
+import Control.Monad.IO.Class
 
 data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)
@@ -21,8 +22,8 @@ traceM s | debugLevel > DebugNone = D.traceM s
 traceShowM :: (Show a, Applicative f) => a -> f ()
 traceShowM = traceM . show
 
-traceIO :: String -> IO ()
-traceIO s | debugLevel > DebugNone = D.traceIO s
+traceIO :: MonadIO m => String -> m ()
+traceIO s | debugLevel > DebugNone = liftIO $ D.traceIO s
           | otherwise = pure ()
 
 traceSuccess :: (Pretty a, Applicative f) => a -> f ()
