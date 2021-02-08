@@ -3,6 +3,9 @@
 //
 // Public interface to the LDST backends.
 
+#ifndef LDST_H__
+#define LDST_H__
+
 #include <stdlib.h>
 
 union LDST_t;
@@ -92,3 +95,5 @@ static inline enum LDST_res_t ldst__invoke(struct LDST_cont_t *k, union LDST_t v
   free(k);
   return lam.lam_fp(next, lam.lam_closure, value);
 }
+
+#endif  // LDST_H__
