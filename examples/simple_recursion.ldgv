@@ -35,7 +35,7 @@ val sendsum (ch_out : SUM) (n : Nat) : Int =
         fst (recv c)
   , n1 . A . (y : (a:A) -> Int) .
         fn (c : !Int. A)
-        y (send c n1)
+        y (send c (n1+1))
   }) ch
 
 -- | the summation should be (n^2 + n) / 2 -> with 1000 it should return 500500

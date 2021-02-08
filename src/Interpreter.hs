@@ -56,7 +56,7 @@ interpret' e =
                  VInt 1 -> (do
                              env <- get
                              zero <- interpret' e2
-                             put $ (i1, VInt 1):(i2, zero):env
+                             put $ (i1, VInt 0):(i2, zero):env
                              interpret' e3
                            )
                  VInt n -> do
@@ -64,8 +64,8 @@ interpret' e =
                         -- together with n before interpreting the body e3
                         env <- get
                         put $ (i1, VInt (n-1)):env
-                        lower <- interpret' $NatRec (Var i1) e2 i1 t1 i2 t e3
-                        put $ (i1, VInt n):(i2, lower):env
+                        lower <- interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3
+                        put $ (i1, VInt (n-1)):(i2, lower):env
                         interpret' e3
   Lam m i t e -> do
                  env <- get 
