@@ -107,7 +107,7 @@ newtype CExp t = CExp { unCExp :: Builder }
 -- | Represents a variable reference of type @t@.
 newtype CVar t = CVar { unCVar :: Builder }
 
-newtype CStmt = CStmt { unCStmt :: Builder }
+newtype CStmt = CStmt Builder
   deriving newtype (Semigroup, Monoid)
 
 data Tag a where
@@ -299,32 +299,13 @@ genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
 
   Just (Just (S.Last ty)) ->
     let (_, mainFunction) = functionDeclDef "int main(void)" $ foldMap stmtLine
-          [ terminate $ varDeclaration valueVar
-          , assignStmt (varDeclaration resultVar) $ callExp "ldst__run"
-              [ B.char7 '&' <> unCVar valueVar
-              , functionForC mainId
-              , unCExp nullPointer
-              , unCExp nullPointer
-              ]
-          , checkResult resultVar
-          , explainExpression ty valueVar
+          [ assignStmt resultVar $ callExp "ldst_main" [functionForC mainId]
+          , explainExpression ty resultVar
           ]
         stmtLine s = mconcat [ CStmt "  ", s, CStmt "\n" ]
-        valueVar = CVar @V "value"
-        resultVar = CVar @R "res"
-        assignStmt x y = terminate $ x <+> B.char7 '=' <+> y
+        resultVar = CVar @V "res"
+        assignStmt x y = terminate $ varDeclaration x <+> B.char7 '=' <+> y
      in Right $ gm { genDefs = genDefs gm <> mainFunction }
-
-checkResult :: CVar R -> CStmt
-checkResult (CVar res) = CStmt $ bunlines
-  [ callExp "switch " [res] <+> B.char7 '{'
-  , unCStmt $ terminate "case LDST__ok: break"
-  , unCStmt $ terminate $ "case LDST__no_mem: fputs(\"out of memory\", stderr); return " <> res
-  , unCStmt $ terminate $ "case LDST__deadlock: fputs(\"deadlock\", stderr); return " <> res
-  , unCStmt $ terminate $ "case LDST__unmatched_label: fputs(\"unmatched label\", stderr); return " <> res
-  , unCStmt $ terminate $ "default: fputs(\"unknown error\", stderr); return " <> res
-  , B.char7 '}'
-  ]
 
 -- | Generates a call to @printf@ which tries to output the value of the given
 -- variable according to the given type. In case the type has non-printable
@@ -546,16 +527,16 @@ generateExp = \case
     s' <- pushFunction 'n' vars Nothing n $ Return $ Lam MMany x t s
     f  <- mkValue TagLam s'
 
-    -- Create the closure for ldst__nat_fold
+    -- Create the closure for ldst_nat_fold
     --  1. f (= s')
     --  2. n (= e')
     --  3. i
     i  <- mkValue TagInt 0
     closure <- cloneAll [f, e', i]
 
-    -- Call into `ldst__nat_fold`.
+    -- Call into `ldst_nat_fold`.
     k <- view infoContinuation
-    natFold <- mkLambda' "ldst__nat_fold" $ unCVar closure
+    natFold <- mkLambda' "ldst_nat_fold" $ unCVar closure
     invoke natFold k z'
 
   Recv e mk -> do
@@ -616,7 +597,7 @@ generateContinuationM (Just (resId, kbody)) =
 invokeContinuation :: ExpLike e => e V -> GenM ()
 invokeContinuation e = do
   k <- view infoContinuation
-  invoke' "ldst__invoke" k [unCExp (toCExp e)]
+  invoke' "ldst_invoke" k [unCExp (toCExp e)]
 
 invoke :: (ExpLike e1, ExpLike e2) => CVar L -> e1 (Pointer K) -> e2 V -> GenM ()
 invoke lam k val = do
@@ -797,20 +778,20 @@ newChannel :: GenM (CVar (Pointer C))
 newChannel = do
   chan <- storeVar nullPointer
   chanAddress <- takeAddress chan
-  callChecked "ldst__chan_new" [unCVar chanAddress]
+  callChecked "ldst_chan_new" [unCVar chanAddress]
   pure chan
 
 chanSendLambda :: ExpLike e => e (Pointer C) -> GenM (CVar L)
-chanSendLambda = mkLambda' "ldst__chan_send" . unCExp . toCExp
+chanSendLambda = mkLambda' "ldst_chan_send" . unCExp . toCExp
 
 chanReceive :: (ExpLike e1, ExpLike e2) => e1 (Pointer K) -> e2 (Pointer C) -> GenM ()
 chanReceive (toCExp -> CExp k) (toCExp -> CExp chan) =
-  tellStmt $ cReturn $ callExp "ldst__chan_recv" [k, chan]
+  tellStmt $ cReturn $ callExp "ldst_chan_recv" [k, chan]
 
 forkLambda :: ExpLike e => e L -> GenM (CVar V)
 forkLambda l = do
   unit <- newUnitVar
-  callChecked "ldst__fork" [unCExp (toCExp l), unCVar unit]
+  callChecked "ldst_fork" [unCExp (toCExp l), unCVar unit]
   pure unit
 
 callChecked :: Builder -> [Builder] -> GenM ()
@@ -937,7 +918,7 @@ identForC = foldMap \case
 -- | Turn an identifier into a function name suitable in the generated C code.
 -- It uses the encoding from 'identForC' and prepends @"ldst__"@
 functionForC :: Ident -> Builder
-functionForC idn = "ldst_" <> identForC idn
+functionForC idn = "ldst__" <> identForC idn
 
 labelForC :: String -> Builder
 labelForC = escapedCString

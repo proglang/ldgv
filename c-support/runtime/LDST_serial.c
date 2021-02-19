@@ -40,7 +40,7 @@ static void reset_channel(struct LDST_chan_t *chan) {
   memset(chan, 0, sizeof(struct LDST_chan_t));
 }
 
-enum LDST_res_t ldst__chan_new(struct LDST_chan_t **chan) {
+enum LDST_res_t ldst_chan_new(struct LDST_chan_t **chan) {
   struct LDST_chan_t *new_chan = malloc(sizeof(struct LDST_chan_t));
   if (!new_chan)
     return LDST__no_mem;
@@ -72,7 +72,7 @@ static enum LDST_res_t make_recv_result(struct LDST_chan_t *chan, union LDST_t v
   return LDST__ok;
 }
 
-enum LDST_res_t ldst__chan_send(struct LDST_cont_t *k, void *channel, union LDST_t value) {
+enum LDST_res_t ldst_chan_send(struct LDST_cont_t *k, void *channel, union LDST_t value) {
   struct LDST_chan_t *chan = channel;
   if (should_suspend(k, chan)) {
     chan->chan_value = value;
@@ -94,10 +94,10 @@ enum LDST_res_t ldst__chan_send(struct LDST_cont_t *k, void *channel, union LDST
   // Continue the current thread.
   reset_channel(chan);
   value.val_chan = chan;
-  return ldst__invoke(k, value);
+  return ldst_invoke(k, value);
 }
 
-enum LDST_res_t ldst__chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *chan) {
+enum LDST_res_t ldst_chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *chan) {
   if (should_suspend(k, chan)) {
     return LDST__ok;
   }
@@ -116,7 +116,7 @@ enum LDST_res_t ldst__chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *chan)
 
   // Continue the current thread.
   reset_channel(chan);
-  return ldst__invoke(k, value);
+  return ldst_invoke(k, value);
 }
 
 static enum LDST_res_t run_runnables() {
@@ -130,7 +130,7 @@ static enum LDST_res_t run_runnables() {
   cont_stack_t *runnable;
   while (res == LDST__ok && (runnable = Runnables)) {
     Runnables = runnable->q_next;
-    res = ldst__invoke(runnable->q_cont, runnable->q_val);
+    res = ldst_invoke(runnable->q_cont, runnable->q_val);
     free(runnable);
   }
 
@@ -144,7 +144,7 @@ static enum LDST_res_t run_runnables() {
   return LDST__ok;
 }
 
-enum LDST_res_t ldst__fork(struct LDST_lam_t op, union LDST_t value) {
+enum LDST_res_t ldst_fork(struct LDST_lam_t op, union LDST_t value) {
   struct LDST_cont_t *k = malloc(sizeof(struct LDST_cont_t));
   if (!k) {
     return LDST__no_mem;
