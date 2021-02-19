@@ -22,14 +22,17 @@ spec =
 
     it "parses let around infix op" $ do
       parse "val f (m:Int) (n:Int) = let x = m in n + n" `shouldBe`
-        [DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)] (Let "x" (Var "m") (Plus (Var "n") (Var "n"))) Nothing]
+        [DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)]
+         (Let "x" (Var "m")
+          (Math $ Add (Var "n") (Var "n")))
+         Nothing]
 
     it "parses nested let" $ do
       parse "val f (m:Int) (n:Int) = let x = m in let y = x in x + y" `shouldBe`
         [DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)] 
          (Let "x" (Var "m")
           (Let "y" (Var "x")
-           (Plus (Var "x") (Var "y"))))
+           (Math $ Add (Var "x") (Var "y"))))
           Nothing]
 
     it "parses nested let(pair)" $ do
@@ -37,7 +40,7 @@ spec =
         [DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)] 
          (LetPair "x" "y" (Var "m")
           (Let "z" (Var "x")
-           (Plus (Plus (Var "z") (Var "y")) (Var "n")))) 
+           (Math $ Add (Math $ Add (Var "z") (Var "y")) (Var "n")))) 
           Nothing]
 
     it "parses nested let(pair)1" $ do
