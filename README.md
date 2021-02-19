@@ -14,7 +14,7 @@ line](#command-line) and via a local [web page](#web-page).
 
 ## C backend
 
-The C backend is not yet feature complete:
+The C backend is nearly feature complete:
 
 * [x] syntax elements
   * [x] variable bindings
@@ -40,6 +40,8 @@ The C backend is not yet feature complete:
 It is available only via the [command line](#command-line). See there for
 building and running.
 
+### Compiling the generated C code
+
 The generated C code is dependent on the files in `runtime/`:
 
 * `LDST.h` defines the data structures and interfaces to the scheduler and
@@ -51,7 +53,31 @@ The generated C code is dependent on the files in `runtime/`:
 
 When compiling the generated code an optimization level of at least `-O2`
 should be considered, with this the common compilers (clang, gcc) will
-transform the abundant number of tail calls into jumps.
+transform the abundant number of tail calls into jumps which will keep the
+stack size from exploding.
+
+### Integrating and using the generated C code
+
+Every top level definition in the source file will correspond to a symbol of
+type `LDST_fp0_t` (see `LDST.h`) with `ldst__` prepended. If the name contains
+underscores or primes it will undergo additional transformations.
+
+Such a function should *not* be called directly but only through `ldst_fork`
+due to the interaction with the scheduler when using channel operations.
+There exist `ldst_run` and `ldst_main` to help with the execution of top level
+functions which don't exist as closures. See `LDST.h` for documentation of
+these.
+
+Using the option `-m IDENT / --main=IDENT` with the command line C backend emit
+a `main(void)` function at the end of the resulting C code which executes
+`IDENT` and prints the result. See the output of `$LDGV compile --help` for
+more information.
+
+Multiple LDST files can be compiled separatly and then linked together. It is
+also possible to write functions in C and use them in LDST. The function has to
+properly curried, the top level symbol must have a type signature matching
+`LDST_fp0_t` and the name must match the name transformations pointed out
+above. (NB: this allows to subvert the type system, in all good and bad ways.)
 
 
 ## Building
