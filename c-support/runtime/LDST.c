@@ -23,14 +23,14 @@ static enum LDST_res_t run_impl(struct LDST_cont_t *k_then, void *run_info, unio
     return ldst__invoke(k_then, value);
   }
 
-  struct RunInfo *new_info = LDST__ALLOC(sizeof(struct RunInfo));
+  struct RunInfo *new_info = malloc(sizeof(struct RunInfo));
   if (!new_info) {
     return LDST__no_mem;
   }
 
-  struct LDST_cont_t *k_now = LDST__ALLOC(sizeof(struct LDST_cont_t));
+  struct LDST_cont_t *k_now = malloc(sizeof(struct LDST_cont_t));
   if (!k_now) {
-    LDST__FREE(new_info);
+    free(new_info);
     return LDST__no_mem;
   }
 
@@ -55,7 +55,7 @@ static enum LDST_res_t run_impl(struct LDST_cont_t *k_then, void *run_info, unio
 }
 
 enum LDST_res_t ldst__run( union LDST_t *result, LDST_fp0_t f, int n, union LDST_t *args) {
-  struct RunInfo *info = LDST__ALLOC(sizeof(struct RunInfo));
+  struct RunInfo *info = malloc(sizeof(struct RunInfo));
   if (!info)
     return LDST__no_mem;
 
@@ -75,7 +75,7 @@ static enum LDST_res_t nat_fold_k(struct LDST_cont_t *k, void *void_closure, uni
   // closure[3] = a
   union LDST_t *closure = void_closure;
 
-  struct LDST_cont_t *new_k = LDST__ALLOC(sizeof(struct LDST_cont_t));
+  struct LDST_cont_t *new_k = malloc(sizeof(struct LDST_cont_t));
   if (!new_k)
     return LDST__no_mem;
 
@@ -119,13 +119,13 @@ enum LDST_res_t ldst__nat_fold(struct LDST_cont_t *k, void *void_closure, union 
   // The closure is reused both for the continuation and in there (see
   // `nat_fold_k`) it is also used as the closure to the recusive call to
   // `ldst__nat_fold` (this function).
-  union LDST_t *new_closure = LDST__ALLOC(4 * sizeof(union LDST_t));
+  union LDST_t *new_closure = malloc(4 * sizeof(union LDST_t));
   if (!new_closure)
     return LDST__no_mem;
 
-  struct LDST_cont_t *new_k = LDST__ALLOC(sizeof(struct LDST_cont_t));
+  struct LDST_cont_t *new_k = malloc(sizeof(struct LDST_cont_t));
   if (!new_k) {
-    LDST__FREE(new_closure);
+    free(new_closure);
     return LDST__no_mem;
   }
 

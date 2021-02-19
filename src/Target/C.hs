@@ -732,7 +732,7 @@ cloneAll :: forall t e. (CType t, ExpLike e) => [e t] -> GenM (CVar (Pointer t))
 cloneAll [] = storeVar nullPointer
 cloneAll exprs = do
   let n = length exprs
-  var <- declareFresh $ callExp "LDST__ALLOC" [B.intDec n <+> B.char7 '*' <+> cSizeof @t Proxy]
+  var <- declareFresh $ callExp "malloc" [B.intDec n <+> B.char7 '*' <+> cSizeof @t Proxy]
   itraverse_ (tellAssignI var) exprs
   pure var
 
