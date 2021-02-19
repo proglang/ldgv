@@ -61,17 +61,6 @@ static bool should_suspend(struct LDST_cont_t *k, struct LDST_chan_t *chan) {
   return true;
 }
 
-static enum LDST_res_t make_recv_result(struct LDST_chan_t *chan, union LDST_t value, union LDST_t *result) {
-  union LDST_t *received_pair = malloc(2 * sizeof(union LDST_t));
-  if (!received_pair)
-    return LDST__no_mem;
-
-  received_pair[0] = value;
-  received_pair[1].val_chan = chan;
-  result->val_pair = received_pair;
-  return LDST__ok;
-}
-
 enum LDST_res_t ldst_chan_send(struct LDST_cont_t *k, void *channel, union LDST_t value) {
   struct LDST_chan_t *chan = channel;
   if (should_suspend(k, chan)) {
@@ -81,7 +70,7 @@ enum LDST_res_t ldst_chan_send(struct LDST_cont_t *k, void *channel, union LDST_
 
   // Enqueue the receiving side.
   enum LDST_res_t res;
-  res = make_recv_result(chan, value, &value);
+  res = ldst_make_recv_result(chan, value, &value);
   if (res != LDST__ok) {
     return res;
   }
@@ -110,7 +99,7 @@ enum LDST_res_t ldst_chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *chan) 
     return res;
 
   // Create the result value for the calling thread.
-  res = make_recv_result(chan, chan->chan_value, &value);
+  res = ldst_make_recv_result(chan, chan->chan_value, &value);
   if (res != LDST__ok)
     return res;
 

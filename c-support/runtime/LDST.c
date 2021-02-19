@@ -166,3 +166,13 @@ enum LDST_res_t ldst_nat_fold(struct LDST_cont_t *k, void *void_closure, union L
   return f.lam_fp(new_k, f.lam_closure, idx);
 }
 
+enum LDST_res_t ldst_make_recv_result(struct LDST_chan_t *chan, union LDST_t value, union LDST_t *result) {
+  union LDST_t *received_pair = malloc(2 * sizeof(union LDST_t));
+  if (!received_pair)
+    return LDST__no_mem;
+
+  received_pair[0] = value;
+  received_pair[1].val_chan = chan;
+  result->val_pair = received_pair;
+  return LDST__ok;
+}

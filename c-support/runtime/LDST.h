@@ -93,6 +93,9 @@ union LDST_t ldst_main(LDST_fp0_t f);
 /// Implementation detail of `natrec`.
 enum LDST_res_t ldst_nat_fold(struct LDST_cont_t *k, void *closure, union LDST_t value);
 
+/// Implementation detail of channel operations.
+enum LDST_res_t ldst_make_recv_result(struct LDST_chan_t *chan, union LDST_t value, union LDST_t *result);
+
 
 /// Invokes the given continuation.
 static inline enum LDST_res_t ldst_invoke(struct LDST_cont_t *k, union LDST_t value) {
