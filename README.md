@@ -42,7 +42,7 @@ building and running.
 
 ### Compiling the generated C code
 
-The generated C code is dependent on the files in `runtime/`:
+The generated C code is dependent on the files in `c-support/runtime/`:
 
 * `LDST.h` defines the data structures and interfaces to the scheduler and
   channel handler.
@@ -50,6 +50,10 @@ The generated C code is dependent on the files in `runtime/`:
   need to generate them every time.
 * `LDST_serial.c` contains a serial implementation of a scheduler and channel
   handler.
+* `thpool.h`, `thpool.c` come from [Pithikos/C-Thread-Pool][] and are used in
+  the concurrent scheduler and channel handler implementation.
+
+[Pithikos/C-Thread-Pool]: https://github.com/Pithikos/C-Thread-Pool
 
 When compiling the generated code an optimization level of at least `-O2`
 should be considered, with this the common compilers (clang, gcc) will
