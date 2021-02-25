@@ -10,73 +10,73 @@
 #include "LDST.h"
 
 struct RunInfo {
-  bool applied0;
   int n;
   LDST_t *args;
-  LDST_t *result;
 };
 
 static LDST_res_t run_impl(LDST_cont_t *k_then, LDST_ctxt_t *ctxt, void *run_info, LDST_t value) {
   struct RunInfo *info = run_info;
-  if (info->applied0 && info->n == 0) {
-    // Store the result and continue with the given continuation.
-    *info->result = value;
-    return LDST_invoke(k_then, ctxt, value);
+  LDST_cont_t *k_now = k_then;
+
+  if (info->n > 1) {
+    // Create a new continuation to apply the remaining arguments is required.
+    struct RunInfo *new_info = malloc(sizeof *new_info);
+    if (!new_info) {
+      return LDST_NO_MEM;
+    }
+
+    k_now = malloc(sizeof(LDST_cont_t));
+    if (!k_now) {
+      free(new_info);
+      return LDST_NO_MEM;
+    }
+
+    new_info->n = info->n - 1;
+    new_info->args = info->args + 1;
+    k_now->k_lam.lam_fp = run_impl;
+    k_now->k_lam.lam_closure = new_info;
+    k_now->k_next = k_then;
   }
 
-  struct RunInfo *new_info = malloc(sizeof(struct RunInfo));
-  if (!new_info) {
-    return LDST_NO_MEM;
-  }
-
-  LDST_cont_t *k_now = malloc(sizeof(LDST_cont_t));
-  if (!k_now) {
-    free(new_info);
-    return LDST_NO_MEM;
-  }
-
-  k_now->k_lam.lam_fp = run_impl;
-  k_now->k_lam.lam_closure = new_info;
-  k_now->k_next = k_then;
-
-  new_info->n        = info->n;
-  new_info->args     = info->args;
-  new_info->result   = info->result;
-  new_info->applied0 = true;
-
-  if (!info->applied0) {
-    LDST_fp0_t fp0 = (LDST_fp0_t)value.val_lam.lam_fp;
-    return fp0(k_now, ctxt);
-  }
-
-  new_info->n -= 1;
-  new_info->args += 1;
   LDST_lam_t lam = value.val_lam;
   return lam.lam_fp(k_now, ctxt, lam.lam_closure, info->args[0]);
 }
 
-LDST_res_t LDST_run(LDST_ctxt_t *ctxt, LDST_t *result, LDST_fp0_t f, int n, LDST_t *args) {
-  struct RunInfo *info = malloc(sizeof(struct RunInfo));
-  if (!info)
-    return LDST_NO_MEM;
+static LDST_res_t run_impl0(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *run_info, LDST_t value) {
+  LDST_fp0_t fp = (LDST_fp0_t)value.val_lam.lam_fp;
 
-  info->applied0 = false;
-  info->n = n;
-  info->args = args;
-  info->result = result;
-  LDST_lam_t lambda = { run_impl, info };
+  if (run_info) {
+    LDST_cont_t *k_new = malloc(sizeof *k_new);
+    k_new->k_next = k;
+    k_new->k_lam.lam_fp = run_impl;
+    k_new->k_lam.lam_closure = run_info;
+    k = k_new;
+  }
+
+  return fp(k, ctxt);
+}
+
+LDST_res_t LDST_run(LDST_ctxt_t *ctxt, LDST_t *result, LDST_fp0_t f, int n, LDST_t *args) {
+  struct RunInfo *info = 0;
+  if (n > 0) {
+    info = malloc(sizeof *info);
+
+    if (!info)
+      return LDST_NO_MEM;
+
+    info->n = n;
+    info->args = args;
+  }
+
+  LDST_lam_t lambda = { run_impl0, info };
   LDST_t arg0 = { .val_lam = { (LDST_fp_t)f, 0 } };
-  return LDST_fork(ctxt, lambda, arg0);
+  return LDST_sync(ctxt, result, lambda, arg0);
 }
 
 LDST_t LDST_main(LDST_fp0_t f) {
   LDST_t result;
-  LDST_res_t err = LDST_NO_MEM;
   LDST_ctxt_t *ctxt = LDST_context_create();
-
-  if (ctxt) {
-    err = LDST_run(ctxt, &result, f, 0, 0);
-  }
+  LDST_res_t err = ctxt ? LDST_run(ctxt, &result, f, 0, 0) : LDST_NO_MEM;
 
   switch (err) {
     case LDST_OK:
@@ -89,6 +89,9 @@ LDST_t LDST_main(LDST_fp0_t f) {
       break;
     case LDST_UNMATCHED_LABEL:
       fputs("ldst: unmatched label", stderr);
+      break;
+    case LDST_NO_RESULT:
+      fputs("ldst: result not available", stderr);
       break;
     default:
       fputs("ldst: unknown error", stderr);
@@ -172,6 +175,8 @@ LDST_res_t LDST_nat_fold(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *void_closure, 
   return f.lam_fp(new_k, ctxt, f.lam_closure, idx);
 }
 
+// The recv operator returns a pair where the first element is the received
+// value and the second element is the "new" channel.
 LDST_res_t LDST_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result) {
   LDST_t *received_pair = malloc(2 * sizeof(LDST_t));
   if (!received_pair)
