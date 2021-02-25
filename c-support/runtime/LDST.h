@@ -61,6 +61,9 @@ union LDST_val {
 // failed.
 LDST_ctxt_t *LDST_context_create(void);
 
+// Wait until all operations associated with this context have terminated.
+LDST_res_t LDST_context_wait(LDST_ctxt_t *context);
+
 // Destroys the given context.
 //
 // After a context has been destroyed it may not be used as an argument to any

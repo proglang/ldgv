@@ -36,6 +36,10 @@ LDST_ctxt_t *LDST_context_create(void) {
   return ctxt;
 }
 
+LDST_res_t LDST_context_wait(LDST_ctxt_t *ctxt) {
+  return ctxt->blocked_count > 0 ? LDST_DEADLOCK : LDST_OK;
+}
+
 void LDST_context_destroy(LDST_ctxt_t *ctxt) {
   free(ctxt);
 }
@@ -165,40 +169,4 @@ LDST_res_t LDST_fork(LDST_ctxt_t *ctxt, LDST_lam_t op, LDST_t value) {
   }
 
   return run_runnables(ctxt);
-}
-
-typedef struct {
-  LDST_t     *result;
-  union {
-    bool has_result;
-    LDST_lam_t op;
-  };
-} AssignInfo;
-
-static LDST_res_t assign_k(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *vinfo, LDST_t val) {
-  AssignInfo *info = vinfo;
-  *info->result = val;
-  info->has_result = true;
-  return LDST_invoke(k, ctxt, val);
-}
-
-static LDST_res_t assign(LDST_cont_t *then_k, LDST_ctxt_t *ctxt, void *vinfo, LDST_t arg) {
-  LDST_cont_t *k = malloc(sizeof(LDST_cont_t));
-  if (!k)
-    return LDST_NO_MEM;
-
-  AssignInfo *info = vinfo;
-  LDST_lam_t op = info->op;
-  info->has_result = false;
-  k->k_lam.lam_fp = assign_k;
-  k->k_lam.lam_closure = info->result;
-  k->k_next = then_k;
-  return op.lam_fp(k, ctxt, op.lam_closure, arg);
-}
-
-LDST_res_t LDST_sync(LDST_ctxt_t *ctxt, LDST_t *result, LDST_lam_t op, LDST_t arg) {
-  AssignInfo info = { result, { .op = op } };
-  LDST_lam_t assign_op = { assign, &info };
-  LDST_res_t res = LDST_fork(ctxt, assign_op, arg);
-  return res != LDST_OK || info.has_result ? res : LDST_NO_RESULT;
 }

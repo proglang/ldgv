@@ -9,6 +9,51 @@
 #include <stdlib.h>
 #include "LDST.h"
 
+struct SyncInfo {
+  LDST_t *result;
+  union {
+    LDST_lam_t op;
+    bool has_result;
+  };
+};
+
+static LDST_res_t assign_k(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *vinfo, LDST_t val) {
+  struct SyncInfo *info = vinfo;
+  *info->result = val;
+  info->has_result = true;
+  return LDST_invoke(k, ctxt, val);
+}
+
+static LDST_res_t assign(LDST_cont_t *then_k, LDST_ctxt_t *ctxt, void *vinfo, LDST_t arg) {
+  LDST_cont_t *k = malloc(sizeof(LDST_cont_t));
+  if (!k)
+    return LDST_NO_MEM;
+
+  struct SyncInfo *info = vinfo;
+  LDST_lam_t op = info->op;
+  info->has_result = false;
+  k->k_lam.lam_fp = assign_k;
+  k->k_lam.lam_closure = info->result;
+  k->k_next = then_k;
+  return op.lam_fp(k, ctxt, op.lam_closure, arg);
+}
+
+LDST_res_t LDST_sync(LDST_ctxt_t *ctxt, LDST_t *result, LDST_lam_t op, LDST_t arg) {
+  LDST_res_t res;
+  struct SyncInfo info = { result, { .op = op } };
+  LDST_lam_t assign_op = { assign, &info };
+
+  res = LDST_fork(ctxt, assign_op, arg);
+  if (res != LDST_OK)
+    return res;
+
+  res = LDST_context_wait(ctxt);
+  if (res != LDST_OK)
+    return res;
+
+  return info.has_result ? LDST_OK : LDST_NO_RESULT;
+}
+
 struct RunInfo {
   int n;
   LDST_t *args;
