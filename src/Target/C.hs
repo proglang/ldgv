@@ -1,4 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
@@ -15,7 +14,9 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall #-}
+
 module Target.C (generate) where
 
 import Control.Lens
@@ -49,11 +50,12 @@ import qualified Syntax as S
 -- | Type level tag for values.
 --
 -- @
--- union LDST_t {
+-- union LDST_val {
 --   int val_int;
+--   LDST_t *val_pair;
+--   LDST_chan_t *val_chan;
+--   LDST_lam_t val_lam;
 --   const char *val_label;
---   union LDST_t *val_pair;
---   struct LDST_lam_t val_lam;
 -- };
 -- @
 data V
@@ -61,7 +63,7 @@ data V
 -- | Type level tag for lambdas.
 --
 -- @
--- struct LDST_lam_t {
+-- struct LDST_lam {
 --   LDST_fp fp;
 --   LDST_t *closure;
 -- };
@@ -74,18 +76,18 @@ data C
 -- | Type level tag for continuations.
 --
 -- @
--- struct LDST_cont_t {
+-- struct LDST_cont {
 --    LDST_fp fp;
---    union LDST_t *closure;
---    union LDST_cont_t *cont;
+--    LDST_t *closure;
+--    LDST_cont_t *cont;
 -- };
 -- @
 data K
 
--- | Type level tag for @enum LDST_res_t@.
--- 
+-- | Type level tag for @LDST_res_t@.
+--
 -- @
--- enum LDST_res_t {
+-- enum LDST_res {
 --   LDST__ok,
 --   LDST__no_mem,
 --   LDST__deadlock,
@@ -189,15 +191,15 @@ instance ExpLike CVar where
 class CType t where
   typeName :: proxy t -> Builder
 instance CType V where
-  typeName _ = "union LDST_t"
+  typeName _ = "LDST_t"
 instance CType L where
-  typeName _ = "struct LDST_lam_t"
+  typeName _ = "LDST_lam_t"
 instance CType C where
-  typeName _ = "struct LDST_chan_t"
+  typeName _ = "LDST_chan_t"
 instance CType K where
-  typeName _ = "struct LDST_cont_t"
+  typeName _ = "LDST_cont_t"
 instance CType R where
-  typeName _ = cResType
+  typeName _ = "LDST_res_t"
 instance CType () where
   typeName _ = "void"
 instance CType a => CType (Pointer a) where
@@ -345,10 +347,10 @@ explainExpression ty0 v0 =
 -- The function signature convention is
 --
 -- @
--- enum LDST_res_t /function-name/(
---    struct LDST_cont_t *continuation,
+-- LDST_res_t /function-name/(
+--    LDST_cont_t *continuation,
 --    void *closure,
---    struct LDST_t argument)
+--    LDST_t argument)
 -- @
 --
 -- where @closure@ and @argument@ are only present for non-toplevel bindings,
@@ -392,7 +394,7 @@ signatureParameters name voidClosure args = (params, bindings)
         Just recId -> do
           -- It is possible that the recursion name recId shadows the functions
           -- argument name, but this follows the typechecker rules!
-          -- 
+          --
           -- Use the following code to doublecheck:
           --
           --    val check = rec x (x : Int) : Int = x
@@ -770,9 +772,6 @@ glueCode decls defs = bunlines
   , "// Generated code - function definitions"
   , defs
   ]
-
-cResType :: Builder
-cResType = "enum LDST_res_t"
 
 newChannel :: GenM (CVar (Pointer C))
 newChannel = do

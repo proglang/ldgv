@@ -9,44 +9,45 @@
 #include <stdlib.h>
 #include <stddef.h>
 
-union LDST_t;
-struct LDST_lam_t;
-struct LDST_cont_t;
-struct LDST_chan_t;
+typedef union  LDST_val  LDST_t;
+typedef struct LDST_lam  LDST_lam_t;
+typedef struct LDST_cont LDST_cont_t;
+typedef struct LDST_chan LDST_chan_t;
+typedef struct LDST_ctxt LDST_ctxt_t;
 
-enum LDST_res_t {
+typedef enum LDST_res {
   LDST__ok,
   LDST__no_mem,
   LDST__deadlock,
   LDST__unmatched_label,
   LDST__err_unknown,
-};
+} LDST_res_t;
 
-typedef enum LDST_res_t (*LDST_fp0_t)(struct LDST_cont_t *);
-typedef enum LDST_res_t (*LDST_fp_t)(struct LDST_cont_t *, void *, union LDST_t);
+typedef LDST_res_t (*LDST_fp0_t)(LDST_cont_t *k);
+typedef LDST_res_t (*LDST_fp_t)(LDST_cont_t *k, void *closure, LDST_t arg);
 
-struct LDST_lam_t {
+struct LDST_lam {
   LDST_fp_t            lam_fp;
   void                *lam_closure;
 };
 
-struct LDST_cont_t {
-  struct LDST_lam_t    k_lam;
-  struct LDST_cont_t  *k_next;
+struct LDST_cont {
+  LDST_lam_t    k_lam;
+  LDST_cont_t  *k_next;
 };
 
-union LDST_t {
-  int                  val_int;
-  struct LDST_lam_t    val_lam;
-  union LDST_t        *val_pair;
-  struct LDST_chan_t  *val_chan;
-  const char          *val_label;
+union LDST_val {
+  int            val_int;
+  LDST_lam_t     val_lam;
+  LDST_t        *val_pair;
+  LDST_chan_t   *val_chan;
+  const char    *val_label;
 };
 
 // Backend interface.
 
 /// Creates a new channel.
-enum LDST_res_t ldst_chan_new(struct LDST_chan_t **chan);
+LDST_res_t ldst_chan_new(LDST_chan_t **chan);
 
 /// Sends a value down a channel.
 ///
@@ -55,19 +56,19 @@ enum LDST_res_t ldst_chan_new(struct LDST_chan_t **chan);
 ///
 /// The continuation `k` will be invoked with a value of `val_chan` passing the
 /// `channel` argument given to this function.
-enum LDST_res_t ldst_chan_send(struct LDST_cont_t *k, void *channel, union LDST_t value);
+LDST_res_t ldst_chan_send(LDST_cont_t *k, void *channel, LDST_t value);
 
 /// Receives a value from a channel.
 ///
 /// The continuation `k` will be invoked with a pair of the passed channel and the
 /// recieved value.
-enum LDST_res_t ldst_chan_recv(struct LDST_cont_t *k, struct LDST_chan_t *channel);
+LDST_res_t ldst_chan_recv(LDST_cont_t *k, LDST_chan_t *channel);
 
 /// Forks execution of the given lambda.
 ///
 /// If currently no thread is executing this will start execution and only
 /// return when all threads forked inside `op` and `op` itsel have completed.
-enum LDST_res_t ldst_fork(struct LDST_lam_t op, union LDST_t value);
+LDST_res_t ldst_fork(LDST_lam_t op, LDST_t value);
 
 
 // Supporting functions.
@@ -81,29 +82,29 @@ enum LDST_res_t ldst_fork(struct LDST_lam_t op, union LDST_t value);
 /// function, channel or pair containing either of these, `args` has to be valid
 /// for as long as `result` is valid. Otherwise `args` must only be valid for
 /// the duration of the call to `ldst_run`.
-enum LDST_res_t ldst_run(union LDST_t *result, LDST_fp0_t f, int n, union LDST_t *args);
+LDST_res_t ldst_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args);
 
 /// Runs the given top level function, no arguments are applied and the result
 /// is returned.
 ///
 /// If an error occurs this function will call exit(3) with the error code
 /// after printing an error description.
-union LDST_t ldst_main(LDST_fp0_t f);
+LDST_t ldst_main(LDST_fp0_t f);
 
 /// Implementation detail of `natrec`.
-enum LDST_res_t ldst_nat_fold(struct LDST_cont_t *k, void *closure, union LDST_t value);
+LDST_res_t ldst_nat_fold(LDST_cont_t *k, void *closure, LDST_t value);
 
 /// Implementation detail of channel operations.
-enum LDST_res_t ldst_make_recv_result(struct LDST_chan_t *chan, union LDST_t value, union LDST_t *result);
+LDST_res_t ldst_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result);
 
 
 /// Invokes the given continuation.
-static inline enum LDST_res_t ldst_invoke(struct LDST_cont_t *k, union LDST_t value) {
+static inline LDST_res_t ldst_invoke(LDST_cont_t *k, LDST_t value) {
   if (!k)
     return LDST__ok;
 
-  struct LDST_lam_t lam = k->k_lam;
-  struct LDST_cont_t *next = k->k_next;
+  LDST_lam_t lam = k->k_lam;
+  LDST_cont_t *next = k->k_next;
   free(k);
   return lam.lam_fp(next, lam.lam_closure, value);
 }
