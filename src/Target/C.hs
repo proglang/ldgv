@@ -84,6 +84,9 @@ data C
 -- @
 data K
 
+-- | Type level tag for @LDST_ctxt_t@.
+data T
+
 -- | Type level tag for @LDST_res_t@.
 --
 -- @
@@ -198,6 +201,8 @@ instance CType C where
   typeName _ = "LDST_chan_t"
 instance CType K where
   typeName _ = "LDST_cont_t"
+instance CType T where
+  typeName _ = "LDST_ctxt_t"
 instance CType R where
   typeName _ = "LDST_res_t"
 instance CType () where
@@ -349,6 +354,7 @@ explainExpression ty0 v0 =
 -- @
 -- LDST_res_t /function-name/(
 --    LDST_cont_t *continuation,
+--    LDST_ctxt_t *context,
 --    void *closure,
 --    LDST_t argument)
 -- @
@@ -368,13 +374,19 @@ functionSignature fun =
       ]
 
     addContinuation =
-      _1 %~ (varDeclaration cContVar :)
+      _1 %~ ([varDeclaration cContVar, varDeclaration cCtxtVar] ++)
 
     cContVar :: CVar (Pointer K)
     cContVar = CVar "_ldst_k"
 
     cClosureVar :: CVar (Pointer ())
     cClosureVar = CVar "_ldst_closure"
+
+-- | The variable which will be bound to the passed @LDST_ctxt_t*@. Since this
+-- value is a essentially a black box for the generated code and only passed to
+-- other functions we use one global variable name.
+cCtxtVar :: CVar (Pointer T)
+cCtxtVar = CVar "_ldst_ctxt"
 
 signatureParameters :: Builder -> CVar (Pointer ()) -> FunctionArgs -> ([Builder], GenM Env)
 signatureParameters name voidClosure args = (params, bindings)
@@ -607,7 +619,9 @@ invoke lam k val = do
   invoke' fun k [closure, unCExp (toCExp val)]
 
 invoke' :: ExpLike e => Builder -> e (Pointer K) -> [Builder] -> GenM ()
-invoke' fun k args = tellStmt $ cReturn $ callExp fun $ unCExp (toCExp k) : args
+invoke' fun k args =
+  let allArgs = [unCExp (toCExp k), unCExp (toCExp cCtxtVar)] ++ args
+   in tellStmt $ cReturn $ callExp fun allArgs
 
 scoped :: Ident -> GenM (CVar V) -> (CVar V -> GenM b) -> GenM b
 scoped idn val body = do
@@ -777,7 +791,7 @@ newChannel :: GenM (CVar (Pointer C))
 newChannel = do
   chan <- storeVar nullPointer
   chanAddress <- takeAddress chan
-  callChecked "LDST_chan_new" [unCVar chanAddress]
+  callChecked "LDST_chan_new" [unCVar cCtxtVar, unCVar chanAddress]
   pure chan
 
 chanSendLambda :: ExpLike e => e (Pointer C) -> GenM (CVar L)
@@ -785,12 +799,12 @@ chanSendLambda = mkLambda' "LDST_chan_send" . unCExp . toCExp
 
 chanReceive :: (ExpLike e1, ExpLike e2) => e1 (Pointer K) -> e2 (Pointer C) -> GenM ()
 chanReceive (toCExp -> CExp k) (toCExp -> CExp chan) =
-  tellStmt $ cReturn $ callExp "LDST_chan_recv" [k, chan]
+  tellStmt $ cReturn $ callExp "LDST_chan_recv" [k, unCExp (toCExp cCtxtVar), chan]
 
 forkLambda :: ExpLike e => e L -> GenM (CVar V)
-forkLambda l = do
+forkLambda (toCExp -> CExp l) = do
   unit <- newUnitVar
-  callChecked "LDST_fork" [unCExp (toCExp l), unCVar unit]
+  callChecked "LDST_fork" [unCExp (toCExp cCtxtVar), l, unCVar unit]
   pure unit
 
 callChecked :: Builder -> [Builder] -> GenM ()
