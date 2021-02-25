@@ -9,6 +9,11 @@
 #include <stdlib.h>
 #include <stddef.h>
 
+
+/*****************************************************************************
+ * Type Definitions                                                          *
+ *****************************************************************************/
+
 typedef union  LDST_val  LDST_t;
 typedef struct LDST_lam  LDST_lam_t;
 typedef struct LDST_cont LDST_cont_t;
@@ -44,61 +49,86 @@ union LDST_val {
   const char    *val_label;
 };
 
-// Backend interface.
 
-/// Creates a new channel.
+/*****************************************************************************
+ * Context Handling                                                          *
+ *****************************************************************************/
+
+// Creates a new context which can be used to run LDST functions.
+//
+// If this function returns `NULL` context creation should be considered
+// failed.
+LDST_ctxt_t *LDST_context_create(void);
+
+// Destroys the given context.
+//
+// After a context has been destroyed it may not be used as an argument to any
+// of the `LDST_...` functions or any generated `ldst_...` function, including
+// `LDST_context_destroy`. It is safe to pass `NULL` to this function.
+//
+// This also invalidates all values and channels created with this context or
+// returned from running functions with this context.
+void LDST_context_destroy(LDST_ctxt_t *context);
+
+
+/*****************************************************************************
+ * Backend Interface                                                         *
+ *****************************************************************************/
+
+// Creates a new channel.
 LDST_res_t LDST_chan_new(LDST_chan_t **chan);
 
-/// Sends a value down a channel.
-///
-/// The `channel` should be a channel obtained through a call to
-/// `ldst_chan_new`. It is of type `void*` to fit the `LDST_fp_t` prototype.
-///
-/// The continuation `k` will be invoked with a value of `val_chan` passing the
-/// `channel` argument given to this function.
+// Sends a value down a channel.
+//
+// The `channel` should be a channel obtained through a call to
+// `ldst_chan_new`. It is of type `void*` to fit the `LDST_fp_t` prototype.
+//
+// The continuation `k` will be invoked with a value of `val_chan` passing the
+// `channel` argument given to this function.
 LDST_res_t LDST_chan_send(LDST_cont_t *k, void *channel, LDST_t value);
 
-/// Receives a value from a channel.
-///
-/// The continuation `k` will be invoked with a pair of the passed channel and the
-/// recieved value.
+// Receives a value from a channel.
+//
+// The continuation `k` will be invoked with a pair of the passed channel and the
+// recieved value.
 LDST_res_t LDST_chan_recv(LDST_cont_t *k, LDST_chan_t *channel);
 
-/// Forks execution of the given lambda.
-///
-/// If currently no thread is executing this will start execution and only
-/// return when all threads forked inside `op` and `op` itsel have completed.
+// Forks execution of the given lambda.
+//
+// If currently no thread is executing this will start execution and only
+// return when all threads forked inside `op` and `op` itsel have completed.
 LDST_res_t LDST_fork(LDST_lam_t op, LDST_t value);
 
 
-// Supporting functions.
+/*****************************************************************************
+ * Supporting Functions                                                      *
+ *****************************************************************************/
 
-/// Runs the given top level function `f` by applying the `n` arguments in
-/// `args` and storing the result in `result`.
-///
-/// `result` should point to a valid memory location.
-///
-/// If `n` is zero, `args` may be the null pointer. If the result is a lambda
-/// function, channel or pair containing either of these, `args` has to be valid
-/// for as long as `result` is valid. Otherwise `args` must only be valid for
-/// the duration of the call to `ldst_run`.
+// Runs the given top level function `f` by applying the `n` arguments in
+// `args` and storing the result in `result`.
+//
+// `result` should point to a valid memory location.
+//
+// If `n` is zero, `args` may be the null pointer. If the result is a lambda
+// function, channel or pair containing either of these, `args` has to be valid
+// for as long as `result` is valid. Otherwise `args` must only be valid for
+// the duration of the call to `ldst_run`.
 LDST_res_t LDST_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args);
 
-/// Runs the given top level function, no arguments are applied and the result
-/// is returned.
-///
-/// If an error occurs this function will call exit(3) with the error code
-/// after printing an error description.
+// Runs the given top level function, no arguments are applied and the result
+// is returned.
+//
+// If an error occurs this function will call exit(3) with the error code
+// after printing an error description.
 LDST_t LDST_main(LDST_fp0_t f);
 
-/// Implementation detail of `natrec`.
+// Implementation detail of `natrec`.
 LDST_res_t LDST_nat_fold(LDST_cont_t *k, void *closure, LDST_t value);
 
-/// Implementation detail of channel operations.
+// Implementation detail of channel operations.
 LDST_res_t LDST_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result);
 
-
-/// Invokes the given continuation.
+// Invokes the given continuation and frees its memory.
 static inline LDST_res_t LDST_invoke(LDST_cont_t *k, LDST_t value) {
   if (!k)
     return LDST_OK;
