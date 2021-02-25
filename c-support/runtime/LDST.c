@@ -16,12 +16,12 @@ struct RunInfo {
   LDST_t *result;
 };
 
-static LDST_res_t run_impl(LDST_cont_t *k_then, void *run_info, LDST_t value) {
+static LDST_res_t run_impl(LDST_cont_t *k_then, LDST_ctxt_t *ctxt, void *run_info, LDST_t value) {
   struct RunInfo *info = run_info;
   if (info->applied0 && info->n == 0) {
     // Store the result and continue with the given continuation.
     *info->result = value;
-    return LDST_invoke(k_then, value);
+    return LDST_invoke(k_then, ctxt, value);
   }
 
   struct RunInfo *new_info = malloc(sizeof(struct RunInfo));
@@ -46,16 +46,16 @@ static LDST_res_t run_impl(LDST_cont_t *k_then, void *run_info, LDST_t value) {
 
   if (!info->applied0) {
     LDST_fp0_t fp0 = (LDST_fp0_t)value.val_lam.lam_fp;
-    return fp0(k_now);
+    return fp0(k_now, ctxt);
   }
 
   new_info->n -= 1;
   new_info->args += 1;
   LDST_lam_t lam = value.val_lam;
-  return lam.lam_fp(k_now, lam.lam_closure, info->args[0]);
+  return lam.lam_fp(k_now, ctxt, lam.lam_closure, info->args[0]);
 }
 
-LDST_res_t LDST_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args) {
+LDST_res_t LDST_run(LDST_ctxt_t *ctxt, LDST_t *result, LDST_fp0_t f, int n, LDST_t *args) {
   struct RunInfo *info = malloc(sizeof(struct RunInfo));
   if (!info)
     return LDST_NO_MEM;
@@ -66,12 +66,18 @@ LDST_res_t LDST_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args) {
   info->result = result;
   LDST_lam_t lambda = { run_impl, info };
   LDST_t arg0 = { .val_lam = { (LDST_fp_t)f, 0 } };
-  return LDST_fork(lambda, arg0);
+  return LDST_fork(ctxt, lambda, arg0);
 }
 
 LDST_t LDST_main(LDST_fp0_t f) {
   LDST_t result;
-  LDST_res_t err = LDST_run(&result, f, 0, 0);
+  LDST_res_t err = LDST_NO_MEM;
+  LDST_ctxt_t *ctxt = LDST_context_create();
+
+  if (ctxt) {
+    err = LDST_run(ctxt, &result, f, 0, 0);
+  }
+
   switch (err) {
     case LDST_OK:
       return result;
@@ -91,7 +97,7 @@ LDST_t LDST_main(LDST_fp0_t f) {
   exit(err);
 }
 
-static LDST_res_t nat_fold_k(LDST_cont_t *k, void *void_closure, LDST_t v) {
+static LDST_res_t nat_fold_k(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *void_closure, LDST_t v) {
   // closure[0] = f
   // closure[1] = n
   // closure[2] = i
@@ -108,7 +114,7 @@ static LDST_res_t nat_fold_k(LDST_cont_t *k, void *void_closure, LDST_t v) {
 
   LDST_t a = closure[3];
   LDST_lam_t f = v.val_lam;
-  return f.lam_fp(new_k, f.lam_closure, a);
+  return f.lam_fp(new_k, ctxt, f.lam_closure, a);
 }
 
 /*
@@ -128,7 +134,7 @@ static LDST_res_t nat_fold_k(LDST_cont_t *k, void *void_closure, LDST_t v) {
  * argument already applied) and therefore has to be called with the correct
  * closure: A list of three values in the order of `f`, `n`, `i`.
  */
-LDST_res_t LDST_nat_fold(LDST_cont_t *k, void *void_closure, LDST_t a) {
+LDST_res_t LDST_nat_fold(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *void_closure, LDST_t a) {
   // closure[0] = f
   // closure[1] = n
   // closure[2] = i
@@ -137,7 +143,7 @@ LDST_res_t LDST_nat_fold(LDST_cont_t *k, void *void_closure, LDST_t a) {
   int i = closure[2].val_int;
 
   if (n == i)
-    return LDST_invoke(k, a);
+    return LDST_invoke(k, ctxt, a);
 
   // The closure is reused both for the continuation and in there (see
   // `nat_fold_k`) it is also used as the closure to the recusive call to
@@ -163,7 +169,7 @@ LDST_res_t LDST_nat_fold(LDST_cont_t *k, void *void_closure, LDST_t a) {
   new_k->k_next = k;
 
   LDST_t idx = { .val_int = i };
-  return f.lam_fp(new_k, f.lam_closure, idx);
+  return f.lam_fp(new_k, ctxt, f.lam_closure, idx);
 }
 
 LDST_res_t LDST_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result) {
