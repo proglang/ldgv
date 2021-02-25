@@ -16,11 +16,11 @@ typedef struct LDST_chan LDST_chan_t;
 typedef struct LDST_ctxt LDST_ctxt_t;
 
 typedef enum LDST_res {
-  LDST__ok,
-  LDST__no_mem,
-  LDST__deadlock,
-  LDST__unmatched_label,
-  LDST__err_unknown,
+  LDST_OK,
+  LDST_NO_MEM,
+  LDST_DEADLOCK,
+  LDST_UNMATCHED_LABEL,
+  LDST_ERR_UNKNOWN,
 } LDST_res_t;
 
 typedef LDST_res_t (*LDST_fp0_t)(LDST_cont_t *k);
@@ -47,7 +47,7 @@ union LDST_val {
 // Backend interface.
 
 /// Creates a new channel.
-LDST_res_t ldst_chan_new(LDST_chan_t **chan);
+LDST_res_t LDST_chan_new(LDST_chan_t **chan);
 
 /// Sends a value down a channel.
 ///
@@ -56,19 +56,19 @@ LDST_res_t ldst_chan_new(LDST_chan_t **chan);
 ///
 /// The continuation `k` will be invoked with a value of `val_chan` passing the
 /// `channel` argument given to this function.
-LDST_res_t ldst_chan_send(LDST_cont_t *k, void *channel, LDST_t value);
+LDST_res_t LDST_chan_send(LDST_cont_t *k, void *channel, LDST_t value);
 
 /// Receives a value from a channel.
 ///
 /// The continuation `k` will be invoked with a pair of the passed channel and the
 /// recieved value.
-LDST_res_t ldst_chan_recv(LDST_cont_t *k, LDST_chan_t *channel);
+LDST_res_t LDST_chan_recv(LDST_cont_t *k, LDST_chan_t *channel);
 
 /// Forks execution of the given lambda.
 ///
 /// If currently no thread is executing this will start execution and only
 /// return when all threads forked inside `op` and `op` itsel have completed.
-LDST_res_t ldst_fork(LDST_lam_t op, LDST_t value);
+LDST_res_t LDST_fork(LDST_lam_t op, LDST_t value);
 
 
 // Supporting functions.
@@ -82,26 +82,26 @@ LDST_res_t ldst_fork(LDST_lam_t op, LDST_t value);
 /// function, channel or pair containing either of these, `args` has to be valid
 /// for as long as `result` is valid. Otherwise `args` must only be valid for
 /// the duration of the call to `ldst_run`.
-LDST_res_t ldst_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args);
+LDST_res_t LDST_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args);
 
 /// Runs the given top level function, no arguments are applied and the result
 /// is returned.
 ///
 /// If an error occurs this function will call exit(3) with the error code
 /// after printing an error description.
-LDST_t ldst_main(LDST_fp0_t f);
+LDST_t LDST_main(LDST_fp0_t f);
 
 /// Implementation detail of `natrec`.
-LDST_res_t ldst_nat_fold(LDST_cont_t *k, void *closure, LDST_t value);
+LDST_res_t LDST_nat_fold(LDST_cont_t *k, void *closure, LDST_t value);
 
 /// Implementation detail of channel operations.
-LDST_res_t ldst_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result);
+LDST_res_t LDST_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result);
 
 
 /// Invokes the given continuation.
-static inline LDST_res_t ldst_invoke(LDST_cont_t *k, LDST_t value) {
+static inline LDST_res_t LDST_invoke(LDST_cont_t *k, LDST_t value) {
   if (!k)
-    return LDST__ok;
+    return LDST_OK;
 
   LDST_lam_t lam = k->k_lam;
   LDST_cont_t *next = k->k_next;

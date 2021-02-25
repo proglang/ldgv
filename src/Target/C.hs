@@ -88,10 +88,10 @@ data K
 --
 -- @
 -- enum LDST_res {
---   LDST__ok,
---   LDST__no_mem,
---   LDST__deadlock,
---   LDST__unmatched_label,
+--   LDST_OK,
+--   LDST_NO_MEM,
+--   LDST_DEADLOCK,
+--   LDST_UNMATCHED_LABEL,
 -- };
 -- @
 data R
@@ -301,7 +301,7 @@ genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
 
   Just (Just (S.Last ty)) ->
     let (_, mainFunction) = functionDeclDef "int main(void)" $ foldMap stmtLine
-          [ assignStmt resultVar $ callExp "ldst_main" [functionForC mainId]
+          [ assignStmt resultVar $ callExp "LDST_main" [functionForC mainId]
           , explainExpression ty resultVar
           ]
         stmtLine s = mconcat [ CStmt "  ", s, CStmt "\n" ]
@@ -520,7 +520,7 @@ generateExp = \case
           lift $ local (infoIndent +~ 1) $ generateExp branchExp
           lift $ tellStmt $ CStmt "}"
     evalStateT (traverse_ buildBranch cs) ("if " :: Builder)
-    tellStmt $ cReturn "LDST__unmatched_label"
+    tellStmt $ cReturn "LDST_UNMATCHED_LABEL"
   NatRec e z n _ x t s -> do
     e' <- generateVal e
     z' <- generateVal z
@@ -529,16 +529,16 @@ generateExp = \case
     s' <- pushFunction 'n' vars Nothing n $ Return $ Lam MMany x t s
     f  <- mkValue TagLam s'
 
-    -- Create the closure for ldst_nat_fold
+    -- Create the closure for LDST_nat_fold
     --  1. f (= s')
     --  2. n (= e')
     --  3. i
     i  <- mkValue TagInt 0
     closure <- cloneAll [f, e', i]
 
-    -- Call into `ldst_nat_fold`.
+    -- Call into `LDST_nat_fold`.
     k <- view infoContinuation
-    natFold <- mkLambda' "ldst_nat_fold" $ unCVar closure
+    natFold <- mkLambda' "LDST_nat_fold" $ unCVar closure
     invoke natFold k z'
 
   Recv e mk -> do
@@ -599,7 +599,7 @@ generateContinuationM (Just (resId, kbody)) =
 invokeContinuation :: ExpLike e => e V -> GenM ()
 invokeContinuation e = do
   k <- view infoContinuation
-  invoke' "ldst_invoke" k [unCExp (toCExp e)]
+  invoke' "LDST_invoke" k [unCExp (toCExp e)]
 
 invoke :: (ExpLike e1, ExpLike e2) => CVar L -> e1 (Pointer K) -> e2 V -> GenM ()
 invoke lam k val = do
@@ -777,20 +777,20 @@ newChannel :: GenM (CVar (Pointer C))
 newChannel = do
   chan <- storeVar nullPointer
   chanAddress <- takeAddress chan
-  callChecked "ldst_chan_new" [unCVar chanAddress]
+  callChecked "LDST_chan_new" [unCVar chanAddress]
   pure chan
 
 chanSendLambda :: ExpLike e => e (Pointer C) -> GenM (CVar L)
-chanSendLambda = mkLambda' "ldst_chan_send" . unCExp . toCExp
+chanSendLambda = mkLambda' "LDST_chan_send" . unCExp . toCExp
 
 chanReceive :: (ExpLike e1, ExpLike e2) => e1 (Pointer K) -> e2 (Pointer C) -> GenM ()
 chanReceive (toCExp -> CExp k) (toCExp -> CExp chan) =
-  tellStmt $ cReturn $ callExp "ldst_chan_recv" [k, chan]
+  tellStmt $ cReturn $ callExp "LDST_chan_recv" [k, chan]
 
 forkLambda :: ExpLike e => e L -> GenM (CVar V)
 forkLambda l = do
   unit <- newUnitVar
-  callChecked "ldst_fork" [unCExp (toCExp l), unCVar unit]
+  callChecked "LDST_fork" [unCExp (toCExp l), unCVar unit]
   pure unit
 
 callChecked :: Builder -> [Builder] -> GenM ()
@@ -801,7 +801,7 @@ callChecked fun args = do
 
 returnNotOk :: CVar R -> GenM ()
 returnNotOk (CVar res) = do
-  tellStmt $ CStmt $ callExp "if " $ pure $ res <> " != LDST__ok"
+  tellStmt $ CStmt $ callExp "if " $ pure $ res <> " != LDST_OK"
   local (infoIndent +~ 1) $ tellStmt $ cReturn res
 
 braceList :: [Builder] -> Builder
@@ -897,30 +897,36 @@ terminate b = CStmt $ b <> B.char7 ';'
 cReturn :: Builder -> CStmt
 cReturn b = terminate $ "return " <> b
 
+-- | @identForC idn == identForC' True idn@
+identForC :: Ident -> Builder
+identForC = identForC' True
+
 -- | Escapes an LDST identifier for use in C code. It is based on the
---   z-encoding used in GHC.
+-- z-encoding used in GHC but uses @q@ as the escape character, which is
+-- potentially less used.
 --
 --   * underscores are replaced by @z_@, this is to protect against accidental
---     shadowing as single underscores are used in generated identifiers.
+--     shadowing as single underscores are used in generated identifiers. This
+--     is only done if the first argument is @True@.
 --
 --   * primes/single quotes are replaced by @zq@
 --
 --   * @z@ is replaced by @zz@ to make the transformation bijective.
-identForC :: Ident -> Builder
-identForC = foldMap \case
-  '_'  -> "z_"
-  '\'' -> "zq"
-  'z'  -> "zz"
-  -- In theory c can only be an ASCII character, but better safe than sorry.
-  c -> B.charUtf8 c
+identForC' :: Bool -> Ident -> Builder
+identForC' escapeUnderscore = foldMap \case
+  '_' | escapeUnderscore -> "q_"
+  '\'' -> "qq"
+  'q'  -> "qq"
+  c    -> B.charUtf8 c
 
 -- | Turn an identifier into a function name suitable in the generated C code.
--- It uses the encoding from 'identForC' and prepends @"ldst__"@
+-- It uses the encoding from 'identForC' if it contains a prime/single quote
+-- and prepends @"ldst_"@
 functionForC :: Ident -> Builder
-functionForC idn = "ldst__" <> identForC idn
+functionForC idn = "ldst_" <> identForC' False idn
 
 labelForC :: String -> Builder
-labelForC = escapedCString
+labelForC = escapedCString -- Labels are represented as C strings.
 
 -- | Escapes a string value as a string literal in C, including the surrounding
 -- quotes.

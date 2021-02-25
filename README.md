@@ -63,17 +63,18 @@ stack size from exploding.
 ### Integrating and using the generated C code
 
 Every top level definition in the source file will correspond to a symbol of
-type `LDST_fp0_t` (see `LDST.h`) with `ldst__` prepended. If the name contains
-underscores or primes it will undergo additional transformations.
+type `LDST_fp0_t` (see `LDST.h`) with `ldst_` prepended. Additional
+transformations are applied to support primes in function names: a `q` is
+replaced by `qq` and a prime is replaced by `qQ`.
 
-Such a function should *not* be called directly but only through `ldst_fork`
-due to the interaction with the scheduler when using channel operations.
-There exist `ldst_run` and `ldst_main` to help with the execution of top level
-functions which don't exist as closures. See `LDST.h` for documentation of
-these.
+The top-level functions should *not* be called directly but only through
+`LDST_fork` due to the interaction with the scheduler when using channel
+operations.  There exist `LDST_run` and `LDST_main` to help with the execution
+of top level functions which don't exist as closures. See `LDST.h` for
+documentation of these.
 
 Using the option `-m IDENT / --main=IDENT` with the command line C backend emit
-a `main(void)` function at the end of the resulting C code which executes
+a `int main(void)` function at the end of the resulting C code which executes
 `IDENT` and prints the result. See the output of `$LDGV compile --help` for
 more information.
 

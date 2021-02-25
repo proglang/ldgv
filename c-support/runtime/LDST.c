@@ -21,18 +21,18 @@ static LDST_res_t run_impl(LDST_cont_t *k_then, void *run_info, LDST_t value) {
   if (info->applied0 && info->n == 0) {
     // Store the result and continue with the given continuation.
     *info->result = value;
-    return ldst_invoke(k_then, value);
+    return LDST_invoke(k_then, value);
   }
 
   struct RunInfo *new_info = malloc(sizeof(struct RunInfo));
   if (!new_info) {
-    return LDST__no_mem;
+    return LDST_NO_MEM;
   }
 
   LDST_cont_t *k_now = malloc(sizeof(LDST_cont_t));
   if (!k_now) {
     free(new_info);
-    return LDST__no_mem;
+    return LDST_NO_MEM;
   }
 
   k_now->k_lam.lam_fp = run_impl;
@@ -55,10 +55,10 @@ static LDST_res_t run_impl(LDST_cont_t *k_then, void *run_info, LDST_t value) {
   return lam.lam_fp(k_now, lam.lam_closure, info->args[0]);
 }
 
-LDST_res_t ldst_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args) {
+LDST_res_t LDST_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args) {
   struct RunInfo *info = malloc(sizeof(struct RunInfo));
   if (!info)
-    return LDST__no_mem;
+    return LDST_NO_MEM;
 
   info->applied0 = false;
   info->n = n;
@@ -66,22 +66,22 @@ LDST_res_t ldst_run(LDST_t *result, LDST_fp0_t f, int n, LDST_t *args) {
   info->result = result;
   LDST_lam_t lambda = { run_impl, info };
   LDST_t arg0 = { .val_lam = { (LDST_fp_t)f, 0 } };
-  return ldst_fork(lambda, arg0);
+  return LDST_fork(lambda, arg0);
 }
 
-LDST_t ldst_main(LDST_fp0_t f) {
+LDST_t LDST_main(LDST_fp0_t f) {
   LDST_t result;
-  LDST_res_t err = ldst_run(&result, f, 0, 0);
+  LDST_res_t err = LDST_run(&result, f, 0, 0);
   switch (err) {
-    case LDST__ok:
+    case LDST_OK:
       return result;
-    case LDST__no_mem:
+    case LDST_NO_MEM:
       fputs("ldst: out of memory", stderr);
       break;
-    case LDST__deadlock:
+    case LDST_DEADLOCK:
       fputs("ldst: deadlocked", stderr);
       break;
-    case LDST__unmatched_label:
+    case LDST_UNMATCHED_LABEL:
       fputs("ldst: unmatched label", stderr);
       break;
     default:
@@ -100,9 +100,9 @@ static LDST_res_t nat_fold_k(LDST_cont_t *k, void *void_closure, LDST_t v) {
 
   LDST_cont_t *new_k = malloc(sizeof(LDST_cont_t));
   if (!new_k)
-    return LDST__no_mem;
+    return LDST_NO_MEM;
 
-  new_k->k_lam.lam_fp = ldst_nat_fold;
+  new_k->k_lam.lam_fp = LDST_nat_fold;
   new_k->k_lam.lam_closure = closure;
   new_k->k_next = k;
 
@@ -128,7 +128,7 @@ static LDST_res_t nat_fold_k(LDST_cont_t *k, void *void_closure, LDST_t v) {
  * argument already applied) and therefore has to be called with the correct
  * closure: A list of three values in the order of `f`, `n`, `i`.
  */
-LDST_res_t ldst_nat_fold(LDST_cont_t *k, void *void_closure, LDST_t a) {
+LDST_res_t LDST_nat_fold(LDST_cont_t *k, void *void_closure, LDST_t a) {
   // closure[0] = f
   // closure[1] = n
   // closure[2] = i
@@ -137,19 +137,19 @@ LDST_res_t ldst_nat_fold(LDST_cont_t *k, void *void_closure, LDST_t a) {
   int i = closure[2].val_int;
 
   if (n == i)
-    return ldst_invoke(k, a);
+    return LDST_invoke(k, a);
 
   // The closure is reused both for the continuation and in there (see
   // `nat_fold_k`) it is also used as the closure to the recusive call to
   // `ldst_nat_fold` (this function).
   LDST_t *new_closure = malloc(4 * sizeof(LDST_t));
   if (!new_closure)
-    return LDST__no_mem;
+    return LDST_NO_MEM;
 
   LDST_cont_t *new_k = malloc(sizeof(LDST_cont_t));
   if (!new_k) {
     free(new_closure);
-    return LDST__no_mem;
+    return LDST_NO_MEM;
   }
 
   LDST_lam_t f = closure[0].val_lam;
@@ -166,13 +166,13 @@ LDST_res_t ldst_nat_fold(LDST_cont_t *k, void *void_closure, LDST_t a) {
   return f.lam_fp(new_k, f.lam_closure, idx);
 }
 
-LDST_res_t ldst_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result) {
+LDST_res_t LDST_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result) {
   LDST_t *received_pair = malloc(2 * sizeof(LDST_t));
   if (!received_pair)
-    return LDST__no_mem;
+    return LDST_NO_MEM;
 
   received_pair[0] = value;
   received_pair[1].val_chan = chan;
   result->val_pair = received_pair;
-  return LDST__ok;
+  return LDST_OK;
 }
