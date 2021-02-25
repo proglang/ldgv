@@ -22,10 +22,11 @@ typedef struct LDST_ctxt LDST_ctxt_t;
 
 typedef enum LDST_res {
   LDST_OK,
-  LDST_NO_MEM,
-  LDST_DEADLOCK,
-  LDST_UNMATCHED_LABEL,
-  LDST_ERR_UNKNOWN,
+  LDST_NO_MEM,            // Allocation failure
+  LDST_DEADLOCK,          // Deadlock detected
+  LDST_UNMATCHED_LABEL,   // Match on an unhandled label
+  LDST_NO_RESULT,         // The continuation was never invoked for `LDST_sync`
+  LDST_ERR_UNKNOWN,       // Some other error occured
 } LDST_res_t;
 
 typedef LDST_res_t (*LDST_fp0_t)(LDST_cont_t *k, LDST_ctxt_t *ctxt);
@@ -94,9 +95,6 @@ LDST_res_t LDST_chan_send(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *channel, LDST
 LDST_res_t LDST_chan_recv(LDST_cont_t *k, LDST_ctxt_t *ctxt, LDST_chan_t *channel);
 
 // Forks execution of the given lambda.
-//
-// If currently no thread is executing this will start execution and only
-// return when all threads forked inside `op` and `op` itsel have completed.
 LDST_res_t LDST_fork(LDST_ctxt_t *ctxt, LDST_lam_t op, LDST_t value);
 
 
@@ -114,6 +112,12 @@ LDST_res_t LDST_fork(LDST_ctxt_t *ctxt, LDST_lam_t op, LDST_t value);
 // for as long as `result` is valid. Otherwise `args` must only be valid for
 // the duration of the call to `ldst_run`.
 LDST_res_t LDST_run(LDST_ctxt_t *ctxt, LDST_t *result, LDST_fp0_t f, int n, LDST_t *args);
+
+// A synchronous version of `LDST_fork`.
+//
+// When this function exits an the return value is `LDST_OK` then `*ctxt` will
+// contain the result of applying `op` to `arg`.
+LDST_res_t LDST_sync(LDST_ctxt_t *ctxt, LDST_t *result, LDST_lam_t op, LDST_t arg);
 
 // Runs the given top level function, no arguments are applied and the result
 // is returned.
