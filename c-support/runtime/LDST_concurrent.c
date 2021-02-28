@@ -4,36 +4,12 @@
 // Concurrent LDST backend.
 //
 
-#include <errno.h>
-#include <inttypes.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
-#include <stdint.h>
 #include "LDST.h"
+#include "LDST_debug.h"
 #include "thpool.h"
-
-#ifdef LDST_UV_DEBUG
-
-#define COLOR(n) (int)((n) % (228L - 21L) + 21L)
-#define SET_COLOR "\033[38;5;%dm"
-#define RESET     "\033[m"
-
-#define PTR_STR     SET_COLOR "%p" RESET
-#define PTR_VAL(p)  COLOR((intptr_t)(p)), p
-
-#define LOG(fmt, ...) do { \
-  uint64_t tid__ ## __LINE__; \
-  pthread_threadid_np(0, &tid__ ## __LINE__); \
-  printf(SET_COLOR "[%" PRId64 "] %s:%d  " fmt RESET "\n",  \
-      COLOR(tid__ ## __LINE__),                             \
-      tid__ ## __LINE__, __func__, __LINE__,                \
-      ##__VA_ARGS__);                                       \
-} while (0)
-
-#else
-#define LOG(fmt, ...)
-#endif
 
 #ifndef LDST_THREADPOOL_SIZE
 #define LDST_THREADPOOL_SIZE 4
@@ -75,7 +51,9 @@ LDST_ctxt_t *LDST_context_create(void) {
 }
 
 LDST_res_t LDST_context_wait(LDST_ctxt_t *ctxt) {
+  LOG("waiting on " PTR_FMT, PTR_VAL(ctxt));
   thpool_wait(ctxt->pool);
+  LOG("finished   " PTR_FMT, PTR_VAL(ctxt));
   LDST_res_t res = ctxt->error;
   return res == LDST_OK && atomic_load_explicit(&ctxt->blocked_count, memory_order_relaxed) > 0
     ? LDST_DEADLOCK
@@ -89,7 +67,7 @@ void LDST_context_destroy(LDST_ctxt_t *ctxt) {
 
 LDST_res_t LDST_chan_new(LDST_ctxt_t *ctxt, LDST_chan_t **chan) {
   LDST_chan_t *new_chan = malloc(sizeof *new_chan);
-  LOG("created channel " PTR_STR, PTR_VAL(new_chan));
+  LOG("created channel " PTR_FMT, PTR_VAL(new_chan));
   if (!new_chan)
     return LDST_NO_MEM;
 
@@ -116,9 +94,9 @@ static void run_work(void *vop) {
     return;
   }
 
-  LOG("starting work " PTR_STR, PTR_VAL(vop));
+  LOG("starting work " PTR_FMT " (k=" PTR_FMT ", ctxt=" PTR_FMT ")", PTR_VAL(op), PTR_VAL(k), PTR_VAL(ctxt));
   LDST_res_t res = LDST_invoke(k, ctxt, val);
-  LOG("work done " PTR_STR " (res=%d)", PTR_VAL(vop), res);
+  LOG("work done " PTR_FMT " (res=%d)", PTR_VAL(vop), res);
 
   // We don't keep track of all errors but only care about remembering any one
   // if there is one.
@@ -135,7 +113,7 @@ static LDST_res_t enqueue(LDST_cont_t *k, LDST_ctxt_t *ctxt, LDST_t arg) {
   op->val = arg;
   op->ctxt = ctxt;
 
-  LOG("enqueuing work " PTR_STR, PTR_VAL(op));
+  LOG("enqueuing work " PTR_FMT " (k=" PTR_FMT ", ctxt=" PTR_FMT ")", PTR_VAL(op), PTR_VAL(k), PTR_VAL(ctxt));
   bool ok = thpool_add_work(ctxt->pool, run_work, op) == 0;
   return ok ? LDST_OK : LDST_ERR_UNKNOWN;
 }
@@ -168,8 +146,8 @@ static LDST_res_t suspend_if_needed(
     return LDST_ERR_UNKNOWN;
   }
 
-  LDST_cont_t *stored = should_suspend(k, ctxt, chan);
-  if (stored == 0 && value != 0) {
+  *stored_k = should_suspend(k, ctxt, chan);
+  if (*stored_k == 0 && value != 0) {
       chan->chan_value = *value;
   }
 
@@ -190,7 +168,7 @@ LDST_res_t LDST_chan_send(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *channel, LDST
     return res;
   }
 
-  LOG("send on " PTR_STR "%s -- %d", PTR_VAL(chan), recv_k ? "" : " [blocked]", value.val_int);
+  LOG("send on " PTR_FMT "%s", PTR_VAL(chan), recv_k ? "" : " [blocked]");
   if (!recv_k) {
     // We suspend the current thread because the receiving side has not arrived yet.
     return LDST_OK;
@@ -222,7 +200,7 @@ LDST_res_t LDST_chan_recv(LDST_cont_t *k, LDST_ctxt_t *ctxt, LDST_chan_t *chan) 
     return res;
   }
 
-  LOG("recv on " PTR_STR "%s", PTR_VAL(chan), send_k ? "" : " [blocked]");
+  LOG("recv on " PTR_FMT "%s", PTR_VAL(chan), send_k ? "" : " [blocked]");
   if (!send_k) {
     // We suspend the current thread because the sending side has not arrived yet.
     return LDST_OK;

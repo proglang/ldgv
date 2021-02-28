@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "LDST.h"
+#include "LDST_debug.h"
 
 struct SyncInfo {
   LDST_t *result;
@@ -19,6 +20,8 @@ struct SyncInfo {
 
 static LDST_res_t assign_k(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *vinfo, LDST_t val) {
   struct SyncInfo *info = vinfo;
+
+  LOG("assigning to " PTR_FMT " (&result=" PTR_FMT ")", PTR_VAL(info), PTR_VAL(info->result));
   *info->result = val;
   info->has_result = true;
   return LDST_invoke(k, ctxt, val);
@@ -33,7 +36,7 @@ static LDST_res_t assign(LDST_cont_t *then_k, LDST_ctxt_t *ctxt, void *vinfo, LD
   LDST_lam_t op = info->op;
   info->has_result = false;
   k->k_lam.lam_fp = assign_k;
-  k->k_lam.lam_closure = info->result;
+  k->k_lam.lam_closure = info;
   k->k_next = then_k;
   return op.lam_fp(k, ctxt, op.lam_closure, arg);
 }
@@ -43,6 +46,7 @@ LDST_res_t LDST_sync(LDST_ctxt_t *ctxt, LDST_t *result, LDST_lam_t op, LDST_t ar
   struct SyncInfo info = { result, { .op = op } };
   LDST_lam_t assign_op = { assign, &info };
 
+  LOG("beginning sync " PTR_FMT " (&result=" PTR_FMT ")", PTR_VAL(&info), PTR_VAL(result));
   res = LDST_fork(ctxt, assign_op, arg);
   if (res != LDST_OK)
     return res;
@@ -127,19 +131,19 @@ LDST_t LDST_main(LDST_fp0_t f) {
     case LDST_OK:
       return result;
     case LDST_NO_MEM:
-      fputs("ldst: out of memory", stderr);
+      fputs("ldst: out of memory\n", stderr);
       break;
     case LDST_DEADLOCK:
-      fputs("ldst: deadlocked", stderr);
+      fputs("ldst: deadlocked\n", stderr);
       break;
     case LDST_UNMATCHED_LABEL:
-      fputs("ldst: unmatched label", stderr);
+      fputs("ldst: unmatched label\n", stderr);
       break;
     case LDST_NO_RESULT:
-      fputs("ldst: result not available", stderr);
+      fputs("ldst: result not available\n", stderr);
       break;
     default:
-      fputs("ldst: unknown error", stderr);
+      fputs("ldst: unknown error\n", stderr);
       break;
   }
   exit(err);
