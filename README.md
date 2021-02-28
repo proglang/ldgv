@@ -14,28 +14,8 @@ line](#command-line) and via a local [web page](#web-page).
 
 ## C backend
 
-The C backend is nearly feature complete:
-
-* [x] syntax elements
-  * [x] variable bindings
-  * [x] integer literals & math operations
-  * [x] label literals & case expressions
-  * [x] lamdas
-  * [x] call expressions, partial application
-  * [x] pairs construction & destructuring
-  * [x] recursion
-    * [x] recursive bindings
-    * [x] `natrec`
-  * [x] `fork`
-  * [x] channel operations
-    * [x] `new`
-    * [x] `recv`
-    * [x] `send`
-* [x] entrypoint generation
-    * [x] `main(void)`
-    * [x] user requested (via `ldst__run`)
-* [ ] garbage collector
-* [ ] tests
+The C backend is nearly feature complete, but missing a garbage collector and
+tests.
 
 It is available only via the [command line](#command-line). See there for
 building and running.
@@ -49,11 +29,17 @@ The generated C code is dependent on the files in `c-support/runtime/`:
 * `LDST.c` contains implementations of helper functions for which there is no
   need to generate them every time.
 * `LDST_serial.c` contains a serial implementation of a scheduler and channel
-  handler.
+  handler. Contexts in this implementation are not thread-safe.
+* `LDST_concurrent.c` contains a concurrent implementation using a threadpool.
+  Its size can be determined at compile time by defining
+  `LDST_THREADPOOL_SIZE`, the default is four.
 * `thpool.h`, `thpool.c` come from [Pithikos/C-Thread-Pool][] and are used in
   the concurrent scheduler and channel handler implementation.
 
 [Pithikos/C-Thread-Pool]: https://github.com/Pithikos/C-Thread-Pool
+
+The generated code requires C11 support and the concurrent runtime requires
+support for the C11 atomics library and pthreads.
 
 When compiling the generated code an optimization level of at least `-O2`
 should be considered, with this the common compilers (clang, gcc) will
