@@ -5,7 +5,6 @@ module TCTyping where
 import Control.Monad (foldM, zipWithM, ap)
 import qualified Data.Set as Set
 
-import qualified Debug.Trace as DT
 import qualified Config as D
 
 import Syntax
@@ -269,23 +268,23 @@ tySynth te e =
     _ <- tyCheck (demoteTE te) e1 TNat
     TC.censor (const []) $ TC.mlocal tv (TVar False tv, Kunit) $ do
       (tyz, tez) <- tySynth te ez
-      DT.traceM ("NatRec: tyz = " ++ pshow tyz)
+      D.traceM ("NatRec: tyz = " ++ pshow tyz)
       (kiy, muy) <- kiSynth (demoteTE te) tyy
-      DT.traceM ("NatRec: kiy = " ++ pshow (kiy, muy))
+      D.traceM ("NatRec: kiy = " ++ pshow (kiy, muy))
       (_, ccz) <- TC.listen (tyCheck te ez tyy)
       let tes_in = (y, (inject muy, tyy)) : (n1, (Many, TNat)) : te
-      DT.traceM ("NatRec: tes_in = " ++ pshow tes_in)
+      D.traceM ("NatRec: tes_in = " ++ pshow tes_in)
       (tys, tes) <- tySynth tes_in es
-      DT.traceM ("NatRec: tys = " ++ pshow tys)
+      D.traceM ("NatRec: tys = " ++ pshow tys)
       (_, ccs) <- TC.listen (tyCheck tes_in es tyy)
-      DT.traceM ("NatRec found constraints " ++ pshow ccz ++ ", " ++ pshow ccs)
+      D.traceM ("NatRec found constraints " ++ pshow ccz ++ ", " ++ pshow ccs)
       -- hack alert
       let rty = tsubst tv (TNatRec e1 (nonvar tzl tzr) tv (nonvar tsl tsr)) tyy
           tzl :<: tzr = head ccz
           tsl :<: tsr = head ccs
           nonvar (TVar _ _) tr = tr
           nonvar tl _ = tl
-      DT.traceM ("NatRec returns " ++ pshow rty)
+      D.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
   _ ->
     TC.mfail ("Unhandled expression: " ++ pshow e)
