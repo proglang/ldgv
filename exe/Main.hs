@@ -12,11 +12,11 @@ import qualified Options.Applicative as Opts
 
 import Parsing
 import System.Exit
+import qualified C.Generate as C
 import qualified Typechecker as T
 import qualified Interpreter as I
 import qualified ProcessEnvironment as P
 import qualified Syntax
-import qualified Target.C as C
 
 actionParser :: Opts.Parser (IO ())
 actionParser = commands

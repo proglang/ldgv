@@ -17,7 +17,8 @@ extra-source-files:  CHANGELOG.md
 
 library
   hs-source-dirs: src
-  exposed-modules: Config
+  exposed-modules: C.Generate
+                 , Config
                  , Examples
                  , Grammar
                  , Interpreter
@@ -26,7 +27,6 @@ library
                  , ProcessEnvironment
                  , Syntax
                  , Syntax.CPS
-                 , Target.C
                  , Tokens
                  , Typechecker
   other-modules: Subtyping

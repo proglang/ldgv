@@ -17,7 +17,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Target.C (generate) where
+module C.Generate (generate) where
 
 import Control.Lens
 import Control.Monad.Except
