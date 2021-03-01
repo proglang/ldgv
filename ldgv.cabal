@@ -57,6 +57,7 @@ library
                , prettyprinter
                , text
                , transformers
+               , typed-process
                , validation-selective
   default-language: Haskell2010
 
