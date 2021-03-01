@@ -15,9 +15,18 @@ extra-source-files:  CHANGELOG.md
                    , src/Tokens.x
                    , src/Grammar.y
 
+data-files: c-support/runtime/LDST.h
+          , c-support/runtime/LDST_debug.h
+          , c-support/runtime/LDST.c
+          , c-support/runtime/LDST_serial.c
+          , c-support/runtime/LDST_concurrent.c
+          , c-support/runtime/thpool.h
+          , c-support/runtime/thpool.c
+
 library
   hs-source-dirs: src
-  exposed-modules: C.Generate
+  exposed-modules: C.Compile
+                 , C.Generate
                  , Config
                  , Examples
                  , Grammar
@@ -42,6 +51,7 @@ library
                , bytestring
                , containers
                , file-embed
+               , filepath
                , lens
                , mtl
                , prettyprinter
