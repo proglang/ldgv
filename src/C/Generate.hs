@@ -398,7 +398,7 @@ signatureParameters name voidClosure args = (params, bindings)
       let closureVar = cast @(Pointer V) voidClosure
 
       vars <- ifor (funClosure args) \i ident ->
-        local (infoNameHint .~ identForC ident) do
+        nameHint (identForC ident) do
           (ident,) <$> storeVar (accessI i closureVar)
 
       insertRecArg <- case funRecIdent args of
@@ -499,13 +499,14 @@ generateExp :: Exp -> GenM ()
 generateExp = \case
   Return val -> generateVal val >>= invokeContinuation
   Let v a b -> do
-    scoped v (generateVal a) (const $ generateExp b)
+    a' <- nameHint (identForC v) $ generateVal a
+    local (infoBindings . at v ?~ a') $ generateExp b
   LetPair idnFst idnSnd pairExp body -> do
-    scoped "letpair" (generateVal pairExp) \pairVar ->
-      let (valFst, valSnd) = accessPair pairVar
-       in scoped idnFst (pure valFst) \_ ->
-          scoped idnSnd (pure valSnd) \_ ->
-            generateExp body
+    pairVar <- nameHint "letpair" $ generateVal pairExp
+    let (valFst, valSnd) = accessPair pairVar
+    let insert idn val = infoBindings . at idn ?~ val
+    local (insert idnFst valFst . insert idnSnd valSnd) do
+      generateExp body
   LetCont k e -> do
     k' <- generateContinuationM $ Just k
     local (infoContinuation .~ k') $ generateExp e
@@ -623,10 +624,9 @@ invoke' fun k args =
   let allArgs = [unCExp (toCExp k), unCExp (toCExp cCtxtVar)] ++ args
    in tellStmt $ cReturn $ callExp fun allArgs
 
-scoped :: Ident -> GenM (CVar V) -> (CVar V -> GenM b) -> GenM b
-scoped idn val body = do
-  var <- local (infoNameHint .~ identForC idn) val
-  local (infoBindings . at idn ?~ var) $ body var
+-- | Adjusts 'infoNameHint'.
+nameHint :: Builder -> GenM a -> GenM a
+nameHint h = local (infoNameHint .~ h)
 
 functionHeader :: Builder -> Builder -> [Builder] -> Builder
 functionHeader ret name args =
@@ -809,7 +809,7 @@ forkLambda (toCExp -> CExp l) = do
 
 callChecked :: Builder -> [Builder] -> GenM ()
 callChecked fun args = do
-  resVar <- local (infoNameHint .~ "res") do
+  resVar <- nameHint "res" do
     declareFresh @R $ callExp fun args
   returnNotOk resVar
 
