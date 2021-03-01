@@ -131,19 +131,19 @@ LDST_t LDST_main(LDST_fp0_t f) {
     case LDST_OK:
       return result;
     case LDST_NO_MEM:
-      fputs("ldst: out of memory\n", stderr);
+      fputs("error: out of memory\n", stderr);
       break;
     case LDST_DEADLOCK:
-      fputs("ldst: deadlocked\n", stderr);
+      fputs("error: deadlocked\n", stderr);
       break;
     case LDST_UNMATCHED_LABEL:
-      fputs("ldst: unmatched label\n", stderr);
+      fputs("error: unmatched label\n", stderr);
       break;
     case LDST_NO_RESULT:
-      fputs("ldst: result not available\n", stderr);
+      fputs("error: result not available\n", stderr);
       break;
     default:
-      fputs("ldst: unknown error\n", stderr);
+      fputs("error: unknown error\n", stderr);
       break;
   }
   exit(err);
