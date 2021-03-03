@@ -474,7 +474,8 @@ generateVal = \case
     lam <- pushFunction 'l' (fv e) Nothing argId body
     mkValue TagLam lam
   e@(Rec recId argId _ _ body) -> do
-    lam <- pushFunction 'r' (fv e) (Just recId) argId body
+    lam <- nameHint (identForC recId) do
+      pushFunction 'r' (fv e) (Just recId) argId body
     mkValue TagLam lam
   Math m -> generateMath m
   Succ e -> do
@@ -604,7 +605,7 @@ generateLiteral = \case
 generateContinuationM :: Maybe Continuation -> GenM (CVar (Pointer K))
 generateContinuationM Nothing = view infoContinuation
 generateContinuationM (Just (resId, kbody)) =
-  clone =<< join do
+  nameHint "k" $ clone =<< join do
     mkContinuation
       <$> pushFunction 'k' (fv kbody) Nothing resId kbody
       <*> view infoContinuation
