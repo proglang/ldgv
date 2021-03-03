@@ -731,6 +731,8 @@ cloneAll [] = storeVar nullPointer
 cloneAll exprs = do
   let n = length exprs
   var <- declareFresh $ callExp "malloc" [B.intDec n <+> B.char7 '*' <+> cSizeof @t Proxy]
+  tellStmt $ terminate $
+    callExp "if " [B.char7 '!' <> unCVar var] <> " return LDST_NO_MEM"
   itraverse_ (tellAssignI var) exprs
   pure var
 
