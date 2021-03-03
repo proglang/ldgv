@@ -506,7 +506,10 @@ generateExp = \case
     pairVar <- nameHint "letpair" $ generateVal pairExp
     let (valFst, valSnd) = accessPair pairVar
     let insert idn val = infoBindings . at idn ?~ val
-    local (insert idnFst valFst . insert idnSnd valSnd) do
+    -- In case idnFst and idnSnd are the same (should probably be diagnosed at
+    -- some earlier point) we follow the interpreter: idnSnd should shadow
+    -- idnFst.
+    local (insert idnSnd valSnd . insert idnFst valFst) do
       generateExp body
   LetCont k e -> do
     k' <- generateContinuationM $ Just k
