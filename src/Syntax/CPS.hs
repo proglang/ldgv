@@ -24,6 +24,7 @@ module Syntax.CPS
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Data.Foldable
+import Data.Functor
 import Data.Set (Set)
 import Kinds (Multiplicity)
 import Syntax hiding (Exp(..))
@@ -106,6 +107,7 @@ data Vars = Vars
   { varsUsed :: !(Set Ident)
   , varsBound :: !(Set Ident)
   }
+  deriving (Show)
 
 toCPS :: S.Exp -> Exp
 toCPS e = flip runReader vars $ fromExp' e
@@ -134,16 +136,20 @@ fromExpC = \case
     captured $ pure . Call v1 v2 . Just
   S.Let x e1 e2 -> do
     v1 <- fromExpC e1
-    ContT $ fmap (Let x v1) . bound x . fromExp e2
+    (x', e2') <- renaming x e2
+    ContT $ fmap (Let x' v1) . bound x' . fromExp e2'
   S.Rec f x xt rt e -> lift $
     Rec f x xt rt <$> bound2 f x (fromExp' e)
   S.Pair _ x e1 e2 -> do
     v1 <- fromExpC e1
-    ContT \k -> Let x v1 <$> bound x do
-      fromExp e2 $ k . Pair (Var x)
+    (x', e2') <- renaming x e2
+    ContT \k -> Let x' v1 <$> bound x' do
+      fromExp e2' $ k . Pair (Var x')
   S.LetPair x1 x2 e1 e2 -> do
     v1 <- fromExpC e1
-    ContT $ fmap (LetPair x1 x2 v1) . bound2 x1 x2 . fromExp e2
+    (x1', e2a) <- renaming x1 e2
+    (x2', e2b) <- renaming x2 e2a
+    ContT $ fmap (LetPair x1' x2' v1) . bound2 x1' x2' . fromExp e2b
   S.Fst e -> getPair fst e
   S.Snd e -> getPair snd e
   S.Case e cs -> captured \k ->
@@ -226,3 +232,7 @@ isBound ident = do
 
 fresh :: MonadReader Vars m => Ident -> m Ident
 fresh ident = asks $ freshvar ident . varsUsed
+
+renaming :: MonadReader Vars m => Ident -> S.Exp -> m (Ident, S.Exp)
+renaming x e = fresh x <&> \x' ->
+  (x', if x == x' then e else subst x (S.Var x') e)
