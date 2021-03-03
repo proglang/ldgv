@@ -19,10 +19,12 @@
 
 module C.Generate (generate) where
 
+import Control.Applicative
 import Control.Lens
 import Control.Monad.Except
 import Control.Monad.RWS.Strict
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Maybe
 import Control.Monad.Writer.Strict
 import Data.Bifunctor
 import Data.ByteString.Builder (Builder)
@@ -30,12 +32,13 @@ import Data.Coerce
 import Data.Foldable
 import Data.List.NonEmpty (NonEmpty)
 import Data.Map (Map)
+import Data.Maybe
 import Data.Proxy
 import Data.Semigroup as S
 import Data.Set (Set)
 import Data.String
 import Data.Version
-import Kinds
+import Kinds (Multiplicity(..))
 import Numeric
 import Syntax.CPS
 import Validation
@@ -123,7 +126,7 @@ data Tag a where
   TagChan :: Tag (CExp (Pointer C))
 
 data FunctionArgs = FunctionArgs
-  { funClosure  :: [Ident]
+  { funClosure  :: [Maybe Ident]
   , funArgIdent :: Ident
   , funRecIdent :: Maybe Ident
     -- ^ @Just ident@ if this function can call itself recursively with
@@ -151,9 +154,11 @@ data Function = Function
   }
 
 data Closure = Closure
-  { closureVars :: ![Ident]
+  { closureVars :: ![Maybe Ident]
     -- ^ List of captured identifiers. The order corresponds to the order in
-    -- the C code in 'closureExpr'.
+    -- the C code in 'closureExpr'. @Nothing@ values should not be accessed,
+    -- these are slots indicating a closure is reused but only with a subset of
+    -- captured values.
   , closureExpr :: !(CExp (Pointer V))
     -- ^ An expression of type @union LDST_t*@.
   }
@@ -182,7 +187,13 @@ data Info = Info
     -- ^ Current indent level.
   }
 
+data GenSt = GenSt
+  { _stUnique :: !Word
+  , _stClosures :: ![(Set Ident, CExp (Pointer V))]
+  }
+
 makeLenses ''Info
+makeLenses ''GenSt
 
 class ExpLike e where
   toCExp :: e t -> CExp t
@@ -211,7 +222,7 @@ instance CType a => CType (Pointer a) where
   typeName _ = typeName @a Proxy <> B.char7 '*'
 
 type GenM =
-  RWST Info CStmt Word
+  RWST Info CStmt GenSt
     (StackT Function (Either String))
 
 newtype StackT s m a = StackT { unStackT :: StateT [s] m a }
@@ -268,7 +279,7 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
     -- When we encounter a signature we also have to emit this functions
     -- top-level reference declaration, otherwise it will be missing when the
     -- function is used but no definition is given.
-    let (sig, _, _) = functionSignature $ topLevelHeader name
+    let (sig, _) = functionSignature $ topLevelHeader name
     let gen = mempty
           { genSigs = Map.singleton name $ Just $ S.Last typ
           , genDecls = sig <> ";\n"
@@ -361,26 +372,24 @@ explainExpression ty0 v0 =
 --
 -- where @closure@ and @argument@ are only present for non-toplevel bindings,
 -- including the curried forms of toplevel bindings.
-functionSignature :: FunctionHeader -> (Builder, GenM Env, CVar (Pointer K))
+functionSignature :: FunctionHeader -> (Builder, GenM Env)
 functionSignature fun =
   maybe ([], pure mempty) (signatureParameters (funName fun) cClosureVar) (funArgs fun)
-    & addContinuation
+    & first ([varDeclaration cContVar, varDeclaration cCtxtVar] ++)
     & first (functionHeader retType (funName fun))
-    & \(sig, mkBindings) -> (sig, mkBindings, cContVar)
   where
     retType = mconcat
       [ if funInternal fun then "static " else mempty
       , typeName @R Proxy
       ]
 
-    addContinuation =
-      _1 %~ ([varDeclaration cContVar, varDeclaration cCtxtVar] ++)
+-- | The parameter name for the continuation argument.
+cContVar :: CVar (Pointer K)
+cContVar = CVar "_ldst_k"
 
-    cContVar :: CVar (Pointer K)
-    cContVar = CVar "_ldst_k"
-
-    cClosureVar :: CVar (Pointer ())
-    cClosureVar = CVar "_ldst_closure"
+-- | The parameter name for the closure argument.
+cClosureVar :: CVar (Pointer ())
+cClosureVar = CVar "_ldst_closure"
 
 -- | The variable which will be bound to the passed @LDST_ctxt_t*@. Since this
 -- value is a essentially a black box for the generated code and only passed to
@@ -397,7 +406,7 @@ signatureParameters name voidClosure args = (params, bindings)
     bindings = do
       let closureVar = cast @(Pointer V) voidClosure
 
-      vars <- ifor (funClosure args) \i ident ->
+      vars <- ifor (funClosure args) \i -> traverse \ident ->
         nameHint (identForC ident) do
           (ident,) <$> storeVar (accessI i closureVar)
 
@@ -419,7 +428,8 @@ signatureParameters name voidClosure args = (params, bindings)
       pure
         $ insertRecArg
         $ Map.insert (funArgIdent args) argVar
-        $ Map.fromList vars
+        $ Map.fromList
+        $ catMaybes vars
 
 -- | @functionDeclDef signature body@ returns a pair of @(declaration, definition)@.
 --
@@ -443,22 +453,32 @@ generateFunction topLevelFun = evalStackT [topLevelFun] $ execWriterT go
 
 generateFunction' :: Function -> StackT Function (Either String) (Builder, Builder)
 generateFunction' fun = do
-  let (sig, mkBindings, initialK) = functionSignature (funHeader fun)
+  let (sig, mkBindings) = functionSignature (funHeader fun)
 
   let genBody = do
         bindings <- mkBindings
         local (infoBindings <>~ bindings) $
           generateExp (funBody fun)
 
+  let captured = funHeader fun
+        & funArgs
+        & fmap funClosure
+        & fmap catMaybes
+        & fmap Set.fromDistinctAscList
+      genst = GenSt
+        { _stUnique = 0
+        , _stClosures = foldMap (\vs -> [(vs, toCExp $ cast cClosureVar)]) captured
+        }
+
   let info = Info
         { _infoBindings = mempty
-        , _infoContinuation = initialK
+        , _infoContinuation = cContVar
         , _infoNameHint = funHint fun
         , _infoFuncHint = funName $ funHeader fun
         , _infoIndent = 1
         }
 
-  evalRWST genBody info 0
+  evalRWST genBody info genst
     & fmap snd -- We only care about the WriterT result.
     & fmap (functionDeclDef sig)
 
@@ -645,7 +665,7 @@ functionHeader ret name args =
 -- 'infoNameHint' with @/funKind/@ appended before the unique id.
 fresh :: Maybe Char -> GenM Builder
 fresh funKind = do
-  n <- get <* modify' (+1)
+  n <- stUnique <<+= 1
   hint <- case funKind of
     Nothing -> (\h -> h <> B.char7 '_') <$> view infoNameHint
     Just c  -> (\h -> h <> B.char7 '_' <> B.char7 c) <$> view infoFuncHint
@@ -671,14 +691,43 @@ storeVar = declareFresh . unCExp . toCExp
 mkClosure :: Set Ident -> GenM Closure
 mkClosure vars = do
   knownVars <- view infoBindings
-  let (capturedVars, captureExprs) =
-        unzip
-          $ Map.toAscList
-          $ Map.restrictKeys knownVars vars
-  expr <- cloneAll captureExprs
+  let captured = Map.restrictKeys knownVars vars
+  mclosure <- runMaybeT (nullClosure captured <|> reuseClosure captured)
+  maybe (allocateNewClosure captured) pure mclosure
+
+nullClosure :: Env -> MaybeT GenM Closure
+nullClosure vars =
+  if Map.null vars
+     then pure Closure{ closureVars = [], closureExpr = nullPointer }
+     else empty
+
+reuseClosure :: Env -> MaybeT GenM Closure
+reuseClosure (Map.keysSet -> vars) = MaybeT do
+  allocated <- use stClosures
+  pure $ allocated
+    & filter (Set.isSubsetOf vars . fst)
+    & preview _head
+    & fmap \(captured, cexp) -> Closure
+        { closureVars = alignClosureReuse vars captured
+        , closureExpr = cexp
+        }
+
+alignClosureReuse :: Set Ident -> Set Ident -> [Maybe Ident]
+alignClosureReuse (Set.toAscList -> a) (Set.toAscList -> b) = go a b
+  where
+    go (x:xs) (y:ys)
+      | x == y    = Just x : go xs ys
+      | otherwise = Nothing : go (x:xs) ys
+    go [] ys = Nothing <$ ys
+    go _ [] = error $ show a ++ " ⊈ " ++ show b
+
+allocateNewClosure :: Env -> GenM Closure
+allocateNewClosure captured = do
+  expr <- toCExp <$> cloneAll (Map.elems captured)
+  stClosures %= cons (Map.keysSet captured, expr)
   pure Closure
-    { closureVars = capturedVars
-    , closureExpr = toCExp expr
+    { closureVars = Just <$> Map.keys captured
+    , closureExpr = expr
     }
 
 mkLambda :: Builder -> Closure -> GenM (CExp L)
