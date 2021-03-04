@@ -21,6 +21,7 @@ import Data.Traversable
 import Paths_ldgv
 import System.FilePath
 import System.Process.Typed
+import qualified Control.Monad.Fail as Fail
 
 data Env = Env
   { envCC :: String
@@ -46,7 +47,7 @@ compile result src = do
   let args = "-o" : result : "-c" : src : defaultFlags ++ customFlags
   runProcess_ $ proc cc args
 
-link :: (MonadReader Env m, MonadIO m, MonadFail m) => FilePath -> [FilePath] -> String -> m ()
+link :: (MonadReader Env m, MonadIO m, Fail.MonadFail m) => FilePath -> [FilePath] -> String -> m ()
 link result srcs backend = do
   ld <- asks envLD
   defaultFlagsCC <- liftIO cflags
@@ -54,11 +55,11 @@ link result srcs backend = do
   customFlagsCC <- asks envCCFlags
   customFlagsLD <- asks envLDFlags
   backendSrcs <-
-    if | any (== pathSeparator) backend ->
+    if | pathSeparator `elem` backend ->
            pure [backend]
        | Just additional <- lookup backend knownBackends -> liftIO $
            traverse backendFile $ backendImplFileName backend : additional
-       | otherwise -> fail $
+       | otherwise -> Fail.fail $
            "unknown backend ›" ++ backend ++ "‹, use ›./" ++ backend ++ "‹ to refer to a file"
 
   let args = "-o" : result : concat
