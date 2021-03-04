@@ -1,11 +1,13 @@
 {
-module Grammar where
-import qualified Tokens as T
+module Parsing.Grammar (parseDecls, parseType) where
+import qualified Parsing.Tokens as T
 import Kinds
 import Syntax
 }
 
-%name parseCalc
+%name parseDecls Cmds
+%name parseType  Typ
+
 %tokentype { T.Token }
 %error { parseError }
 

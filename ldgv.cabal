@@ -29,14 +29,14 @@ library
                  , C.Generate
                  , Config
                  , Examples
-                 , Grammar
                  , Interpreter
                  , Kinds
                  , Parsing
+                 , Parsing.Grammar
+                 , Parsing.Tokens
                  , ProcessEnvironment
                  , Syntax
                  , Syntax.CPS
-                 , Tokens
                  , Typechecker
   other-modules: Subtyping
                , Syntax.Pretty

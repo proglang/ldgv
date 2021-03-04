@@ -1,5 +1,5 @@
 {
-module Tokens where
+module Parsing.Tokens where
 import Kinds
 }
 

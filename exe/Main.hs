@@ -110,7 +110,7 @@ compile minput moutput entryPoint = do
         hPutBuilder outHandle code
 
 parseInput :: Maybe FilePath -> IO [Syntax.Decl]
-parseInput = maybe getContents readFile >>> fmap parse
+parseInput = maybe getContents readFile >>> fmap parseDecls
 
 withOutput :: Maybe FilePath -> (Handle -> IO r) -> IO r
 withOutput = maybe ($ stdout) (\fp -> withBinaryFile fp WriteMode)

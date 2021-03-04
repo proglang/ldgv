@@ -7,7 +7,7 @@ import Control.Monad.IO.Class (liftIO)
 import Data.Bifunctor
 import Language.Javascript.JSaddle
 import Language.Javascript.JSaddle (eval, liftJSM)
-import Parsing (parse)
+import Parsing (parseDecls)
 import ProcessEnvironment as P (Value)
 import Reflex.Dom.Core
 import SyntaxDescription (syntaxdescription)
@@ -67,7 +67,7 @@ main = mainWidgetWithHead widgetHead $ divClass "wrapper" $ do
         doneEv <- performEvent ((\v -> liftIO $ do
             let s = T.unpack v
             res <- try $ do
-              let decls = parse s
+              let decls = parseDecls s
               -- We have to make sure the result is evaluated inside the 'try'
               -- since there might be exceptions lurking in the result. These
               -- would only be uncovered when updating the page and crashing
