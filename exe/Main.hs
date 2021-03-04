@@ -1,5 +1,7 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 module Main (main) where
 
 import Control.Applicative
@@ -10,13 +12,15 @@ import Data.ByteString.Builder
 import System.IO
 import qualified Options.Applicative as Opts
 
+import Data.Maybe
+import Kinds
 import Parsing
 import System.Exit
 import qualified C.Generate as C
-import qualified Typechecker as T
 import qualified Interpreter as I
 import qualified ProcessEnvironment as P
 import qualified Syntax
+import qualified Typechecker as T
 
 actionParser :: Opts.Parser (IO ())
 actionParser = commands
@@ -44,7 +48,14 @@ actionParser = commands
         , Opts.metavar "DECL"
         , Opts.help "Generate a ‘main()’ function, it evaluates the given \
             \declaration which must have a type signature and have no \
-            \parameters."
+            \parameters to do something useful."
+        ]
+      mainSig <- fmap (fmap parseType) $ optional $ Opts.strOption $ mconcat
+        [ Opts.long "main-sig"
+        , Opts.short 's'
+        , Opts.metavar "TYPE"
+        , Opts.help "Provides a type signature for the --main declaration \
+            \without having to edit the source code."
         ]
       outPath <- optional $ Opts.strOption $ mconcat
         [ Opts.long "output"
@@ -53,7 +64,7 @@ actionParser = commands
         , Opts.help "Write the generated C code to FILE or to STDOUT if not given."
         ]
       inPath <- optional inPathArg
-      pure $ compile inPath outPath mainCall
+      pure $ compile inPath outPath mainCall mainSig
 
     typecheckParser = do
       inPath <- optional inPathArg
@@ -98,10 +109,16 @@ interpret minput = do
     (\v -> "Result: " ++ show v)
     (res :: Either SomeException P.Value)
 
-compile :: Maybe FilePath -> Maybe FilePath -> Maybe String -> IO ()
-compile minput moutput entryPoint = do
-  decls <- parseInput minput
-  case T.typecheck decls >> C.generate entryPoint decls of
+compile :: Maybe FilePath -> Maybe FilePath -> Maybe String -> Maybe Syntax.Type -> IO ()
+compile minput moutput mmainIdent mmainType = do
+  when (isNothing mmainIdent && isJust mmainType) do
+    hPutStrLn stderr "warning: --main-sig is not used because no --main is given."
+
+  let addSig' (ident, typ) = (Syntax.DSig ident Many typ :)
+  let addSig = maybe id addSig' ((,) <$> mmainIdent <*> mmainType)
+  decls <- addSig <$> parseInput minput
+
+  case T.typecheck decls >> C.generate mmainIdent decls of
     Left err -> do
       hPutStrLn stderr err
       exitFailure
