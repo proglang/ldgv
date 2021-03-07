@@ -1,4 +1,5 @@
 {
+{-# LANGUAGE BlockArguments #-}
 module Parsing.Tokens
   ( Token(..)
   , T(..)
@@ -7,7 +8,9 @@ module Parsing.Tokens
   , runAlex
   , alexMonadScan
   ) where
+
 import Kinds
+import Text.Read
 }
 
 %wrapper "monad"
@@ -62,7 +65,7 @@ tokens :-
   fn                                    { tok $ const Lambda }
   [\=\+\-\*\/\(\)\:\!\?\{\}\[\]\<\>]    { tok $ Sym . head }
   "'" [$alpha $digit]+                  { tok $ Lab }
-  "~" $alpha+                           { tok $ Kind . read . ('K':) . tail }
+  "~" $alpha+                           { tokKind }
   $lower [$alpha $digit \_ \']*         { tok $ Var }
   $upper [$alpha $digit \_ \']*         { tok $ TID }
 
@@ -136,6 +139,10 @@ tok' f (pos@(AlexPn _ line column), _, _, inp) len = do
       , if null err then "" else (": " ++ err)
       ]
     Right tok -> pure $ Just $ T pos tok
+
+tokKind :: AlexAction (Maybe T)
+tokKind = tok' \k ->
+  maybe (Left $ "invalid kind " ++ k) (Right . Kind) $ readMaybe $ ('K':) $ tail k
 
 tokVal :: T -> Token
 tokVal (T _ tok) = tok
