@@ -61,7 +61,7 @@ tokens :-
   "."                                   { tok $ const Dot }
   fn                                    { tok $ const Lambda }
   [\=\+\-\*\/\(\)\:\!\?\{\}\[\]\<\>]    { tok $ Sym . head }
-  "'" [$alpha $digit]*                  { tok $ Lab }
+  "'" [$alpha $digit]+                  { tok $ Lab }
   "~" $alpha+                           { tok $ Kind . read . ('K':) . tail }
   $lower [$alpha $digit \_ \']*         { tok $ Var }
   $upper [$alpha $digit \_ \']*         { tok $ TID }
