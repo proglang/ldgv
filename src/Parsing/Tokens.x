@@ -1,9 +1,16 @@
 {
-module Parsing.Tokens where
+module Parsing.Tokens
+  ( Token(..)
+  , T(..)
+  , tokVal
+  , AlexPosn(..)
+  , runAlex
+  , alexMonadScan
+  ) where
 import Kinds
 }
 
-%wrapper "basic"
+%wrapper "monad"
 
 $digit = 0-9                    -- digits
 $alpha = [a-zA-Z]               -- alphabetic characters
@@ -14,50 +21,50 @@ tokens :-
 
   $white+                               ;
   "--".*                                ;
-  assume                                { const Assume }
-  case                                  { const Case }
-  type                                  { const Type }
-  let                                   { const Let }
-  rec                                   { const Rec }
-  fst                                   { const Fst }
-  snd                                   { const Snd }
-  in                                    { const In }
-  of                                    { const Of }
-  val                                   { const Val }
-  fork                                  { const Fork }
-  new                                   { const New }
-  send                                  { const Send }
-  recv                                  { const Recv }
-  select                                { const Select }
-  rcase                                 { const Rcase }
-  close                                 { const Close }
-  wait                                  { const Wait }
-  expect                                { const Expect }
-  $digit+                               { Int . read }
-  Bot                                   { const TBot }
-  Unit                                  { const TUnit }
-  Int                                   { const TInt }
-  natrec                                { const NatRec } 
-  Nat                                   { const TNat }
-  dualof                                { const DualOf }
-  "_|_"                                 { const TBot }
-  "/\"                                  { const Glb }
-  "\/"                                  { const Lub }
-  "()"                                  { const Unit }
-  "->"                                  { const Arrow }
-  "{{"                                  { const OpenEqn }
-  "}}"                                  { const CloseEqn }
-  "<:"                                  { const Subtype }
-  "=:"                                  { const Equiv }
-  ":"                                   { const Colon }
-  ","                                   { const Comma }
-  "."                                   { const Dot }
-  fn                                    { const Lambda }
-  [\=\+\-\*\/\(\)\:\!\?\{\}\[\]\<\>]    { Sym . head }
-  "'" [$alpha $digit]*                  { Lab }
-  "~" $alpha+                           { Kind . read . ('K':) . tail }
-  $lower [$alpha $digit \_ \']*         { Var }
-  $upper [$alpha $digit \_ \']*         { TID }
+  assume                                { tok $ const Assume }
+  case                                  { tok $ const Case }
+  type                                  { tok $ const Type }
+  let                                   { tok $ const Let }
+  rec                                   { tok $ const Rec }
+  fst                                   { tok $ const Fst }
+  snd                                   { tok $ const Snd }
+  in                                    { tok $ const In }
+  of                                    { tok $ const Of }
+  val                                   { tok $ const Val }
+  fork                                  { tok $ const Fork }
+  new                                   { tok $ const New }
+  send                                  { tok $ const Send }
+  recv                                  { tok $ const Recv }
+  select                                { tok $ const Select }
+  rcase                                 { tok $ const Rcase }
+  close                                 { tok $ const Close }
+  wait                                  { tok $ const Wait }
+  expect                                { tok $ const Expect }
+  $digit+                               { tok $ Int . read }
+  Bot                                   { tok $ const TBot }
+  Unit                                  { tok $ const TUnit }
+  Int                                   { tok $ const TInt }
+  natrec                                { tok $ const NatRec } 
+  Nat                                   { tok $ const TNat }
+  dualof                                { tok $ const DualOf }
+  "_|_"                                 { tok $ const TBot }
+  "/\"                                  { tok $ const Glb }
+  "\/"                                  { tok $ const Lub }
+  "()"                                  { tok $ const Unit }
+  "->"                                  { tok $ const Arrow }
+  "{{"                                  { tok $ const OpenEqn }
+  "}}"                                  { tok $ const CloseEqn }
+  "<:"                                  { tok $ const Subtype }
+  "=:"                                  { tok $ const Equiv }
+  ":"                                   { tok $ const Colon }
+  ","                                   { tok $ const Comma }
+  "."                                   { tok $ const Dot }
+  fn                                    { tok $ const Lambda }
+  [\=\+\-\*\/\(\)\:\!\?\{\}\[\]\<\>]    { tok $ Sym . head }
+  "'" [$alpha $digit]*                  { tok $ Lab }
+  "~" $alpha+                           { tok $ Kind . read . ('K':) . tail }
+  $lower [$alpha $digit \_ \']*         { tok $ Var }
+  $upper [$alpha $digit \_ \']*         { tok $ TID }
 
 {
 -- Each action has type :: String -> Token
@@ -109,7 +116,27 @@ data Token =
         Int Int
         deriving (Eq,Show)
 
-main = do
-  s <- getContents
-  print (alexScanTokens s)
+data T = T AlexPosn !Token
+
+alexEOF :: Alex (Maybe T)
+alexEOF = return Nothing
+
+tok :: (String -> Token) -> AlexAction (Maybe T)
+tok f = tok' (Right . f)
+
+tok' :: (String -> Either String Token) -> AlexAction (Maybe T)
+tok' f (pos@(AlexPn _ line column), _, _, inp) len = do
+  let inp' = take len inp
+  case f inp' of
+    Left err -> alexError $ mconcat
+      [ "lexical error at line "
+      , show line
+      , ", column "
+      , show column
+      , if null err then "" else (": " ++ err)
+      ]
+    Right tok -> pure $ Just $ T pos tok
+
+tokVal :: T -> Token
+tokVal (T _ tok) = tok
 }

@@ -1,74 +1,77 @@
 {
 module Parsing.Grammar (parseDecls, parseType) where
-import qualified Parsing.Tokens as T
+
 import Kinds
+import Parsing.Tokens (T(..))
 import Syntax
+import qualified Data.List as List
+import qualified Parsing.Tokens as T
 }
 
 %name parseDecls Cmds
 %name parseType  Typ
 
-%tokentype { T.Token }
+%tokentype { T }
 %error { parseError }
 
 %token
-    let { T.Let }
-    rec { T.Rec }
-    in  { T.In }
-    int { T.Int $$ }
-    var { T.Var $$ }
-    case { T.Case }
-    fst { T.Fst }
-    snd { T.Snd }
-    of { T.Of }
-    val { T.Val }
-    type { T.Type }
-    fork { T.Fork }
-    new { T.New }
-    send { T.Send }
-    recv { T.Recv }
-    select { T.Select }
-    rcase { T.Rcase }
-    close { T.Close }
-    wait { T.Wait }
-    expect { T.Expect }
-    lab { T.Lab $$ }
-    kind { T.Kind $$ }
-    tid { T.TID $$ }
-    Unit { T.TUnit }
-    Bot { T.TBot }
-    Int { T.TInt }
-    Nat { T.TNat }
-    natrec { T.NatRec }
-    '()' { T.Unit }
-    '->' { T.Arrow }
-    '{{' { T.OpenEqn }
-    '}}' { T.CloseEqn }
-    assume { T.Assume }
-    glb { T.Glb }
-    lub { T.Lub }
-    '<:' { T.Subtype }
-    '=:' { T.Equiv }
-    ':' { T.Colon }
-    ',' { T.Comma }
-    '.' { T.Dot }
-    lam { T.Lambda }
-    dualof { T.DualOf }
-    '{' { T.Sym '{' }
-    '}' { T.Sym '}' }
-    '=' { T.Sym '=' }
-    '+' { T.Sym '+' }
-    '-' { T.Sym '-' }
-    '*' { T.Sym '*' }
-    '/' { T.Sym '/' }
-    '(' { T.Sym '(' }
-    ')' { T.Sym ')' }
-    '<' { T.Sym '<' }
-    '>' { T.Sym '>' }
-    '[' { T.Sym '[' }
-    ']' { T.Sym ']' }
-    '!' { T.Sym '!' }
-    '?' { T.Sym '?' }
+    let { T _ T.Let }
+    rec { T _ T.Rec }
+    in  { T _ T.In }
+    int { T _ (T.Int $$) }
+    var { T _ (T.Var $$) }
+    case { T _ T.Case }
+    fst { T _ T.Fst }
+    snd { T _ T.Snd }
+    of { T _ T.Of }
+    val { T _ T.Val }
+    type { T _ T.Type }
+    fork { T _ T.Fork }
+    new { T _ T.New }
+    send { T _ T.Send }
+    recv { T _ T.Recv }
+    select { T _ T.Select }
+    rcase { T _ T.Rcase }
+    close { T _ T.Close }
+    wait { T _ T.Wait }
+    expect { T _ T.Expect }
+    lab { T _ (T.Lab $$) }
+    kind { T _ (T.Kind $$) }
+    tid { T _ (T.TID $$) }
+    Unit { T _ T.TUnit }
+    Bot { T _ T.TBot }
+    Int { T _ T.TInt }
+    Nat { T _ T.TNat }
+    natrec { T _ T.NatRec }
+    '()' { T _ T.Unit }
+    '->' { T _ T.Arrow }
+    '{{' { T _ T.OpenEqn }
+    '}}' { T _ T.CloseEqn }
+    assume { T _ T.Assume }
+    glb { T _ T.Glb }
+    lub { T _ T.Lub }
+    '<:' { T _ T.Subtype }
+    '=:' { T _ T.Equiv }
+    ':' { T _ T.Colon }
+    ',' { T _ T.Comma }
+    '.' { T _ T.Dot }
+    lam { T _ T.Lambda }
+    dualof { T _ T.DualOf }
+    '{' { T _ (T.Sym '{') }
+    '}' { T _ (T.Sym '}') }
+    '=' { T _ (T.Sym '=') }
+    '+' { T _ (T.Sym '+') }
+    '-' { T _ (T.Sym '-') }
+    '*' { T _ (T.Sym '*') }
+    '/' { T _ (T.Sym '/') }
+    '(' { T _ (T.Sym '(') }
+    ')' { T _ (T.Sym ')') }
+    '<' { T _ (T.Sym '<') }
+    '>' { T _ (T.Sym '>') }
+    '[' { T _ (T.Sym '[') }
+    ']' { T _ (T.Sym ']') }
+    '!' { T _ (T.Sym '!') }
+    '?' { T _ (T.Sym '?') }
 
 %right LET
 %nonassoc int '(' var lab case natrec '()' lam rec fst snd new fork
@@ -186,7 +189,18 @@ Typ : ATyp                          { $1 }
 
 {
 
-parseError :: [T.Token] -> a
-parseError ts = errorWithoutStackTrace ("Parse error at: " ++ show (take 10 ts))
+parseError :: [T] -> a
+parseError ts = errorWithoutStackTrace $ "parse error at " ++ err
+  where
+    err = case ts of
+      [] -> "end of file"
+      T (T.AlexPn _ line column) _ : _ -> mconcat
+        [ "line "
+        , show line
+        , ", column "
+        , show column
+        , ": "
+        , List.intercalate ", " (show . T.tokVal <$> take 10 ts)
+        ]
 
 }

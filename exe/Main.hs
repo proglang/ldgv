@@ -5,7 +5,6 @@
 module Main (main) where
 
 import Control.Applicative
-import Control.Category ((>>>))
 import Control.Exception
 import Control.Monad
 import Data.ByteString.Builder
@@ -50,7 +49,7 @@ actionParser = commands
             \declaration which must have a type signature and have no \
             \parameters to do something useful."
         ]
-      mainSig <- fmap (fmap parseType) $ optional $ Opts.strOption $ mconcat
+      mainSig <- optional $ Opts.option (Opts.eitherReader parseType) $ mconcat
         [ Opts.long "main-sig"
         , Opts.short 's'
         , Opts.metavar "TYPE"
@@ -127,7 +126,7 @@ compile minput moutput mmainIdent mmainType = do
         hPutBuilder outHandle code
 
 parseInput :: Maybe FilePath -> IO [Syntax.Decl]
-parseInput = maybe getContents readFile >>> fmap parseDecls
+parseInput = maybe getContents readFile >=> either fail pure . parseDecls
 
 withOutput :: Maybe FilePath -> (Handle -> IO r) -> IO r
 withOutput = maybe ($ stdout) (\fp -> withBinaryFile fp WriteMode)
