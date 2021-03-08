@@ -20,40 +20,38 @@ import Control.Monad.Reader
 import Data.Traversable
 import Paths_ldgv
 import System.FilePath
+import System.IO
 import System.Process.Typed
 import qualified Control.Monad.Fail as Fail
 
 data Env = Env
-  { envCC :: String
-  , envLD :: String
-  , envCCFlags :: [String]
-  , envLDFlags :: [String]
+  { envCC :: !String
+  , envFlags :: ![String]
+  , envVerbose :: !Bool
   }
   deriving stock (Show)
 
 defaultEnv :: Env
 defaultEnv = Env
   { envCC = "cc"
-  , envLD = "cc"
-  , envCCFlags = []
-  , envLDFlags = []
+  , envFlags = []
+  , envVerbose = False
   }
 
 compile :: (MonadReader Env m, MonadIO m) => FilePath -> FilePath -> m ()
 compile result src = do
   cc <- asks envCC
   defaultFlags <- liftIO cflags
-  customFlags <- asks envCCFlags
+  customFlags <- asks envFlags
   let args = "-o" : result : "-c" : src : defaultFlags ++ customFlags
-  runProcess_ $ proc cc args
+  run cc args
 
 link :: (MonadReader Env m, MonadIO m, Fail.MonadFail m) => FilePath -> [FilePath] -> String -> m ()
 link result srcs backend = do
-  ld <- asks envLD
+  cc <- asks envCC
   defaultFlagsCC <- liftIO cflags
   defaultFlagsLD <- liftIO ldflags
-  customFlagsCC <- asks envCCFlags
-  customFlagsLD <- asks envLDFlags
+  customFlags <- asks envFlags
   backendSrcs <-
     if | pathSeparator `elem` backend ->
            pure [backend]
@@ -67,10 +65,16 @@ link result srcs backend = do
         , defaultFlagsCC
         , defaultFlagsLD
         , backendSrcs
-        , customFlagsCC
-        , customFlagsLD
+        , customFlags
         ]
-  runProcess_ $ proc ld args
+  run cc args
+
+run :: (MonadReader Env m, MonadIO m) => String -> [String] -> m ()
+run exe args = do
+  verbose <- asks envVerbose
+  when verbose $ liftIO do
+    hPutStrLn stderr $ unwords $ fmap show $ exe:args
+  runProcess_ $ proc exe args
 
 basePath :: FilePath
 basePath = "c-support/runtime"
