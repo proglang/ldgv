@@ -1,18 +1,22 @@
 {
 module Parsing.Grammar (parseDecls, parseType) where
 
-import Kinds
-import Parsing.Tokens (T(..))
-import Syntax
+import Control.Monad
 import qualified Data.List as List
+
+import Kinds
+import Syntax
+import Parsing.Tokens (T(..))
 import qualified Parsing.Tokens as T
 }
 
+%monad { T.Alex }
+%lexer { (\f -> T.alexMonadScan >>= f) } { T _ T.EOF }
+%error { parseError }
+%tokentype { T }
+
 %name parseDecls Cmds
 %name parseType  Typ
-
-%tokentype { T }
-%error { parseError }
 
 %token
     let { T _ T.Let }
@@ -188,19 +192,19 @@ Typ : ATyp                          { $1 }
     | dualof ATyp                    { dualof $2 }
 
 {
+parseError (T (T.AlexPn _ line column) t) = do
+  nextTokens <- filter (/= T.EOF) . (t:) <$> replicateM 9 (tokVal <$> T.alexMonadScan)
+  let err | null nextTokens = "parse error: unexpected end of file"
+          | otherwise       = mconcat
+              [ "parse error at line "
+              , show line
+              , ", column "
+              , show column
+              , ": unexpected token"
+              , if null (tail nextTokens) then " " else "s "
+              , List.intercalate ", " $ showToken <$> nextTokens
+              ]
+  T.alexError err
 
-parseError :: [T] -> a
-parseError ts = errorWithoutStackTrace $ "parse error at " ++ err
-  where
-    err = case ts of
-      [] -> "end of file"
-      T (T.AlexPn _ line column) _ : _ -> mconcat
-        [ "line "
-        , show line
-        , ", column "
-        , show column
-        , ": "
-        , List.intercalate ", " (show . T.tokVal <$> take 10 ts)
-        ]
-
+showToken t = "›" ++ show t ++ "‹"
 }

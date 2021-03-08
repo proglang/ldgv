@@ -1,16 +1,20 @@
 {
 {-# LANGUAGE BlockArguments #-}
 module Parsing.Tokens
-  ( Token(..)
-  , T(..)
-  , tokVal
+  ( -- * Tokens
+    Token(..)
   , AlexPosn(..)
+  , T(..)
+
+    -- * Alex monad
+  , Alex
   , runAlex
   , alexMonadScan
+  , alexError
   ) where
 
 import Kinds
-import Text.Read
+import Text.Read (readMaybe)
 }
 
 %wrapper "monad"
@@ -70,8 +74,6 @@ tokens :-
   $upper [$alpha $digit \_ \']*         { tok $ TID }
 
 {
--- Each action has type :: String -> Token
-
 -- The token type:
 data Token =
         Let             |
@@ -116,18 +118,21 @@ data Token =
         DualOf          |
         Glb          |
         Lub          |
-        Int Int
+        Int Int         |
+        EOF
         deriving (Eq,Show)
 
-data T = T AlexPosn !Token
+data T = T { tokPos :: AlexPosn, tokVal :: !Token }
 
-alexEOF :: Alex (Maybe T)
-alexEOF = return Nothing
+alexEOF :: Alex T
+alexEOF = do
+  (pos, _, _, _) <- alexGetInput
+  pure $ T pos EOF
 
-tok :: (String -> Token) -> AlexAction (Maybe T)
+tok :: (String -> Token) -> AlexAction T
 tok f = tok' (Right . f)
 
-tok' :: (String -> Either String Token) -> AlexAction (Maybe T)
+tok' :: (String -> Either String Token) -> AlexAction T
 tok' f (pos@(AlexPn _ line column), _, _, inp) len = do
   let inp' = take len inp
   case f inp' of
@@ -138,12 +143,12 @@ tok' f (pos@(AlexPn _ line column), _, _, inp) len = do
       , show column
       , if null err then "" else (": " ++ err)
       ]
-    Right tok -> pure $ Just $ T pos tok
+    Right tok -> pure $ T pos tok
 
-tokKind :: AlexAction (Maybe T)
+tokKind :: AlexAction T
 tokKind = tok' \k ->
-  maybe (Left $ "invalid kind " ++ k) (Right . Kind) $ readMaybe $ ('K':) $ tail k
-
-tokVal :: T -> Token
-tokVal (T _ tok) = tok
+  maybe (Left $ "invalid kind " ++ k) (Right . Kind)
+    $ readMaybe
+    $ ('K':)    -- Subsitutes the initial '~' with 'K'
+    $ tail k
 }
