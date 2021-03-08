@@ -13,6 +13,7 @@ import System.IO
 import System.Process.Typed
 import Test.Hspec
 import UnliftIO.Temporary
+import Utils
 import qualified Data.Text.Lazy as TL
 
 import C.Compile
@@ -98,17 +99,14 @@ spec = parallel do
 
 shouldEvaluateTo :: HasCallStack => String -> Either Text Text -> Expectation
 shouldEvaluateTo source result = do
-  let ast = parse source
+  let ast = parseDecls source
   let (exitPred, result') = case result of
         Left r -> (shouldNotBe, "error: " <> r)
         Right r -> (shouldBe, "result: " <> r)
 
-  code <- case generate (Just "main") ast of
-    Left err -> do
-      expectationFailure $ "cannot generate code:\n" ++ err
-      pure $ error "expectationFailure did not short circuit"
-    Right code ->
-      pure code
+  code <- case ast >>= generate (Just "main") of
+    Left err -> raiseFailure $ "cannot generate code:\n" ++ err
+    Right code -> pure code
 
   withSystemTempDirectory "compiled" \dirpath -> do
     let codePath = dirpath </> "source.c"
