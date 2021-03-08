@@ -408,7 +408,11 @@ signatureParameters name voidClosure args = (params, bindings)
 
       vars <- ifor (funClosure args) \i -> traverse \ident ->
         nameHint (identForC ident) do
-          (ident,) <$> storeVar (accessI i closureVar)
+          var <- storeVar (accessI i closureVar)
+          -- If the closure is reused it might happen that the captured
+          -- variables won't be referenced directly.
+          silenceUnused var
+          pure (ident, var)
 
       insertRecArg <- case funRecIdent args of
         Nothing -> pure id
@@ -683,6 +687,9 @@ varDeclaration (CVar v) = typeName @t Proxy <+> v
 
 newUnitVar :: GenM (CVar V)
 newUnitVar = storeVar (CExp "{ 0 }")
+
+silenceUnused :: CVar t -> GenM ()
+silenceUnused (CVar v) = tellStmt $ terminate $ "(void)" <> v
 
 -- | Writes the result of the given expression into a fresh variable.
 storeVar :: (CType t, ExpLike e) => e t -> GenM (CVar t)

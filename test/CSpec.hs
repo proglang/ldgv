@@ -47,7 +47,7 @@ spec = parallel do
   -- This tests for miscompilation of shadowed variables.
   describe "name shadowing" do
     it "shadows only locally" do
-      let src = unlines 
+      let src = unlines
             [ "val add (a : Int) (b : Int) = a + b"
             , "val main : Int"
             , "val main = "
@@ -117,7 +117,9 @@ shouldEvaluateTo source result = do
       hPutBuilder h code
 
     -- Link the program
-    runReaderT (link outPath [codePath] "serial") defaultEnv
+    let flags = "-Werror" : envFlags defaultEnv
+    let env = defaultEnv { envFlags = flags }
+    runReaderT (link outPath [codePath] "serial") env
 
     -- Execute it, capturing the output
     (exitCode, output) <- readProcessInterleaved $ proc outPath []
