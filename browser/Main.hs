@@ -67,7 +67,11 @@ main = mainWidgetWithHead widgetHead $ divClass "wrapper" $ do
         doneEv <- performEvent ((\v -> liftIO $ do
             let s = T.unpack v
             res <- try $ do
-              let decls = parseDecls s
+              let errOrDecls = do
+                    ds <- parseDecls s
+                    typecheck ds
+                    pure ds
+
               -- We have to make sure the result is evaluated inside the 'try'
               -- since there might be exceptions lurking in the result. These
               -- would only be uncovered when updating the page and crashing
@@ -75,8 +79,7 @@ main = mainWidgetWithHead widgetHead $ divClass "wrapper" $ do
               --
               -- Using the deepseq package would probably be even better than a
               -- poor 'evaluate'.
-              let interpret = I.interpret decls >>= evaluate
-              traverse (const interpret) (typecheck decls)
+              traverse (evaluate <=< I.interpret) errOrDecls
 
             let resStrings
                   :: Either SomeException (Either String P.Value)
