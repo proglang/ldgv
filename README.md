@@ -46,6 +46,10 @@ should be considered, with this the common compilers (clang, gcc) will
 transform the abundant number of tail calls into jumps which will keep the
 stack size from exploding.
 
+The command line executable has support for invoking the C compiler on the
+generated source code by passing either `-O` or `-L` on the command line, see
+the output `compile --help` for more information.
+
 ### Integrating and using the generated C code
 
 Every top level definition in the source file will correspond to a symbol of
