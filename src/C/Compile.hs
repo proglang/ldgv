@@ -82,7 +82,7 @@ basePath = "c-support/runtime"
 cflags :: IO [String]
 cflags = do
   dataDir <- getDataDir
-  pure ["-O2", "-fomit-frame-pointer", "-std=c11", "-I" ++ dataDir </> basePath ]
+  pure ["-pthread", "-Wall", "-O2", "-fomit-frame-pointer", "-std=c11", "-I" ++ dataDir </> basePath ]
 
 ldflags :: IO [String]
 ldflags = do
