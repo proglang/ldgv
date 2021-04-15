@@ -9,6 +9,9 @@
 #include <stdlib.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*****************************************************************************
  * Type Definitions                                                          *
@@ -149,5 +152,9 @@ static inline LDST_res_t LDST_invoke(LDST_cont_t *k, LDST_ctxt_t *ctxt, LDST_t v
   free(k);
   return lam.lam_fp(next, ctxt, lam.lam_closure, value);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // LDST_H__
