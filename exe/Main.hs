@@ -13,6 +13,7 @@ import Control.Monad.Reader
 import Data.ByteString.Builder
 import Data.Foldable
 import Data.Maybe
+import Data.Monoid
 import System.Exit
 import System.FilePath
 import UnliftIO
@@ -127,7 +128,6 @@ actionParser = commands
       compileInputs <- inPathArgs
       pure $ compile Compile{..}
 
-
     inPathArgs :: Opts.Parser [FilePath]
     inPathArgs = many $ Opts.strArgument $ mconcat
         [ Opts.metavar "SRC-FILES"
@@ -207,10 +207,18 @@ generate Compile{..} writeOutput = do
   
 parseInput :: [FilePath] -> Action [Syntax.Decl]
 parseInput fps = do
+  -- Unwraps a parse result of type @Maybe [Decl]@.
   let unwrap = liftIO . maybe exitFailure pure
+
+  -- Like 'unwrap' above but combines multiple parse results before unwrapping.
+  --
+  -- Using the `Ap` wrapper the many parse results are turned into one failed
+  -- result should at least one parse have failed.
+  let unwrapMany = unwrap . getAp . foldMap Ap
+
   if null fps
      then parseFile Nothing >>= unwrap
-     else mapM (parseFile . Just) fps >>= unwrap . fold
+     else mapM (parseFile . Just) fps >>= unwrapMany
 
 parseFile :: Maybe FilePath -> Action (Maybe [Syntax.Decl])
 parseFile mpath = do
