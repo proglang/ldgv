@@ -127,6 +127,9 @@ data Tag a where
 
 data FunctionArgs = FunctionArgs
   { funClosure  :: [Maybe Ident]
+    -- ^ Variables accessible through the closure argument at the corresponding
+    -- index. The identifiers must be in ascending order. @Nothing@ slots
+    -- shouldn't be accessed.
   , funArgIdent :: Ident
   , funRecIdent :: Maybe Ident
     -- ^ @Just ident@ if this function can call itself recursively with
@@ -154,12 +157,13 @@ data Function = Function
   }
 
 data Closure = Closure
-  { closureVars :: ![Maybe Ident]
+  { _closureVars :: ![Maybe Ident]
     -- ^ List of captured identifiers. The order corresponds to the order in
-    -- the C code in 'closureExpr'. @Nothing@ values should not be accessed,
-    -- these are slots indicating a closure is reused but only with a subset of
-    -- captured values.
-  , closureExpr :: !(CExp (Pointer V))
+    -- the C code in 'closureExpr', the identifiers must be in ascending order.
+    --
+    -- @Nothing@ values should not be accessed, these are slots indicating a
+    -- closure is reused but only with a subset of captured values.
+  , _closureExpr :: !(CExp (Pointer V))
     -- ^ An expression of type @union LDST_t*@.
   }
 
@@ -189,11 +193,12 @@ data Info = Info
 
 data GenSt = GenSt
   { _stUnique :: !Word
-  , _stClosures :: ![(Set Ident, CExp (Pointer V))]
+  , _stClosures :: ![Closure]
   }
 
 makeLenses ''Info
 makeLenses ''GenSt
+makeLenses ''Closure
 
 class ExpLike e where
   toCExp :: e t -> CExp t
@@ -466,12 +471,10 @@ generateFunction' fun = do
 
   let captured = funHeader fun
         & funArgs
-        & fmap funClosure
-        & fmap catMaybes
-        & fmap Set.fromDistinctAscList
+        & fmap \args -> Closure (funClosure args) (toCExp $ cast cClosureVar)
       genst = GenSt
         { _stUnique = 0
-        , _stClosures = foldMap (\vs -> [(vs, toCExp $ cast cClosureVar)]) captured
+        , _stClosures = maybeToList captured
         }
 
   let info = Info
@@ -596,7 +599,7 @@ pushFunction c freevars mRecId argId body = do
     { funHeader = FunctionHeader
         { funName = name
         , funArgs = Just FunctionArgs
-            { funClosure = closureVars closure
+            { funClosure = closure^.closureVars
             , funArgIdent = argId
             , funRecIdent = mRecId
             }
@@ -705,40 +708,33 @@ mkClosure vars = do
 nullClosure :: Env -> MaybeT GenM Closure
 nullClosure vars =
   if Map.null vars
-     then pure Closure{ closureVars = [], closureExpr = nullPointer }
+     then pure Closure{ _closureVars = [], _closureExpr = nullPointer }
      else empty
 
 reuseClosure :: Env -> MaybeT GenM Closure
-reuseClosure (Map.keysSet -> vars) = MaybeT do
+reuseClosure (Map.keys -> vars) = MaybeT do
   allocated <- use stClosures
   pure $ allocated
-    & filter (Set.isSubsetOf vars . fst)
+    & mapMaybe (closureVars %%~ tryClosureReuse vars)
     & preview _head
-    & fmap \(captured, cexp) -> Closure
-        { closureVars = alignClosureReuse vars captured
-        , closureExpr = cexp
-        }
 
-alignClosureReuse :: Set Ident -> Set Ident -> [Maybe Ident]
-alignClosureReuse (Set.toAscList -> a) (Set.toAscList -> b) = go a b
+tryClosureReuse :: [Ident] -> [Maybe Ident] -> Maybe [Maybe Ident]
+tryClosureReuse = go id
   where
-    go (x:xs) (y:ys)
-      | x == y    = Just x : go xs ys
-      | otherwise = Nothing : go (x:xs) ys
-    go [] ys = Nothing <$ ys
-    go _ [] = error $ show a ++ " ⊈ " ++ show b
+    go f (x:xs) (Just y:ys) | x == y = go (f . (Just y:)) xs ys
+    go f xs@(_:_) (_:ys) = go (f . (Nothing:)) xs ys
+    go f [] ys = Just $ f (Nothing <$ ys)
+    go _ _ [] = Nothing
 
 allocateNewClosure :: Env -> GenM Closure
-allocateNewClosure captured = do
-  expr <- toCExp <$> cloneAll (Map.elems captured)
-  stClosures %= cons (Map.keysSet captured, expr)
-  pure Closure
-    { closureVars = Just <$> Map.keys captured
-    , closureExpr = expr
-    }
+allocateNewClosure (Map.toAscList -> unzip -> (ids, exprs)) = do
+  expr <- toCExp <$> cloneAll exprs
+  let closure = Closure (Just <$> ids) expr
+  stClosures %= cons closure
+  pure closure
 
 mkLambda :: Builder -> Closure -> GenM (CExp L)
-mkLambda fun = fmap toCExp . mkLambda' fun . unCExp . closureExpr
+mkLambda fun = fmap toCExp . mkLambda' fun . unCExp . view closureExpr
 
 mkLambda' :: Builder -> Builder -> GenM (CVar L)
 mkLambda' fun closure = declareFresh $ braceList [fun, closure]

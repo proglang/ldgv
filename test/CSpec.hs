@@ -84,6 +84,20 @@ spec = parallel do
             ]
       src `shouldEvaluateTo` Right "Int 30"
 
+  -- This tests for a miscompilation in the closure sharing algorithm.
+  describe "closure sharing" do
+    it "keeps skipped arguments" do
+      let src = unlines
+            [ "val add (a : Int) (b : Int) (c : Int) = a + b + c"
+            , "val main : Int"
+            , "val main = "
+            , "  let a = 10 in"
+            , "  let b = 20 in"
+            , "  let calc = fn (x : Unit) add a 50 b in"
+            , "  calc ()"
+            ]
+      src `shouldEvaluateTo` Right "Int 80"
+
   describe "error conditions" do
     it "detects simple deadlocks" do
       let src = unlines
