@@ -1,23 +1,25 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 module Main (main) where
 
 import Control.Applicative
-import Control.Exception
 import Control.Monad
 import Control.Monad.Reader
 import Data.ByteString.Builder
 import Data.Foldable
 import Data.Maybe
 import System.Exit
-import System.IO
-import UnliftIO.Temporary
+import System.FilePath
+import UnliftIO
 import qualified Options.Applicative as Opts
 
 import Kinds
+import Output
 import Parsing
 import qualified C.Compile as C
 import qualified C.Generate as C
@@ -33,16 +35,16 @@ data CompileMode
   deriving (Show, Eq) 
 
 data CompileOpts = Compile
-  { compileInput    :: !(Maybe FilePath)
+  { compileInputs   :: ![FilePath]
   , compileOutput   :: !(Maybe FilePath)
   , compileMainId   :: !(Maybe Syntax.Ident)
   , compileMainSig  :: !(Maybe Syntax.Type)
   , compileMode     :: !CompileMode
   , compileEnv      :: !C.Env
   }
-  deriving (Show)
+  deriving stock (Show)
 
-actionParser :: Opts.Parser (IO ())
+actionParser :: Opts.Parser (Action ())
 actionParser = commands
   where
     commands = Opts.hsubparser $ mconcat
@@ -57,9 +59,11 @@ actionParser = commands
           $ Opts.progDesc "Only typecheck an LDGV/LDST program."
       ]
 
-    interpretParser = do
-      inPath <- optional inPathArg
-      pure $ interpret inPath
+    typecheckParser =
+      typecheck <$> inPathArgs
+
+    interpretParser =
+      interpret <$> inPathArgs
 
     compileParser = do
       compileMainId <- optional $ Opts.strOption $ mconcat
@@ -120,19 +124,17 @@ actionParser = commands
               \This option can be given multiple times."
           ]
         pure C.Env{ envCC = cc, envFlags = opts ++ concatMap words opts', envVerbose = True }
-      compileInput <- optional inPathArg
+      compileInputs <- inPathArgs
       pure $ compile Compile{..}
 
-    typecheckParser = do
-      inPath <- optional inPathArg
-      pure $ typecheck inPath
 
-    inPathArg = Opts.strArgument $ mconcat
-        [ Opts.metavar "SRC-FILE"
-        , Opts.help "Read the input from FILE, uses STDIN if no argument is given."
+    inPathArgs :: Opts.Parser [FilePath]
+    inPathArgs = many $ Opts.strArgument $ mconcat
+        [ Opts.metavar "SRC-FILES"
+        , Opts.help "Read the input from SRC-FILES, uses STDIN if no path is given."
         ]
 
-actionParserInfo :: Opts.ParserInfo (IO ())
+actionParserInfo :: Opts.ParserInfo (Action ())
 actionParserInfo = Opts.info (actionParser <**> Opts.helper) $ mconcat
   [ Opts.progDesc "An implementation of Label Dependent Session Types (LDST)."
   , Opts.footer "Authors: \
@@ -142,46 +144,48 @@ actionParserInfo = Opts.info (actionParser <**> Opts.helper) $ mconcat
   ]
 
 main :: IO ()
-main = join $ Opts.customExecParser prefs actionParserInfo
-  where
-    prefs = Opts.prefs Opts.showHelpOnEmpty
+main = do
+  let prefs = Opts.prefs Opts.showHelpOnEmpty
+  action <- Opts.customExecParser prefs actionParserInfo
+  runTerminalSize action
 
-typecheck :: Maybe FilePath -> IO ()
-typecheck minput = do
-  decls <- parseInput minput
-  case  T.typecheck decls of
+typecheck :: [FilePath] -> Action ()
+typecheck inputs = do
+  decls <- parseInput inputs
+  liftIO case T.typecheck decls of
     Right _ -> putStrLn "Good!"
     Left err -> putStrLn $ "Error: " ++ err
 
-interpret :: Maybe FilePath -> IO ()
-interpret minput = do
+interpret :: [FilePath] -> Action ()
+interpret inputs = do
   res <- try $ do
-    decls <- parseInput minput
+    decls <- parseInput inputs
     case T.typecheck decls of
       Right a -> pure a
       Left err -> fail $ "Error: " ++ err
-    I.interpret decls
-  putStrLn $ either
+    liftIO $ I.interpret decls
+  liftIO $ putStrLn $ either
     (\v -> "Error: " ++ show v)
     (\v -> "Result: " ++ show v)
     (res :: Either SomeException P.Value)
 
-compile :: CompileOpts -> IO ()
+compile :: CompileOpts -> Action ()
 compile co = do
   mbackend <- case compileMode co of
     CompileC -> do
       generate co \b -> withOutput (compileOutput co) (`hPutBuilder` b)
-      exitSuccess
+      liftIO exitSuccess
     CompileObject -> pure Nothing
     CompileLink backend -> pure (Just backend)
 
   outputFP <- maybe
-    (msgError "--output must be given for modes -O and -L.")
+    (msgFatal "--output must be given for modes -O and -L.")
     pure
     (compileOutput co)
 
   -- The generated C code is written to a temporary file and then compiled/linked.
-  withSystemTempFile (fromMaybe "code" (compileInput co) ++ ".c") \codeFP codeHandle -> do
+  let temporaryCCodeName = takeFileName outputFP  <.> ".c"
+  withSystemTempFile temporaryCCodeName \codeFP codeHandle -> do
     generate co (hPutBuilder codeHandle)
     hClose codeHandle
 
@@ -191,25 +195,33 @@ compile co = do
           mbackend
     runReaderT invocation (compileEnv co)
 
-generate :: CompileOpts -> (Builder -> IO ()) -> IO ()
+generate :: CompileOpts -> (Builder -> IO ()) -> Action ()
 generate Compile{..} writeOutput = do
   when (isNothing compileMainId && isJust compileMainSig) do
     msgWarning "--main-sig is not used because no --main is given."
 
   let addSig' (ident, typ) = (Syntax.DSig ident Many typ :)
   let addSig = maybe id addSig' ((,) <$> compileMainId <*> compileMainSig)
-  decls <- addSig <$> parseInput compileInput
-  either msgError writeOutput (T.typecheck decls >> C.generate compileMainId decls)
+  decls <- addSig <$> parseInput compileInputs
+  either msgFatal (liftIO . writeOutput) (T.typecheck decls >> C.generate compileMainId decls)
   
+parseInput :: [FilePath] -> Action [Syntax.Decl]
+parseInput fps = do
+  let unwrap = liftIO . maybe exitFailure pure
+  if null fps
+     then parseFile Nothing >>= unwrap
+     else mapM (parseFile . Just) fps >>= unwrap . fold
 
-parseInput :: Maybe FilePath -> IO [Syntax.Decl]
-parseInput = maybe getContents readFile >=> either msgError pure . parseDecls
+parseFile :: Maybe FilePath -> Action (Maybe [Syntax.Decl])
+parseFile mpath = do
+  (name, src) <- liftIO $ case mpath of
+    Nothing -> ("<stdin>",) <$> getContents
+    Just fp -> (fp,) <$> readFile fp
 
-withOutput :: Maybe FilePath -> (Handle -> IO r) -> IO r
+  case parseDecls src of
+    Left err -> Nothing <$ formatMsg MsgError (Just name) err
+    Right decls -> pure (Just decls)
+
+
+withOutput :: MonadUnliftIO m => Maybe FilePath -> (Handle -> m r) -> m r
 withOutput = maybe ($ stdout) (\fp -> withBinaryFile fp WriteMode)
-
-msgWarning :: String -> IO ()
-msgWarning msg = hPutStrLn stderr ("warning: " ++ msg)
-
-msgError :: String -> IO a
-msgError msg = hPutStrLn stderr ("error: " ++ msg) >> exitFailure

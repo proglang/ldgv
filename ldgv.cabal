@@ -89,12 +89,18 @@ test-suite ldgv-test
 
 executable ldgv-exe
   main-is: Main.hs
+  other-modules: Output
   hs-source-dirs: exe
   build-depends: base >=4.12 && < 5
                , ldgv
                , bytestring
+               , filepath
                , mtl
                , optparse-applicative
+               , prettyprinter ^>=1.7.0
+               , prettyprinter-ansi-terminal ^>=1.1.2
+               , terminal-size
+               , text
                , unliftio
   default-language: Haskell2010
   ghc-options:
