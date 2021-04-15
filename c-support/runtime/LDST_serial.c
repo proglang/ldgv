@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "LDST.h"
+#include "LDST_debug.h"
 
 typedef struct cont_stack {
   LDST_t             q_val;
@@ -44,7 +45,9 @@ void LDST_context_destroy(LDST_ctxt_t *ctxt) {
   free(ctxt);
 }
 
-static LDST_res_t enqueue(LDST_ctxt_t *ctxt, LDST_cont_t *cont, LDST_t value) {
+static LDST_res_t enqueue(LDST_ctxt_t *ctxt, LDST_cont_t *cont, LDST_t value, const char *reason) {
+  LOG("enqueue " PTR_FMT " (%s)", PTR_VAL(cont), reason);
+
   cont_stack_t *runnable = malloc(sizeof(cont_stack_t));
   if (!runnable) {
     return LDST_NO_MEM;
@@ -63,6 +66,7 @@ static void reset_channel(LDST_chan_t *chan) {
 
 LDST_res_t LDST_chan_new(LDST_ctxt_t *ctxt, LDST_chan_t **chan) {
   LDST_chan_t *new_chan = malloc(sizeof(LDST_chan_t));
+  LOG("created channel " PTR_FMT, PTR_VAL(new_chan));
   if (!new_chan)
     return LDST_NO_MEM;
 
@@ -83,8 +87,11 @@ static bool should_suspend(LDST_cont_t *k, LDST_ctxt_t *ctxt, LDST_chan_t *chan)
 }
 
 LDST_res_t LDST_chan_send(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *channel, LDST_t value) {
+  LOG("send on " PTR_FMT, PTR_VAL(channel));
+
   LDST_chan_t *chan = channel;
   if (should_suspend(k, ctxt, chan)) {
+    LOG("send blocked " PTR_FMT, PTR_VAL(k));
     chan->chan_value = value;
     return LDST_OK;
   }
@@ -95,7 +102,7 @@ LDST_res_t LDST_chan_send(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *channel, LDST
   if (res != LDST_OK) {
     return res;
   }
-  res = enqueue(ctxt, chan->chan_cont, value);
+  res = enqueue(ctxt, chan->chan_cont, value, "value received");
   if (res != LDST_OK) {
     free(value.val_pair);
     return res;
@@ -108,14 +115,17 @@ LDST_res_t LDST_chan_send(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *channel, LDST
 }
 
 LDST_res_t LDST_chan_recv(LDST_cont_t *k, LDST_ctxt_t *ctxt, LDST_chan_t *chan) {
+  LOG("recv on " PTR_FMT, PTR_VAL(chan));
+
   if (should_suspend(k, ctxt, chan)) {
+    LOG("recv blocked " PTR_FMT, PTR_VAL(k));
     return LDST_OK;
   }
 
   // Enqueue the sending side.
   LDST_res_t res;
   LDST_t value = { .val_chan = chan };
-  res = enqueue(ctxt, chan->chan_cont, value);
+  res = enqueue(ctxt, chan->chan_cont, value, "value transferred");
   if (res != LDST_OK)
     return res;
 
@@ -134,13 +144,16 @@ static LDST_res_t run_runnables(LDST_ctxt_t *ctxt) {
     return LDST_OK;
   }
 
+  LOG("start executing");
   ctxt->executing = true;
 
   LDST_res_t res = LDST_OK;
   cont_stack_t *runnable;
   while (res == LDST_OK && (runnable = ctxt->runnables)) {
+    LOG("BEGIN " PTR_FMT, PTR_VAL(runnable->q_cont));
     ctxt->runnables = runnable->q_next;
     res = LDST_invoke(runnable->q_cont, ctxt, runnable->q_val);
+    LOG("  END " PTR_FMT, PTR_VAL(runnable->q_cont));
     free(runnable);
   }
 
@@ -162,7 +175,7 @@ LDST_res_t LDST_fork(LDST_ctxt_t *ctxt, LDST_lam_t op, LDST_t value) {
 
   k->k_lam = op;
   k->k_next = 0;
-  LDST_res_t res = enqueue(ctxt, k, value);
+  LDST_res_t res = enqueue(ctxt, k, value, "fork");
   if (res != LDST_OK) {
     free(k);
     return res;
