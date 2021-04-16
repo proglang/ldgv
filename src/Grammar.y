@@ -164,6 +164,7 @@ ATyp : Unit                          { TUnit }
     | Int                           { TInt }
     | Nat                           { TNat }
     | Bot                           { TBot }
+    | '*'                           { TDyn }
     | tid                           { TName False $1 }
     | '{' Labs '}'                  { TLab $2 }
     | '[' Mul var ':' Typ ',' Typ ']'   { TPair $2 $3 $5 $7 }

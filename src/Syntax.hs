@@ -51,6 +51,7 @@ data Type = TUnit
           | TCase Exp [(String, Type)]
           | TEqn Exp Exp Type
           | TSingle Ident       -- same value (and type) as ident
+          | TDyn                -- the dynamic type
   deriving (Show)
 
 dualof :: Type -> Type
@@ -173,6 +174,7 @@ instance Freevars Type where
   fv (TNat) = []
   fv (TNatRec e tz y ts) = fv e `union` fv tz `union` (fv ts \\ [y])
   fv (TAbs x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
+  fv TDyn = []
 
 instance Freevars TypeSegment where
   fv ts = fv (segTy ts)
@@ -248,6 +250,8 @@ instance Substitution Type where
     ty
   subst x exp ty@TBot =
     ty
+  subst x exp ty@TDyn =
+    ty
   -- rationale: a type abbreviation has no free variables
   subst x exp ty@(TName b tid) =
     ty
@@ -286,6 +290,7 @@ single x tyx ty =
     TUnit -> TUnit
     TInt -> TInt
     TBot -> TBot
+    TDyn -> TDyn
     TName b i -> TName b i
     TVar b i -> TVar b i
     TLab labs -> TLab labs
@@ -308,6 +313,7 @@ instance Eq Type where
   TUnit == TUnit = True
   TInt  == TInt  = True
   TBot  == TBot  = True
+  TDyn  == TDyn  = True
   TName b s == TName b' s' = b == b' && s == s'
   TVar b s == TVar b' s' = b == b' && s == s'
   TLab labs == TLab labs'  = sort labs == sort labs'
@@ -365,6 +371,7 @@ tsubst tn tyn ty = ts ty
         TInt -> TInt
         TBot -> TBot
         TNat -> TNat
+        TDyn -> TDyn
         TNatRec e tz ti tsu ->
           TNatRec e (ts tz) ti (if ti == tn then tsu else ts tsu)
         TLab _ -> ty

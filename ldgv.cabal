@@ -58,7 +58,8 @@ test-suite ldgv-test
                , Kinds
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends: hspec-discover:hspec-discover
-  build-depends: base >=4.12 && <4.13
+  build-depends: base >=4.12
+  				-- && <4.13
                , array
                , hspec
                , QuickCheck
@@ -68,7 +69,8 @@ test-suite ldgv-test
 executable ldgv-exe
   main-is:             Main.hs
   build-tools: alex, happy
-  build-depends: base >=4.12 && <4.13
+  build-depends: base >=4.12
+  				-- && <4.13
                , ldgv
                , array
                , containers
