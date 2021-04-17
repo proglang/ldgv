@@ -4,6 +4,11 @@
 
 set -eufo pipefail
 
+if [ $# -ne 2 ]; then
+  echo "usage: $0 FILE PROJECT"
+  exit
+fi
+
 FILE=$1
 PROJECT=$2
 
