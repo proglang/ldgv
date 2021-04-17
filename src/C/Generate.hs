@@ -313,14 +313,17 @@ genMainFunction mainId gm = case Map.lookup mainId (genSigs gm) of
     "entry point: no type signature for identifier ‘" <> mainId <> "’"
 
   Just (Just (S.Last ty)) ->
-    let (_, mainFunction) = functionDeclDef "int main(void)" $ foldMap stmtLine
-          [ assignStmt resultVar $ callExp "LDST_main" [functionForC mainId]
-          , explainExpression ty resultVar
-          ]
-        stmtLine s = mconcat [ CStmt "  ", s, CStmt "\n" ]
-        resultVar = CVar @V "res"
-        assignStmt x y = terminate $ varDeclaration x <+> B.char7 '=' <+> y
-     in Right $ gm { genDefs = genDefs gm <> mainFunction }
+    let mainBody = do
+          resultVar <- declareFresh $ callExp "LDST_main" [functionForC mainId]
+          silenceUnused resultVar
+          tellStmt $ explainExpression ty resultVar
+
+        info = baseInfo "result" "main"
+        (_, (_, mainFunction)) = evalRWST (unGenM mainBody) info (GenSt 0 [])
+          & evalStack []
+          & second (functionDeclDef "int main(void)")
+
+     in Right $ gm <> mempty{ genDefs = mainFunction }
 
 -- | Generates a call to @printf@ which tries to output the value of the given
 -- variable according to the given type. In case the type has non-printable
@@ -486,17 +489,22 @@ generateFunction' fun = do
         , _stClosures = maybeToList captured
         }
 
-  let info = Info
-        { _infoBindings = mempty
-        , _infoContinuation = cContVar
-        , _infoNameHint = funHint fun
-        , _infoFuncHint = NameHint $ funName $ funHeader fun
-        , _infoIndent = 1
-        }
+  let info = baseInfo
+        (funHint fun)
+        (NameHint $ funName $ funHeader fun)
 
   evalRWST (unGenM genBody) info genst
     & fmap (uncurry functionDeclDef)
     & generalizeStack
+
+baseInfo :: NameHint -> NameHint -> Info
+baseInfo nameH funcH = Info
+  { _infoBindings = mempty
+  , _infoContinuation = cContVar
+  , _infoNameHint = nameH
+  , _infoFuncHint = funcH
+  , _infoIndent = 1
+  }
 
 generateVal :: Val -> GenM (CVar V)
 generateVal = \case
