@@ -89,6 +89,8 @@ builds and runs the executable.
 
 ### Web Page
 
+A prebuilt version is available in the `browser-support` directory.
+
 To build the webpage the [nix package manager](https://nixos.org/nix/) is
 required, preferably with a binary cache set up as described
 [here](https://github.com/obsidiansystems/obelisk/blob/master/README.md).
