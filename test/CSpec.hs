@@ -88,7 +88,9 @@ spec = parallel do
     context "in the target language" do
       it "escapes parameters looking like stdlib functions" do
         let src = unlines
-              [ "val foo (malloc : Int) = < x = malloc, malloc >"
+              [ -- Typechecking fails without type signature for `foo`.
+                "val foo : (malloc : Int) -> [ Int, Int ]"
+              , "val foo (malloc : Int) = < x = malloc, malloc >"
               , "val main : [ Int, Int ]"
               , "val main = foo 20"
               ]
@@ -96,7 +98,9 @@ spec = parallel do
 
       it "escapes parameters looking like generated local variables" do
         let src = unlines
-              [ "val foo (foo_0 : Int) = < x = foo_0, foo_0 >"
+              [ -- Typechecking fails without type signature for `foo`.
+                "val foo : (foo_0 : Int) -> [ Int, Int ]"
+              , "val foo (foo_0 : Int) = < x = foo_0, foo_0 >"
               , "val main : [ Int, Int ]"
               , "val main = foo 20"
               ]
@@ -119,7 +123,7 @@ spec = parallel do
   describe "error conditions" do
     it "detects simple deadlocks" do
       let src = unlines
-            [ "val main : Int"
+            [ "val main : Unit"
             , "val main ="
             , "  let <aS, aR> = new !Int.Unit in"
             , "  let <bS, bR> = new !Int.Unit in"
@@ -127,7 +131,6 @@ spec = parallel do
             , "  send bS (fst (recv aR))"
             ]
       src `shouldEvaluateTo` Left "deadlocked"
-
 
 shouldEvaluateTo :: HasCallStack => String -> Either Text Text -> Expectation
 shouldEvaluateTo source result = do
@@ -153,8 +156,11 @@ withGeneratedCode
   -> (HasCallStack => FilePath -> FilePath -> IO r)
   -> IO r
 withGeneratedCode source body = do
-  -- Parse source & generate C code.
-  code <- case parseDecls source >>= generate (Just "main") of
+  let parseAndCheck = do
+        decls <- parseDecls source
+        typecheck decls
+        pure decls
+  code <- case parseAndCheck >>= generate (Just "main") of
     Left err -> raiseFailure $ "cannot generate code:\n" ++ err
     Right code -> pure code
 
