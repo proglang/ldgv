@@ -440,6 +440,8 @@ signatureParameters name args = do
       --
       -- If it typechecks 'recId' should *not* shadow an existing variable,
       -- if it fails to typecheck, it *should* shadow the variable.
+      --
+      -- There exists a test case for this in "CSpec/name shadowing/in the source language".
       recVal <- mkValue TagLam . toCExp =<< mkLambda' name (unCVar cClosureVar)
       pure $ Map.insert recId recVal
 
@@ -553,6 +555,8 @@ generateExp = \case
     -- In case idnFst and idnSnd are the same (should probably be diagnosed at
     -- some earlier point) we follow the interpreter: idnSnd should shadow
     -- idnFst.
+    --
+    -- This is verified in "CSpec/name shadowing/in the source language".
     local (insert idnSnd valSnd . insert idnFst valFst) do
       generateExp body
   LetCont k e -> do

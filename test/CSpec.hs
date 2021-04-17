@@ -18,7 +18,10 @@ import qualified Data.Text.Lazy as TL
 
 import C.Compile as C
 import C.Generate
+import Interpreter (interpret)
 import Parsing
+import ProcessEnvironment (Value(..))
+import Typechecker (typecheck)
 
 spec :: Spec
 spec = parallel do
@@ -84,6 +87,31 @@ spec = parallel do
               , "  (let <x, y> = p in add x) x" 
               ]
         src `shouldEvaluateTo` Right "Int 30"
+
+      it "recursive identifiers and parameters" do
+        -- In case this (underspecified) behaviour changes
+        -- 'C.Generate.signatureParameters' has to be updated.
+        --
+        -- A comparison test as with "pair destructuring to same identifier" is
+        -- not possible because the interpreter lacks support for the `rec`
+        -- construct.
+        let src = "val check = rec x (x : Int) : Int = x"
+        Right decls <- pure $ parseDecls src
+        typecheck decls `shouldNotBe` Right ()
+
+      it "pair destructuring to same identifier" do
+        -- Verifies that interpreter and C code behave the same.
+        let src = unlines
+              [ "val choose (ints : [Int, Int]) ="
+              , "   let <x, x> = ints in"
+              , "   x"
+              , "val main : Int"
+              , "val main = choose <a = 20, 30>"
+              ]
+        Right decls <- pure $ parseDecls src
+        VInt interpretResult <- interpret decls
+        let expectedCResult = "Int " ++ show interpretResult
+        src `shouldEvaluateTo` Right (TL.pack expectedCResult)
 
     context "in the target language" do
       it "escapes parameters looking like stdlib functions" do
