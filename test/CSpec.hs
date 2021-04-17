@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# OPTIONS_GHC -Wall #-}
@@ -14,6 +15,7 @@ import System.Process.Typed
 import Test.Hspec
 import UnliftIO
 import Utils
+import qualified Data.Map as Map
 import qualified Data.Text.Lazy as TL
 
 import C.Compile as C
@@ -22,6 +24,7 @@ import Interpreter (interpret)
 import Parsing
 import ProcessEnvironment (Value(..))
 import Typechecker (typecheck)
+import qualified Examples
 
 spec :: Spec
 spec = parallel do
@@ -159,6 +162,25 @@ spec = parallel do
             , "  send bS (fst (recv aR))"
             ]
       src `shouldEvaluateTo` Left "deadlocked"
+
+  describe "interpreter results" do
+    let interpreterTest name = it name do
+          Just contents <- pure $ Map.lookup name Examples.examples
+          Right decls <- pure $ parseDecls contents
+          interpretResult <- interpret decls
+          let showResult = \case
+                VUnit -> "()"
+                VInt n -> "Int " ++ show n
+                VLabel label -> "Label " ++ label
+                VPair a b -> "<" ++ showResult a ++ ", " ++ showResult b ++ ">"
+                value -> error $ "result is not verifiable: " ++ show value
+          let expectedResult = TL.pack $ showResult interpretResult
+          contents `shouldEvaluateTo` Right expectedResult
+
+    interpreterTest "add.ldgv"
+    interpreterTest "simple.ldgv"
+    interpreterTest "simple_recursion.ldgv"
+
 
 shouldEvaluateTo :: HasCallStack => String -> Either Text Text -> Expectation
 shouldEvaluateTo source result = do
