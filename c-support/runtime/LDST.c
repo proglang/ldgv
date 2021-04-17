@@ -4,9 +4,11 @@
 // Supporting functions.
 //
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "LDST.h"
 #include "LDST_debug.h"
 
@@ -234,5 +236,67 @@ LDST_res_t LDST_make_recv_result(LDST_chan_t *chan, LDST_t value, LDST_t *result
   received_pair[0] = value;
   received_pair[1].val_chan = chan;
   result->val_pair = received_pair;
+  return LDST_OK;
+}
+
+struct CurryInfo {
+  LDST_lam_t dest;
+  int captured_count;
+  int remaining_count;
+  LDST_t captures[];
+};
+
+static LDST_res_t curry_impl(LDST_cont_t *k, LDST_ctxt_t *ctxt, void *closure, LDST_t arg) {
+  struct CurryInfo *info = closure;
+  assert(info->remaining_count > 0 && "no arguments left to curry");
+
+  int old_capture_size = info->captured_count * sizeof(LDST_t);
+  int new_capture_size = old_capture_size + sizeof(LDST_t);
+
+  if (info->remaining_count == 1) {
+    // `arg` is the last remaining argument, meaning we can now invoke the
+    // function.
+    LDST_t *captures = malloc(new_capture_size);
+    if (!captures)
+      return LDST_NO_MEM;
+
+    memcpy(captures, info->captures, old_capture_size);
+    captures[info->captured_count] = arg;
+
+    arg.val_pair = captures;
+    return info->dest.lam_fp(k, ctxt, info->dest.lam_closure, arg);
+  }
+
+  struct CurryInfo *new_info = malloc(sizeof *new_info + new_capture_size);
+  if (!new_info)
+    return LDST_NO_MEM;
+
+  new_info->dest = info->dest;
+  new_info->captured_count = info->captured_count + 1;
+  new_info->remaining_count = info->remaining_count - 1;
+  memcpy(new_info->captures, info->captures, old_capture_size);
+  new_info->captures[info->captured_count] = arg;
+
+  LDST_t result = { .val_lam = { curry_impl, new_info } };
+  return LDST_invoke(k, ctxt, result);
+}
+
+LDST_res_t LDST_curry(LDST_t *value, LDST_lam_t uncurried, int n) {
+  if (n < 1) {
+    // The function has to take at least one argument.
+    return LDST_ERR_UNKNOWN;
+  }
+
+  struct CurryInfo *info = malloc(sizeof *info);
+  if (!info) {
+    return LDST_NO_MEM;
+  }
+
+  info->dest = uncurried;
+  info->captured_count = 0;
+  info->remaining_count = n;
+
+  value->val_lam.lam_fp = curry_impl;
+  value->val_lam.lam_closure = info;
   return LDST_OK;
 }

@@ -119,6 +119,16 @@ LDST_res_t LDST_fork(LDST_ctxt_t *ctxt, LDST_lam_t op, LDST_t value);
 // the duration of the call to `ldst_run`.
 LDST_res_t LDST_run(LDST_ctxt_t *ctxt, LDST_t *result, LDST_fp0_t f, int n, LDST_t *args);
 
+// Curries the given function and stores the result in `value`.
+//
+// `n` is the number of arguments to curry for and must be at least one.
+//
+// When the `n`th argument is applied to the curried result `uncurried.lam_fp`
+// will finally be called with a closure of `uncurried.lam_closure` and an
+// argument where `.val_pair` is a pointer to an (despite its name) `n` element
+// array containing the passed arguments in order.
+LDST_res_t LDST_curry(LDST_t *value, LDST_lam_t uncurried, int n);
+
 // A synchronous version of `LDST_fork`.
 //
 // When this function exits an the return value is `LDST_OK` then `*ctxt` will
