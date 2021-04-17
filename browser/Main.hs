@@ -100,7 +100,7 @@ main = mainWidgetWithHead widgetHead $ divClass "wrapper" $ do
         -- describe our syntax
         syntaxdescription 
 
-        _ <- elDynHtmlAttr' "a" ("href" =: "https://github.com/hagnernils/ldgv" <> "target" =: "_blank" <> "class" =: "github-corner" <> "aria-label" =: "View source on GitHub") $ constDyn $ T.pack $ ghSourceSvg ++ ghSourceStyle
+        _ <- elDynHtmlAttr' "a" ("href" =: "https://github.com/proglang/ldgv" <> "target" =: "_blank" <> "class" =: "github-corner" <> "aria-label" =: "View source on GitHub") $ constDyn $ T.pack $ ghSourceSvg ++ ghSourceStyle
         return ()
 
 -- svg and style for the source on github-button
