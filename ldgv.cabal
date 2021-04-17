@@ -44,6 +44,7 @@ library
                , TCTyping
                , TCXMonad
                , Typing
+               , MonadStack
                , Paths_ldgv
   build-tool-depends: alex:alex, happy:happy
   build-depends: base

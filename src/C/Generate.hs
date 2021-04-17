@@ -2,6 +2,7 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -39,6 +40,7 @@ import Data.Set (Set)
 import Data.String
 import Data.Version
 import Kinds (Multiplicity(..))
+import MonadStack
 import Numeric
 import Syntax.CPS
 import Validation
@@ -151,7 +153,7 @@ data FunctionHeader = FunctionHeader
 
 data Function = Function
   { funHeader  :: !FunctionHeader
-  , funHint    :: !Builder
+  , funHint    :: !NameHint
     -- ^ See '_infoNameHint'.
   , funBody    :: !Exp
   }
@@ -170,6 +172,11 @@ data Closure = Closure
 -- | A mapping from locally bound variables to their corresponding 'CVar'.
 type Env = Map Ident (CVar V)
 
+-- | A newtype wrapping a builder to highlight the expected usage of the
+-- wrapped value.
+newtype NameHint = NameHint Builder
+  deriving newtype (IsString)
+
 data Info = Info
   { _infoBindings :: !Env
     -- ^ Mapping from bound variables to the corresponding identifiers in the
@@ -178,11 +185,11 @@ data Info = Info
   , _infoContinuation :: !(CVar (Pointer K))
     -- ^ The current continuation.
 
-  , _infoNameHint :: !Builder
+  , _infoNameHint :: !NameHint
     -- ^ Prepended to all fresh variables, helps with understandability of the
     -- generated C code and tracking to which expression the variables belong.
 
-  , _infoFuncHint :: !Builder
+  , _infoFuncHint :: !NameHint
     -- ^ Prepended to all functions originating from splitting lambdas and
     -- continuations out of their enclosing function. This is necessary to be
     -- unique per function, otherwise the generated function names might clash.
@@ -226,25 +233,10 @@ instance CType () where
 instance CType a => CType (Pointer a) where
   typeName _ = typeName @a Proxy <> B.char7 '*'
 
-type GenM =
-  RWST Info CStmt GenSt
-    (StackT Function (Either String))
-
-newtype StackT s m a = StackT { unStackT :: StateT [s] m a }
-  deriving newtype (Functor, Applicative, Monad, MonadError e, MonadWriter w)
-
-evalStackT :: Monad m => [s] -> StackT s m a -> m a
-evalStackT ss = flip evalStateT ss . unStackT
-
-pushStack :: Monad m => s -> StackT s m ()
-pushStack s = StackT $ modify (s :)
-
-popStack :: Monad m => StackT s m (Maybe s)
-popStack = StackT do
-  ss <- get
-  case ss of
-    [] -> pure Nothing
-    s:ss' -> Just s <$ put ss'
+newtype GenM a = GenM { unGenM :: RWST Info CStmt GenSt (StackT Function Identity) a }
+  deriving (Semigroup, Monoid) via Ap GenM a
+  deriving newtype (Functor, Applicative, Monad)
+  deriving newtype (MonadReader Info, MonadWriter CStmt, MonadState GenSt, MonadStack Function)
 
 data GenMonoid = GenMonoid
   { genSigs :: !(Map Ident (Maybe (S.Last Type)))
@@ -267,7 +259,7 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
 
     let root = Function
           { funHeader = topLevelHeader name
-          , funHint = identForC name
+          , funHint = localIdentForC 'l' name
           , funBody = toCPS lambdaBody
           }
 
@@ -284,7 +276,7 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
     -- When we encounter a signature we also have to emit this functions
     -- top-level reference declaration, otherwise it will be missing when the
     -- function is used but no definition is given.
-    let (sig, _) = functionSignature $ topLevelHeader name
+    let sig = functionSignature (topLevelHeader name) []
     let gen = mempty
           { genSigs = Map.singleton name $ Just $ S.Last typ
           , genDecls = sig <> ";\n"
@@ -375,14 +367,28 @@ explainExpression ty0 v0 =
 --    LDST_t argument)
 -- @
 --
--- where @closure@ and @argument@ are only present for non-toplevel bindings,
+-- where @closure@ and @argument@ are only present for non-top-level bindings,
 -- including the curried forms of toplevel bindings.
-functionSignature :: FunctionHeader -> (Builder, GenM Env)
-functionSignature fun =
-  maybe ([], pure mempty) (signatureParameters (funName fun) cClosureVar) (funArgs fun)
-    & first ([varDeclaration cContVar, varDeclaration cCtxtVar] ++)
-    & first (functionHeader retType (funName fun))
+functionSignatureM :: FunctionHeader -> GenM (Builder, Env)
+functionSignatureM fun = first (functionSignature fun) <$> argsEnv
   where
+    -- List of parameters and environment corresponding to @funArgs fun@. If
+    -- 'fun' is a top-level function 'funArgs' will be 'Nothing' and we use an
+    -- empty parameter list and environment here.
+    argsEnv = foldMap (signatureParameters (funName fun)) (funArgs fun)
+
+functionSignature :: FunctionHeader -> [Builder] -> Builder
+functionSignature fun localArgs = functionHeader retType (funName fun) args
+  where
+    -- Adds the parameters which every function gets to the ones for
+    -- non-top-level functions passed to this function.
+    args =
+      varDeclaration cContVar
+        : varDeclaration cCtxtVar
+        : localArgs
+
+    -- The return type for all generated functions is the same. Internal
+    -- functions get static linkage.
     retType = mconcat
       [ if funInternal fun then "static " else mempty
       , typeName @R Proxy
@@ -402,44 +408,46 @@ cClosureVar = CVar "_ldst_closure"
 cCtxtVar :: CVar (Pointer T)
 cCtxtVar = CVar "_ldst_ctxt"
 
-signatureParameters :: Builder -> CVar (Pointer ()) -> FunctionArgs -> ([Builder], GenM Env)
-signatureParameters name voidClosure args = (params, bindings)
-  where
-    argVar = CVar @V $ identForC $ funArgIdent args
-    params = [varDeclaration voidClosure, varDeclaration argVar]
+-- | Builds a list of function parameters for the function signatures together
+-- with an 'Env' mapping identifiers from the source language to 'CVar's,
+-- including values captured via the closure.
+signatureParameters ::  Builder -> FunctionArgs -> GenM ([Builder], Env)
+signatureParameters name args = do
+  let hint = localIdentForC 'a' $ funArgIdent args
+  argVar <- CVar @V <$> nameHint hint (fresh Nothing)
+  let params = [varDeclaration cClosureVar, varDeclaration argVar]
+  let closure = cast @(Pointer V) cClosureVar
+  vars <- ifor (funClosure args) \i -> traverse \ident ->
+    nameHint (localIdentForC 'c' ident) do
+      var <- storeVar (accessI i closure)
+      -- If the closure is reused it might happen that the captured
+      -- variables won't be referenced directly.
+      silenceUnused var
+      pure (ident, var)
 
-    bindings = do
-      let closureVar = cast @(Pointer V) voidClosure
+  insertRecArg <- case funRecIdent args of
+    Nothing -> pure id
+    Just recId -> do
+      -- It is possible that the recursion name recId shadows the functions
+      -- argument name, but this follows the typechecker rules!
+      --
+      -- Use the following code to doublecheck:
+      --
+      --    val check = rec x (x : Int) : Int = x
+      --
+      -- If it typechecks 'recId' should *not* shadow an existing variable,
+      -- if it fails to typecheck, it *should* shadow the variable.
+      recVal <- mkValue TagLam . toCExp =<< mkLambda' name (unCVar cClosureVar)
+      pure $ Map.insert recId recVal
 
-      vars <- ifor (funClosure args) \i -> traverse \ident ->
-        nameHint (identForC ident) do
-          var <- storeVar (accessI i closureVar)
-          -- If the closure is reused it might happen that the captured
-          -- variables won't be referenced directly.
-          silenceUnused var
-          pure (ident, var)
+  let bindings =
+        catMaybes vars
+          & Map.fromList
+          & Map.insert (funArgIdent args) argVar
+          & insertRecArg
 
-      insertRecArg <- case funRecIdent args of
-        Nothing -> pure id
-        Just recId -> do
-          -- It is possible that the recursion name recId shadows the functions
-          -- argument name, but this follows the typechecker rules!
-          --
-          -- Use the following code to doublecheck:
-          --
-          --    val check = rec x (x : Int) : Int = x
-          --
-          -- If it typechecks 'recId' should *not* shadow an existing variable,
-          -- if it fails to typecheck, it *should* shadow the variable.
-          recVal <- mkValue TagLam . toCExp =<< mkLambda' name (unCVar voidClosure)
-          pure $ Map.insert recId recVal
-
-      pure
-        $ insertRecArg
-        $ Map.insert (funArgIdent args) argVar
-        $ Map.fromList
-        $ catMaybes vars
-
+  pure (params, bindings)
+  
 -- | @functionDeclDef signature body@ returns a pair of @(declaration, definition)@.
 --
 -- The @signature@ should be built by 'functionSignature'.
@@ -456,18 +464,19 @@ functionDeclDef signature (CStmt body) =
 generateFunction :: Function -> Either String (Builder, Builder)
 generateFunction topLevelFun = evalStackT [topLevelFun] $ execWriterT go
   where
-    go = lift popStack >>= \case
+    go = popStack >>= \case
       Nothing -> pure ()
       Just fun -> lift (generateFunction' fun) >>= tell >> go
 
-generateFunction' :: Function -> StackT Function (Either String) (Builder, Builder)
+generateFunction'
+  :: Applicative m
+  => Function -> StackT Function m (Builder, Builder)
 generateFunction' fun = do
-  let (sig, mkBindings) = functionSignature (funHeader fun)
-
   let genBody = do
-        bindings <- mkBindings
-        local (infoBindings <>~ bindings) $
+        (sig, bindings) <- functionSignatureM (funHeader fun)
+        local (infoBindings <>~ bindings) do
           generateExp (funBody fun)
+          pure sig
 
   let captured = funHeader fun
         & funArgs
@@ -481,13 +490,13 @@ generateFunction' fun = do
         { _infoBindings = mempty
         , _infoContinuation = cContVar
         , _infoNameHint = funHint fun
-        , _infoFuncHint = funName $ funHeader fun
+        , _infoFuncHint = NameHint $ funName $ funHeader fun
         , _infoIndent = 1
         }
 
-  evalRWST genBody info genst
-    & fmap snd -- We only care about the WriterT result.
-    & fmap (functionDeclDef sig)
+  evalRWST (unGenM genBody) info genst
+    & fmap (uncurry functionDeclDef)
+    & generalizeStack
 
 generateVal :: Val -> GenM (CVar V)
 generateVal = \case
@@ -501,7 +510,7 @@ generateVal = \case
     lam <- pushFunction 'l' (fv e) Nothing argId body
     mkValue TagLam lam
   e@(Rec recId argId _ _ body) -> do
-    lam <- nameHint (identForC recId) do
+    lam <- nameHint (localIdentForC 'r' recId) do
       pushFunction 'r' (fv e) (Just recId) argId body
     mkValue TagLam lam
   Math m -> generateMath m
@@ -527,7 +536,7 @@ generateExp :: Exp -> GenM ()
 generateExp = \case
   Return val -> generateVal val >>= invokeContinuation
   Let v a b -> do
-    a' <- nameHint (identForC v) $ generateVal a
+    a' <- nameHint (localIdentForC 'l' v) $ generateVal a
     local (infoBindings . at v ?~ a') $ generateExp b
   LetPair idnFst idnSnd pairExp body -> do
     pairVar <- nameHint "letpair" $ generateVal pairExp
@@ -595,7 +604,7 @@ pushFunction c freevars mRecId argId body = do
   name <- fresh (Just c)
   closure <- mkClosure freevars
   hint <- view infoNameHint
-  lift $ pushStack $ Function
+  pushStack $ Function
     { funHeader = FunctionHeader
         { funName = name
         , funArgs = Just FunctionArgs
@@ -656,7 +665,7 @@ invoke' fun k args =
    in tellStmt $ cReturn $ callExp fun allArgs
 
 -- | Adjusts 'infoNameHint'.
-nameHint :: Builder -> GenM a -> GenM a
+nameHint :: NameHint -> GenM a -> GenM a
 nameHint h = local (infoNameHint .~ h)
 
 functionHeader :: Builder -> Builder -> [Builder] -> Builder
@@ -674,8 +683,8 @@ fresh :: Maybe Char -> GenM Builder
 fresh funKind = do
   n <- stUnique <<+= 1
   hint <- case funKind of
-    Nothing -> (\h -> h <> B.char7 '_') <$> view infoNameHint
-    Just c  -> (\h -> h <> B.char7 '_' <> B.char7 c) <$> view infoFuncHint
+    Nothing -> (\(NameHint h) -> h <> B.char7 '_') <$> view infoNameHint
+    Just c  -> (\(NameHint h) -> h <> B.char7 '_' <> B.char7 c) <$> view infoFuncHint
   pure $ hint <> B.wordHex n
 
 declareFresh :: forall t. CType t => Builder -> GenM (CVar t)
@@ -820,8 +829,8 @@ tellStmt (CStmt s) = do
   let !indent = stimes (lvl * 2) (B.char7 ' ')
   tell $ CStmt $ indent <> s <> B.char7 '\n'
 
-header :: Builder
-header = bunlines
+cCodeHeader :: Builder
+cCodeHeader = bunlines
   [ "//"
   , "// Generated by ldgv v" <> fromString (showVersion Paths_ldgv.version)
   , "//"
@@ -837,7 +846,7 @@ header = bunlines
 -- definitions.
 glueCode :: Builder -> Builder -> Builder
 glueCode decls defs = bunlines
-  [ header
+  [ cCodeHeader
   , ""
   , "// Generated code - forward declarations"
   , decls
@@ -969,33 +978,36 @@ terminate b = CStmt $ b <> B.char7 ';'
 cReturn :: Builder -> CStmt
 cReturn b = terminate $ "return " <> b
 
--- | @identForC idn == identForC' True idn@
-identForC :: Ident -> Builder
-identForC = identForC' True
+-- | @localIdentForC kindChar identifier@ turns @identifier@ into a valid C
+-- identifier which won't shadow any stdlib identifiers or generated functions.
+--
+-- @kindChar@ can be used to highlight the origin of the identifier. See the
+-- uses of this function to observe @'a'@ for arguments, @'l'@ for local
+-- identifiers etc.
+--
+-- @kindChar@ must be an ASCII letter otherwise the result of this function is
+-- guaranteed to be a valid identifier.
+localIdentForC :: Char -> Ident -> NameHint
+localIdentForC c idn =
+  NameHint $ B.char7 c <> B.char7 '_' <> escapeIdentifier idn
 
--- | Escapes an LDST identifier for use in C code. It is based on the
--- z-encoding used in GHC but uses @q@ as the escape character, which is
--- potentially less used.
---
---   * underscores are replaced by @z_@, this is to protect against accidental
---     shadowing as single underscores are used in generated identifiers. This
---     is only done if the first argument is @True@.
---
---   * primes/single quotes are replaced by @zq@
---
---   * @z@ is replaced by @zz@ to make the transformation bijective.
-identForC' :: Bool -> Ident -> Builder
-identForC' escapeUnderscore = foldMap \case
-  '_' | escapeUnderscore -> "q_"
-  '\'' -> "qq"
-  'q'  -> "qq"
-  c    -> B.charUtf8 c
-
--- | Turn an identifier into a function name suitable in the generated C code.
--- It uses the encoding from 'identForC' if it contains a prime/single quote
--- and prepends @"ldst_"@
+-- | Turns an identifier into a function name suitable in the generated C code.
+-- It uses the encoding from 'escapeIdentifier' and prepends @"ldst_"@.
 functionForC :: Ident -> Builder
-functionForC idn = "ldst_" <> identForC' False idn
+functionForC idn = "ldst_" <> escapeIdentifier idn
+
+-- | Escapes an LDST/LDGV identifier which may contain primes into a valid C
+-- identifier using @q@ as an escape character:
+--
+--    * @q@ is replaced by @qq@
+--    * primes/single quotes are replaced by @qQ@
+--
+-- This function should only be used through 'localIdentForC'/'functionForC'
+escapeIdentifier :: Ident -> Builder
+escapeIdentifier = foldMap \case
+  '\''  -> "qQ"
+  'q'   -> "qq"
+  c     -> B.charUtf8 c
 
 labelForC :: String -> Builder
 labelForC = escapedCString -- Labels are represented as C strings.
