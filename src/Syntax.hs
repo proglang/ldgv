@@ -274,6 +274,17 @@ instance Substitution Type where
       TAbs z (subst x exp ty1) ty2
     else
       TAbs z (subst x exp ty1) (subst x exp ty2)
+  subst x e t = error $ unlines
+    [ "src/Syntax.hs:277: non exhaustive pattern:"
+    , mconcat
+        [ "  subst "
+        , showsPrec 11 x " "
+        , showsPrec 11 e " "
+        , showsPrec 11 t ""
+        ]
+    , ""
+    , "Try to bind the expression with a `let`."
+    ]
 
 -- replace singleton types for x by tyx
 single :: Ident -> Type -> Type -> Type
