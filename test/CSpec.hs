@@ -137,6 +137,22 @@ spec = parallel do
               ]
         src `shouldEvaluateTo` Right "<Int 20, Int 20>"
 
+      it "top level functions never shadow internal functions" do
+        let src = unlines
+              [ -- Generates two functions
+                --    1. ldst_foo
+                --    2. ldst_fooq_l0
+                "val foo (n : Int) = n"
+              , -- Defining any of `fooq`, `fooq_l0`, `foo_l0` should not lead
+                -- to a compilation failure.
+                "val fooq (n : Int) = 1"
+              , "val fooq_l0 (n : Int) = 2"
+              , "val foo_l0 (n : Int) = 3"
+              , "val main : Int"
+              , "val main = 0"
+              ]
+        src `shouldEvaluateTo` Right "Int 0"
+
   -- This tests for a miscompilation in the closure sharing algorithm.
   describe "closure sharing" do
     it "keeps skipped arguments" do

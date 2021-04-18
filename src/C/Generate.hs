@@ -152,10 +152,12 @@ data FunctionHeader = FunctionHeader
   }
 
 data Function = Function
-  { funHeader  :: !FunctionHeader
-  , funHint    :: !NameHint
+  { funHeader :: !FunctionHeader
+  , funHint :: !NameHint
     -- ^ See '_infoNameHint'.
-  , funBody    :: !Exp
+  , funNestPrefix :: !NameHint
+    -- ^ See '_infoNestPrefix'.
+  , funBody :: !Exp
   }
 
 data Closure = Closure
@@ -189,7 +191,7 @@ data Info = Info
     -- ^ Prepended to all fresh variables, helps with understandability of the
     -- generated C code and tracking to which expression the variables belong.
 
-  , _infoFuncHint :: !NameHint
+  , _infoNestPrefix :: !NameHint
     -- ^ Prepended to all functions originating from splitting lambdas and
     -- continuations out of their enclosing function. This is necessary to be
     -- unique per function, otherwise the generated function names might clash.
@@ -257,10 +259,15 @@ generate entryPoint = joinParts . first concatErrors . validationToEither . fold
     -- Curry the function.
     let lambdaBody = foldr (\(m, idn, ty) -> S.Lam m idn ty) body args
 
-    let root = Function
-          { funHeader = topLevelHeader name
+    let header = topLevelHeader name
+        root = Function
+          { funHeader = header
           , funHint = localIdentForC 'l' name
           , funBody = toCPS lambdaBody
+            -- Appending a single 'q' to all top-level names makes it
+            -- impossible to write a top-level function in the source language
+            -- which gets the same name as an internal function.
+          , funNestPrefix = NameHint $ funName header <> B.char7 'q'
           }
 
     let addContext err =
@@ -493,18 +500,18 @@ generateFunction' fun = do
 
   let info = baseInfo
         (funHint fun)
-        (NameHint $ funName $ funHeader fun)
+        (funNestPrefix fun)
 
   evalRWST (unGenM genBody) info genst
     & fmap (uncurry functionDeclDef)
     & generalizeStack
 
 baseInfo :: NameHint -> NameHint -> Info
-baseInfo nameH funcH = Info
+baseInfo nameH nestH = Info
   { _infoBindings = mempty
   , _infoContinuation = cContVar
   , _infoNameHint = nameH
-  , _infoFuncHint = funcH
+  , _infoNestPrefix = nestH
   , _infoIndent = 1
   }
 
@@ -627,6 +634,7 @@ pushFunction c freevars mRecId argId body = do
         , funInternal = True
         }
     , funHint = hint
+    , funNestPrefix = NameHint name
     , funBody = body
     }
   mkLambda name closure
@@ -696,7 +704,7 @@ fresh funKind = do
   n <- stUnique <<+= 1
   hint <- case funKind of
     Nothing -> (\(NameHint h) -> h <> B.char7 '_') <$> view infoNameHint
-    Just c  -> (\(NameHint h) -> h <> B.char7 '_' <> B.char7 c) <$> view infoFuncHint
+    Just c  -> (\(NameHint h) -> h <> B.char7 '_' <> B.char7 c) <$> view infoNestPrefix
   pure $ hint <> B.wordHex n
 
 declareFresh :: forall t. CType t => Builder -> GenM (CVar t)
