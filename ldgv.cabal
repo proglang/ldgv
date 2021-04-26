@@ -12,8 +12,9 @@ maintainer:          Programming Languages Uni Freiburg
 -- category:
 build-type:          Simple
 extra-source-files:  CHANGELOG.md
-                   , src/Tokens.x
-                   , src/Grammar.y
+                   , src/Parsing/Tokens.x
+                   , src/Parsing/Grammar.y
+                   , examples/*.ldgv
 
 data-files: c-support/runtime/LDST.h
           , c-support/runtime/LDST_debug.h
