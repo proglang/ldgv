@@ -30,7 +30,7 @@ printLn s = do
     pure ()
 
 -- | helper for prettyprinting results depending on debug level
-printResult :: (Pretty a, Pretty b) => (Either a b, s) -> JSM ()
+printResult :: (Pretty a, Pretty b) => (Either a b, s) -> IO ()
 printResult (Left a, _) = fail ("Error: " ++ pshow a)
 printResult (Right b, _) | debugLevel > DebugNone = printLn $ "Success: " ++ pshow b
                          | otherwise = printLn "Success"
