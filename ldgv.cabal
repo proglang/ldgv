@@ -1,76 +1,126 @@
-cabal-version:       >=1.10
+cabal-version:       2.0
 name:                ldgv
 version:             0.0.1
-synopsis: "A webbased interpreter for ldgv code"
+synopsis:            Frontend, interpreter and C backend for LDGV/LDST.
 -- description:
 -- bug-reports:
 license:             BSD3
 license-file:        LICENSE
-author:              Nils Hagner (Interpreter), (Typechecker by Peter Thiemann)
-maintainer:          nilshagner@tutanota.com
+author:              Nils Hagner (web frontend, interpreter), Janek Spaderna (command line fronted, C backend), Peter Thiemann (parser, typechecker)
+maintainer:          Programming Languages Uni Freiburg
 -- copyright:
 -- category:
 build-type:          Simple
 extra-source-files:  CHANGELOG.md
-                   , src/Tokens.x
-                   , src/Grammar.y
+                   , src/Parsing/Tokens.x
+                   , src/Parsing/Grammar.y
+                   , examples/*.ldgv
 
-library 
+data-files: c-support/runtime/LDST.h
+          , c-support/runtime/LDST_debug.h
+          , c-support/runtime/LDST.c
+          , c-support/runtime/LDST_serial.c
+          , c-support/runtime/LDST_concurrent.c
+          , c-support/runtime/thpool.h
+          , c-support/runtime/thpool.c
+
+library
   hs-source-dirs: src
-  exposed-modules: Interpreter
-                 , Typechecker
+  exposed-modules: C.Compile
+                 , C.Generate
                  , Config
                  , Examples
+                 , Interpreter
+                 , Kinds
+                 , Parsing
+                 , Parsing.Grammar
+                 , Parsing.Tokens
                  , ProcessEnvironment
-                 , SyntaxDescription
-  other-modules: Tokens
-               , Grammar
-               , Kinds
-               , Subtyping
-               , Syntax
+                 , Syntax
+                 , Syntax.CPS
+                 , Typechecker
+  other-modules: Subtyping
+               , Syntax.Pretty
                , TCSubtyping
                , TCTyping
                , TCXMonad
                , Typing
-               , PrettySyntax
-  build-tools: alex, happy
+               , MonadStack
+               , Paths_ldgv
+  build-tool-depends: alex:alex, happy:happy
   build-depends: base
                , array
+               , bytestring
                , containers
+               , file-embed
+               , filepath
                , lens
-               , jsaddle
-               , reflex
-               , reflex-dom
-               , text
                , mtl
                , prettyprinter
-               , file-embed
+               , text
+               , transformers
+               , typed-process
+               , validation-selective
   default-language: Haskell2010
 
 test-suite ldgv-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   hs-source-dirs: test
-                , src
-  other-modules: Syntax
-               , Grammar
-               , Tokens
-               , Kinds
+  other-modules: ArithmeticSpec
+               , CSpec
+               , FunctionApplicationSpec
+               , FunctionSignaturesSpec
+               , Utils
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends: hspec-discover:hspec-discover
-  build-depends: base >=4.12
-  				-- && <4.13
-               , array
-               , hspec
+  build-depends: base >=4.12 && <5
+               , ldgv
                , QuickCheck
+               , array
+               , bytestring
+               , containers
+               , filepath
+               , hspec
+               , mtl
+               , text
+               , typed-process
+               , unliftio
   default-language: Haskell2010
 
 
 executable ldgv-exe
-  main-is:             Main.hs
-  build-tools: alex, happy
-  build-depends: base >=4.12
-  				-- && <4.13
+  main-is: Main.hs
+  other-modules: Output
+  hs-source-dirs: exe
+  build-depends: base >=4.12 && < 5
+               , ldgv
+               , bytestring
+               , filepath
+               , mtl
+               , optparse-applicative
+               , prettyprinter ^>=1.7.0
+               , prettyprinter-ansi-terminal ^>=1.1.2
+               , terminal-size
+               , text
+               , unliftio
+  default-language: Haskell2010
+  ghc-options:
+    -Wall
+    -Wincomplete-uni-patterns
+    -Wincomplete-record-updates
+    -Wpartial-fields
+    -Wredundant-constraints
+    -rtsopts
+  if impl(ghcjs)
+    buildable: False
+
+
+executable ldgv-browser
+  main-is: Main.hs
+  other-modules: SyntaxDescription
+  hs-source-dirs: browser
+  build-depends: base >=4.12 && <4.13
                , ldgv
                , array
                , containers
@@ -79,9 +129,8 @@ executable ldgv-exe
                , reflex
                , reflex-dom
                , text
-               , mtl
-  hs-source-dirs: app
-  default-language:    Haskell2010
-  ghc-options: -Wall
+  default-language: Haskell2010
   if impl(ghcjs)
     ghc-options: -dedupe -Wall
+  if !impl(ghcjs)
+    buildable: False

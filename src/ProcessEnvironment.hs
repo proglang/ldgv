@@ -3,10 +3,9 @@ import Syntax as S
 import qualified Config as D
 import Control.Concurrent.Chan as C
 import Control.Monad.State as T
-import Language.Javascript.JSaddle
 
 -- | the interpretation monad
-type InterpretM = T.StateT PEnv JSM Value
+type InterpretM = T.StateT PEnv IO Value
 
 -- | create a new entry (requires identifier to be unique)
 createPMEntry :: PEnvEntry -> T.StateT PEnv IO ()

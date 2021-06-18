@@ -3,12 +3,15 @@ let
     inherit sha256;
     url = "https://github.com/${owner}/${repo}/tarball/${rev}";
   };
-  reflex-platform = fetcher (builtins.fromJSON (builtins.readFile ./versions.json)).reflex-platform;
-in (import reflex-platform { system = builtins.currentSystem; }).project ({ pkgs, ... }: {
+  reflex-platform = fetcher (builtins.fromJSON (builtins.readFile ./nix/versions.json)).reflex-platform;
+in (import reflex-platform {}).project ({ pkgs, ... }: {
   useWarp = true;
   withHoogle = false;
   packages = {
     ldgv = ./.;
+  };
+  overrides = self: super: {
+    validation-selective = self.callHackage "validation-selective" "0.1.0.0" {};
   };
   shells = {
     ghc = ["ldgv"];

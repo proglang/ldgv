@@ -10,6 +10,7 @@ val add2 (c1: dualof SendInt) =
     let <n, c3> = recv c2 in
     (m + n)
 
+val main : Int
 val main =
     let <a, b> = (new SendInt) in
     let a1 = fork (send2 a) in

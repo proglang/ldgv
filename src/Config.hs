@@ -2,9 +2,8 @@
 module Config where
 
 import qualified Debug.Trace as D
-import qualified Data.Text as T
-import Language.Javascript.JSaddle
-import PrettySyntax (Pretty, pshow)
+import Syntax.Pretty (Pretty, pshow)
+import Control.Monad.IO.Class
 
 data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)
@@ -12,30 +11,22 @@ data DebugLevel = DebugNone | DebugAll
 --debugLevel = DebugAll
 debugLevel = DebugNone
 
+trace :: String -> a -> a
 trace s a | debugLevel > DebugNone = D.trace s a
           | otherwise = a
 
+traceM :: Applicative f => String -> f ()
 traceM s | debugLevel > DebugNone = D.traceM s
          | otherwise = pure ()
 
-traceIO s | debugLevel > DebugNone = D.traceIO s
+traceShowM :: (Show a, Applicative f) => a -> f ()
+traceShowM = traceM . show
+
+traceIO :: MonadIO m => String -> m ()
+traceIO s | debugLevel > DebugNone = liftIO $ D.traceIO s
           | otherwise = pure ()
 
--- append text to our result textarea
-printLn :: String -> JSM ()
-printLn s = do
-    let t' = T.replace "\n" "\\n" $ T.pack s
-    let t = T.replace "'" "\\'" t'
-    val <- eval $ T.concat ["document.getElementById('tOutput').value += '", t, "\\n'"]
-    pure ()
-
--- | helper for prettyprinting results depending on debug level
-printResult :: (Pretty a, Pretty b) => (Either a b, s) -> JSM ()
-printResult (Left a, _) = fail ("Error: " ++ pshow a)
-printResult (Right b, _) | debugLevel > DebugNone = printLn $ "Success: " ++ pshow b
-                         | otherwise = printLn "Success"
-
-printDebug s | debugLevel > DebugNone = printLn $ show s
-printDebug s | otherwise = return ()
-
-putStrLn = printLn
+traceSuccess :: (Pretty a, Applicative f) => a -> f ()
+traceSuccess a
+  | debugLevel > DebugNone = traceM $ "Success: " ++ pshow a
+  | otherwise = traceM "Success"

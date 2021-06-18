@@ -10,7 +10,7 @@ import Kinds
 
 -- value equivalence
 valueEquiv' :: TEnv -> Exp -> Maybe (Exp, Type)
-valueEquiv' tenv (Lab name) = Just (Lab name, TLab [name])
+valueEquiv' tenv (Lit (LLab name)) = Just (Lit (LLab name), TLab [name])
 valueEquiv' tenv (Var name) = 
   let eqnEnv = [(name, (val, ty)) | (_, (Many, TEqn (Var name) val ty)) <- tenv] in
   lookup name eqnEnv
@@ -55,23 +55,23 @@ subtype' tenv (TRecv sx sin sout) (TRecv tx tin tout) =
                      (subst tx (Var nx) tout)
      return Kssn
 subtype' tenv (TCase val cases) ty2 
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val = 
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = 
   do ty1 <- lookup lll cases
      subtype tenv ty1 ty2
 subtype' tenv (TCase val@(Var x) cases) ty2 = 
   do (_, lty@(TLab labs)) <- lookup x tenv
      results <- mapM (\lll -> lookup lll cases >>= \ty1 ->
-                              subtype (("*lft*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                              subtype (("*lft*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ foldr1 klub results
 subtype' tenv ty1 (TCase val cases)
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val =
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
   do ty2 <- lookup lll cases
      subtype tenv ty1 ty2
 subtype' tenv ty1 (TCase val@(Var x) cases) =
   do (_, lty@(TLab labs)) <- lookup x tenv
      results <- mapM (\lll -> lookup lll cases >>= \ty2 ->
-                              subtype (("*rgt*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                              subtype (("*rgt*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ foldr1 klub results
   
@@ -116,24 +116,24 @@ lub' tenv (TRecv tx t1 t2) (TRecv sx s1 s2) =
     return $ TRecv rx r1 r2 
 
 lub' tenv (TCase val cases) ty2
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val = 
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = 
   do ty1 <- lookup lll cases
      lub tenv ty1 ty2
 lub' tenv (TCase val@(Var x) cases) ty2 =
   do (_, lty@(TLab labs)) <- lookup x tenv
      results <- mapM (\lll -> lookup lll cases >>= \ty1 ->
-                              lub (("*lft*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                              lub (("*lft*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ tcase val (zip labs results)
 
 lub' tenv ty1 (TCase val cases)
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val =
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
   do ty2 <- lookup lll cases
      lub tenv ty1 ty2
 lub' tenv ty1 (TCase val@(Var x) cases) =
   do (_, lty@(TLab labs)) <- D.traceShowId $ lookup x tenv
      results <- mapM (\lll -> lookup lll cases >>= \ty2 ->
-                              lub (("*rgt*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                              lub (("*rgt*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ tcase val (zip labs results)
 
@@ -177,24 +177,24 @@ glb' tenv (TRecv tx t1 t2) (TRecv sx s1 s2) =
     return $ TRecv rx r1 r2 
     
 glb' tenv (TCase val cases) ty2
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val = 
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = 
   do ty1 <- lookup lll cases
      glb tenv ty1 ty2
 glb' tenv (TCase val@(Var x) cases) ty2 =
   do (_, lty@(TLab labs)) <- lookup x tenv
      results <- mapM (\lll -> lookup lll cases >>= \ty1 ->
-                              glb (("*lft*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                              glb (("*lft*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ tcase val (zip labs results)
 
 glb' tenv ty1 (TCase val cases)
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val =
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
   do ty2 <- lookup lll cases
      glb tenv ty1 ty2
 glb' tenv ty1 (TCase val@(Var x) cases) =
   do (_, lty@(TLab labs)) <- lookup x tenv
      results <- mapM (\lll -> lookup lll cases >>= \ty2 ->
-                              glb (("*rgt*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                              glb (("*rgt*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ tcase val (zip labs results)
 

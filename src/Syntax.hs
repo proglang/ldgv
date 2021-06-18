@@ -1,6 +1,9 @@
+{-# LANGUAGE DeriveTraversable #-}
 module Syntax where
 
-import Data.List (union, (\\), sortBy, sort)
+import Data.List (foldl', sortBy, sort)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 import Kinds
 
@@ -9,18 +12,11 @@ type TIdent = String
 type Nat = Int
 
 data Exp = Let Ident Exp Exp
-         | Plus Exp Exp
-         | Minus Exp Exp
-         | Times Exp Exp
-         | Div Exp Exp
-         | Negate Exp
-         | Int Int
-         | Nat Nat
+         | Math (MathOp Exp)
+         | Lit Literal
          | Succ Exp
          | NatRec Exp Exp Ident TIdent Ident Type Exp
          | Var Ident
-         | Unit
-         | Lab String
          | Lam Multiplicity Ident Type Exp
          | Rec Ident Ident Type Type Exp
          | App Exp Exp
@@ -34,6 +30,21 @@ data Exp = Let Ident Exp Exp
          | Recv Exp
          | Case Exp [(String, Exp)]
   deriving (Show,Eq)
+
+data MathOp e
+  = Add e e
+  | Sub e e
+  | Mul e e
+  | Div e e
+  | Neg e
+  deriving (Show, Eq, Functor, Foldable, Traversable)
+
+data Literal
+  = LInt !Int
+  | LNat !Nat
+  | LLab !String
+  | LUnit
+  deriving (Show, Eq)
 
 data Type = TUnit
           | TInt
@@ -51,7 +62,6 @@ data Type = TUnit
           | TCase Exp [(String, Type)]
           | TEqn Exp Exp Type
           | TSingle Ident       -- same value (and type) as ident
-          | TDyn                -- the dynamic type
   deriving (Show)
 
 dualof :: Type -> Type
@@ -129,61 +139,57 @@ type KEnv = [(TIdent, KEnvEntry)]
 
 -- free expression variables
 class Freevars t where
-  fv :: t -> [Ident]
+  fv :: t -> Set Ident
 
 instance Freevars Exp where
-  fv (Let x e1 e2) = fv e1 `union` (fv e2 \\ [x])
-  fv (Plus e1 e2) = fv e1 `union` fv e2
-  fv (Minus e1 e2) = fv e1 `union` fv e2
-  fv (Times e1 e2) = fv e1 `union` fv e2
-  fv (Div e1 e2) = fv e1 `union` fv e2
-  fv (Negate e1) = fv e1
-  fv (Int n) = []
-  fv (Var x) = [x]
-  fv Unit = []
-  fv (Lab lab) = []
-  fv (Lam m x t e) = fv t `union` (fv e \\ [x])
-  fv (Rec f x t1 t2 e) = fv t1 `union` fv t2 `union` (fv e \\ [f, x])
-  fv (App e1 e2) = fv e1 `union` fv e2
-  fv (Pair m x e1 e2) = fv e1 `union` (fv e2 \\ [x])
-  fv (LetPair x y e1 e2) = fv e1 `union` (fv e2 \\ [x, y])
+  fv (Let x e1 e2) = fv e1 <> Set.delete x (fv e2)
+  fv (Math m) = fv m
+  fv (Lit _) = Set.empty
+  fv (Var x) = Set.singleton x
+  fv (Lam m x t e) = fv t <> Set.delete x (fv e)
+  fv (Rec f x t1 t2 e) = fv t1 <> fv t2 <> Set.delete f (Set.delete x (fv e))
+  fv (App e1 e2) = fv e1 <> fv e2
+  fv (Pair m x e1 e2) = fv e1 <> Set.delete x (fv e2)
+  fv (LetPair x y e1 e2) = fv e1 <> Set.delete x (Set.delete y (fv e2))
   fv (Fst e1) = fv e1
   fv (Snd e1) = fv e1
   fv (Fork e1) = fv e1
   fv (New ty) = fv ty
   fv (Send e1) = fv e1
   fv (Recv e1) = fv e1
-  fv (Case e cases) = fv e `union` foldr union [] (map (fv . snd) cases)
-  fv (Nat n) = []
-  fv (NatRec e ez x t y tyy es) = fv e `union` fv ez `union` (fv es \\ [x, y]) `union` fv tyy
+  fv (Case e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
+  fv (Succ e) = fv e
+  fv (NatRec e ez x t y tyy es) = fv e <> fv ez <> Set.delete x (Set.delete y (fv es)) <> fv tyy
+
+instance Freevars e => Freevars (MathOp e) where
+  fv = foldMap fv
 
 instance Freevars Type where
-  fv TUnit = []
-  fv TInt = []
-  fv TBot = []
-  fv (TName b tn) = []
-  fv (TVar b tv) = []
-  fv (TLab labs) = []
-  fv (TFun m x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv (TPair m x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv (TSend x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv (TRecv x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv (TCase e cases) = fv e `union` foldr union [] (map (fv . snd) cases)
-  fv (TEqn e1 e2 ty) = fv e1 `union` fv e2 `union` fv ty
-  fv (TSingle x) = [x]
-  fv (TNat) = []
-  fv (TNatRec e tz y ts) = fv e `union` fv tz `union` (fv ts \\ [y])
-  fv (TAbs x ty1 ty2) = fv ty1 `union` (fv ty2 \\ [x])
-  fv TDyn = []
+  fv TUnit = Set.empty
+  fv TInt = Set.empty
+  fv TBot = Set.empty
+  fv (TName b tn) = Set.empty
+  fv (TVar b tv) = Set.empty
+  fv (TLab labs) = Set.empty
+  fv (TFun m x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TPair m x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TSend x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TRecv x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TCase e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
+  fv (TEqn e1 e2 ty) = fv e1 <> fv e2 <> fv ty
+  fv (TSingle x) = Set.singleton x
+  fv TNat = Set.empty
+  fv (TNatRec e tz y ts) = fv e <> fv tz <> Set.delete y (fv ts)
+  fv (TAbs x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
 
 instance Freevars TypeSegment where
   fv ts = fv (segTy ts)
 
 instance (Freevars t) => Freevars [t] where
-  fv xs = foldr union [] $ map fv xs
+  fv xs = foldl' (<>) Set.empty $ map fv xs
 
 instance (Freevars t1, Freevars t2) => Freevars (t1, t2) where
-  fv (x1,x2) = fv x1 `union` fv x2
+  fv (x1, x2) = fv x1 <> fv x2
 
 -- substitution 
 class Substitution t where
@@ -194,13 +200,11 @@ instance Substitution Exp where
     where
     sb orig@(Var s) = if x == s then exp else orig
     sb (Let y e1 e2) = Let y (sb e1) (if x == y then e2 else sb e2)
-    sb (Plus e1 e2) = Plus (sb e1) (sb e2)
-    sb (Minus e1 e2) = Minus (sb e1) (sb e2)
-    sb (Times e1 e2) = Times (sb e1) (sb e2)
-    sb (Div e1 e2) = Div (sb e1) (sb e2)
-    sb (Negate e1) = Negate (sb e1)
-    sb (Lam m y ty e1) | x /= y = Lam m y (subst x exp ty) (sb e1)
-    sb (Lam m y ty e1) | x == y = Lam m y (subst x exp ty) e1
+    sb (Math m) = Math (subst x exp m)
+    sb (Lit l) = Lit l
+    sb (Lam m y ty e1)
+      | x /= y = Lam m y (subst x exp ty) (sb e1)
+      | otherwise = Lam m y (subst x exp ty) e1
     sb (Rec f y tyx ty e1) = Rec f y (subst x exp tyx) 
                                      (if x /= y then subst x exp ty else ty)
                                      (if x /= f && x /= y then sb e1 else e1)
@@ -211,11 +215,15 @@ instance Substitution Exp where
     sb (Snd e1) = Snd (sb e1)
     sb (LetPair y1 y2 e1 e2) = LetPair y1 y2 (sb e1) (if x /= y1 && x /= y2 then sb e2 else e2)
     sb (Fork e1) = Fork (sb e1)
+    sb (New t) = New t
     sb (Send e1) = Send (sb e1)
     sb (Recv e1) = Recv (sb e1)
+    sb (Succ e1) = Succ (sb e1)
     sb (NatRec e ez y t z tyz es) = 
       NatRec (sb e) (sb ez) y t z (subst x exp tyz) (if x /= y && x /= z then sb es else es)
-    sb orig = orig       -- sloppy!
+
+instance Substitution e => Substitution (MathOp e) where
+  subst x = fmap . subst x
 
 instance Substitution Type where
   subst x exp (TCase val cases) =
@@ -250,8 +258,6 @@ instance Substitution Type where
     ty
   subst x exp ty@TBot =
     ty
-  subst x exp ty@TDyn =
-    ty
   -- rationale: a type abbreviation has no free variables
   subst x exp ty@(TName b tid) =
     ty
@@ -268,6 +274,17 @@ instance Substitution Type where
       TAbs z (subst x exp ty1) ty2
     else
       TAbs z (subst x exp ty1) (subst x exp ty2)
+  subst x e t = error $ unlines
+    [ "src/Syntax.hs:277: non exhaustive pattern:"
+    , mconcat
+        [ "  subst "
+        , showsPrec 11 x " "
+        , showsPrec 11 e " "
+        , showsPrec 11 t ""
+        ]
+    , ""
+    , "Try to bind the expression with a `let`."
+    ]
 
 -- replace singleton types for x by tyx
 single :: Ident -> Type -> Type -> Type
@@ -290,7 +307,6 @@ single x tyx ty =
     TUnit -> TUnit
     TInt -> TInt
     TBot -> TBot
-    TDyn -> TDyn
     TName b i -> TName b i
     TVar b i -> TVar b i
     TLab labs -> TLab labs
@@ -304,35 +320,34 @@ single x tyx ty =
 varsupply :: Ident -> [Ident]
 varsupply x = x : [ x ++ show n | n <- [0..]]
 
--- freshvar template prohibited_vars
-freshvar :: Ident -> [Ident] -> Ident
-freshvar x vars = head [ x' | x' <- varsupply x, not (x' `elem` vars)]
+-- | @freshvar template prohibited_vars@
+freshvar :: Ident -> Set Ident -> Ident
+freshvar x vars = head [ x' | x' <- varsupply x,  x' `Set.notMember` vars]
 
--- equality for types modulo alpha equivalence
+-- | equality for types modulo alpha equivalence
 instance Eq Type where
   TUnit == TUnit = True
   TInt  == TInt  = True
   TBot  == TBot  = True
-  TDyn  == TDyn  = True
   TName b s == TName b' s' = b == b' && s == s'
   TVar b s == TVar b' s' = b == b' && s == s'
   TLab labs == TLab labs'  = sort labs == sort labs'
   TFun m x t1 t2 == TFun n y s1 s2 =
-       m ==n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
+      m == n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TPair m x t1 t2 == TPair n y s1 s2 =
-       m ==n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
+      m == n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TSend x t1 t2 == TSend y s1 s2 =
        t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TRecv x t1 t2 == TRecv y s1 s2 =
        t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TCase e cases == TCase e' cases' =
       labs == labs' && e == e' && and (zipWith (==) scases scases')
     where
@@ -352,11 +367,11 @@ instance Eq Type where
     tz == tz' &&
     tsubst x (TName True z) ts == tsubst x' (TName True z) ts'
     where                       -- TODO: should use free type names
-      z = freshvar x ((fv ts \\ [x]) `union` (fv ts' \\ [x']))
+      z = freshvar x $ Set.delete x (fv ts) <> Set.delete x' (fv ts')
   TAbs x t1 t2 == TAbs y s1 s2 =
        t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
-      z = freshvar x ((fv t2 \\ [ x ]) ++ (fv s2 \\ [ y ]))
+      z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   -- catchall
   _ == _ = False
 
@@ -371,7 +386,6 @@ tsubst tn tyn ty = ts ty
         TInt -> TInt
         TBot -> TBot
         TNat -> TNat
-        TDyn -> TDyn
         TNatRec e tz ti tsu ->
           TNatRec e (ts tz) ti (if ti == tn then tsu else ts tsu)
         TLab _ -> ty
@@ -382,4 +396,4 @@ tsubst tn tyn ty = ts ty
         TCase e cases -> TCase e (map (\(l, t) -> (l, ts t)) cases)
         TEqn e1 e2 t -> TEqn e1 e2 (ts t)
         TSingle x -> ty
-    
+        TUnit -> TUnit

@@ -1,19 +1,18 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 module TCTyping where
 
-import Control.Monad (zipWithM, ap)
-import Data.List ((\\))
+import Control.Monad (foldM, zipWithM, ap)
+import qualified Data.Set as Set
 
-import qualified Debug.Trace as DT
 import qualified Config as D
 
 import Syntax
+import Syntax.Pretty
 import Kinds
 import TCSubtyping
 import qualified TCXMonad as TC
 import qualified TCSubtyping as TC
-
-import PrettySyntax
 
 -- type TCM a = TC.M KEnv a
 
@@ -53,7 +52,7 @@ kiSynth te (TCase e1 cases) = do
   let tlabs = TLab (map fst cases)
   _ <- tyCheck te e1 tlabs
   ks <- mapM (\(lab, elab) -> 
-              kiSynth (("*kis*", (Many, TEqn e1 (Lab lab) tlabs)) : te) elab)
+              kiSynth (("*kis*", (Many, TEqn e1 (Lit $ LLab lab) tlabs)) : te) elab)
              cases
   return (foldr1 kolub ks)
 kiSynth te (TSingle x) = do
@@ -74,7 +73,9 @@ kiSynth te ty =
 kiCheck :: TEnv -> Type -> Kind -> TCM ()
 kiCheck te ty ki = do
   (k1, m1) <- kiSynth te ty
-  if klub ki k1 == ki then return () else TC.mfail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1)
+  if klub ki k1 == ki
+     then return ()
+     else TC.mfail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1)
 
 -- unrestricted strengthening of top entry
 strengthenTop :: Exp -> TEnv -> TCM TEnv
@@ -109,35 +110,14 @@ tySynth te e =
     (ki1, mm) <- kiSynth (demoteTE te1) ty1
     (ty2, te2) <- tySynth ((x, (inject mm, ty1)) : te1) e2
     strengthen e (ty2, te2) -- x
-  Plus e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Minus e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Times e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Div e1 e2 -> do
-    te1 <- tyCheck te e1 TInt
-    te2 <- tyCheck te1 e2 TInt
-    return (TInt, te2)
-  Negate e1 -> do
-    te1 <- tyCheck te e1 TInt
-    return (TInt, te1)
-  Int n -> return (TInt, te)
-  Nat n -> return (TNat, te)
+  Math m -> tySynthMath te m
+  Lit l -> return (tySynthLit l, te)
   Var x -> do
     (mm, tyx) <- maybe (TC.mfail ("No variable " ++ show x)) return $ lookup x te
     mm' <- maybe (TC.mfail ("Illegal use of linear variable " ++ show x)) return $ use mm
     let te' = map upd te
         upd entry@(y, _) = if x == y then (x, (mm', tyx)) else entry
     return (tyx, te')
-  Unit -> return (TUnit, te)
-  Lab la -> return (TLab [la], te)
   Lam mm x tyx e1 -> do
     (kix, mx) <- kiSynth (demoteTE te) tyx
     (ty, te1) <- tySynth ((x, (inject mx, tyx)) : te) e1
@@ -159,7 +139,7 @@ tySynth te e =
         TC.mfail ("Function expected, but got " ++ pshow tf ++ " (" ++ pshow tfu ++ ")")
 
   Pair mul x e1@(Var y) e2 -> do
-    let x' = freshvar x (fv e1 ++ (fv e2 \\ [x]))
+    let x' = freshvar x $ fv e1 <> Set.delete x (fv e2)
         e2' = subst x (Var x') e2
         ty1' = TSingle y
     (ty1, te1) <- tySynth te e1
@@ -169,7 +149,7 @@ tySynth te e =
     strengthen e (TPair mul x' ty1' ty2, te2)
 
   Pair mul x e1 e2 -> do
-    let x' = freshvar x (fv e1 ++ (fv e2 \\ [x]))
+    let x' = freshvar x $ fv e1 <> Set.delete x (fv e2)
         e2' = subst x (Var x') e2
     (ty1, te1) <- tySynth te e1
     (ki1, mu1) <- kiSynth (demoteTE te) ty1
@@ -252,7 +232,7 @@ tySynth te e =
       _ ->
         TC.mfail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
   Case e1 cases
-    | Just (Lab lab, TLab labels) <- valueEquiv (demoteTE te) e1 ->
+    | Just (Lit (LLab lab), TLab labels) <- valueEquiv (demoteTE te) e1 ->
       do elab <- maybe (TC.mfail ("No case for label " ++ show lab)) return $ lookup lab cases
          tySynth te elab
   Case e1@(Var x) cases -> do
@@ -260,7 +240,7 @@ tySynth te e =
         tlabels = TLab labels
     _ <- tyCheck (demoteTE te) e1 tlabels
     let flab (lab, elab) = do
-          (tylab, teq_telab) <- tySynth (("*lab-e2*", (Many, TEqn e1 (Lab lab) tlabels)) : te) elab
+          (tylab, teq_telab) <- tySynth (("*lab-e2*", (Many, TEqn e1 (Lit $ LLab lab) tlabels)) : te) elab
           return ((lab, tylab), tail teq_telab)
     ty_te_s <- mapM flab cases
     ty' <- tcaseM te e1 tlabels (map fst ty_te_s)
@@ -288,26 +268,38 @@ tySynth te e =
     _ <- tyCheck (demoteTE te) e1 TNat
     TC.censor (const []) $ TC.mlocal tv (TVar False tv, Kunit) $ do
       (tyz, tez) <- tySynth te ez
-      DT.traceM ("NatRec: tyz = " ++ pshow tyz)
+      D.traceM ("NatRec: tyz = " ++ pshow tyz)
       (kiy, muy) <- kiSynth (demoteTE te) tyy
-      DT.traceM ("NatRec: kiy = " ++ pshow (kiy, muy))
+      D.traceM ("NatRec: kiy = " ++ pshow (kiy, muy))
       (_, ccz) <- TC.listen (tyCheck te ez tyy)
       let tes_in = (y, (inject muy, tyy)) : (n1, (Many, TNat)) : te
-      DT.traceM ("NatRec: tes_in = " ++ pshow tes_in)
+      D.traceM ("NatRec: tes_in = " ++ pshow tes_in)
       (tys, tes) <- tySynth tes_in es
-      DT.traceM ("NatRec: tys = " ++ pshow tys)
+      D.traceM ("NatRec: tys = " ++ pshow tys)
       (_, ccs) <- TC.listen (tyCheck tes_in es tyy)
-      DT.traceM ("NatRec found constraints " ++ pshow ccz ++ ", " ++ pshow ccs)
+      D.traceM ("NatRec found constraints " ++ pshow ccz ++ ", " ++ pshow ccs)
       -- hack alert
       let rty = tsubst tv (TNatRec e1 (nonvar tzl tzr) tv (nonvar tsl tsr)) tyy
           tzl :<: tzr = head ccz
           tsl :<: tsr = head ccs
           nonvar (TVar _ _) tr = tr
           nonvar tl _ = tl
-      DT.traceM ("NatRec returns " ++ pshow rty)
+      D.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
   _ ->
     TC.mfail ("Unhandled expression: " ++ pshow e)
+
+tySynthLit :: Literal -> Type
+tySynthLit = \case
+  LInt _ -> TInt
+  LNat _ -> TNat
+  LLab l -> TLab [l]
+  LUnit  -> TUnit
+
+tySynthMath :: TEnv -> MathOp Exp -> TCM (Type, TEnv)
+tySynthMath te m = do
+  te' <- foldM (\te' e -> tyCheck te' e TInt) te m
+  return (TInt, te')
 
 tyCheck :: TEnv -> Exp -> Type -> TCM TEnv
 tyCheck te e ty = do

@@ -17,10 +17,3 @@ val sum (ch_in : SUMC) : End =
     let <k,c> = recv c in
     y (k + m) c
   }) 0 ch
-
-val sumclient (c : dualof SUMC) =
-  let c = send c 2 in
-  let c = send c 42 in
-  let c = send c 28 in
-  let <r,c> = recv c in
-  r

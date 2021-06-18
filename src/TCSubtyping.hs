@@ -2,16 +2,16 @@ module TCSubtyping where
 
 import Control.Applicative
 import Control.Monad (when, ap)
-import Data.List (union, intersect, nub, sort, (\\))
+import Data.List (nub, sort)
+import Data.Set (Set)
+import qualified Data.Set as Set
 
-import qualified Debug.Trace as DT
 import qualified Config as D
 
 import Syntax
+import Syntax.Pretty
 import Kinds
 import qualified TCXMonad as TC
-
-import PrettySyntax
 
 type Cache = [(Type, Type)]
 
@@ -42,8 +42,8 @@ subCacheLookup centry = do
 
 -- value equivalence
 valueEquiv' :: TEnv -> Exp -> Maybe (Exp, Type)
-valueEquiv' tenv (Lab name) = Just (Lab name, TLab [name])
-valueEquiv' tenv (Nat v) = Just (Nat v, TNat)
+valueEquiv' tenv (Lit (LLab name)) = Just (Lit $ LLab name, TLab [name])
+valueEquiv' tenv (Lit (LNat v)) = Just (Lit $ LNat v, TNat)
 valueEquiv' tenv (Var name) = 
   -- consider only relevant equation after last binding for name
   let relevantTenv = takeWhile ((/= name) . fst) tenv
@@ -51,12 +51,12 @@ valueEquiv' tenv (Var name) =
                | (_, (Many, TEqn (Var name) val ty)) <- relevantTenv] in
   do (e, t) <- lookup name eqnEnv
      case e of
-       Lab _ -> return (e, t)
-       Nat _ -> return (e, t)
+       Lit (LLab _) -> return (e, t)
+       Lit (LNat _) -> return (e, t)
        Succ _ -> return (e, t)
        Var x -> valueEquiv tenv e
   <|>
-  do (_, TSingle y) <- lookup name tenv -- no error message
+  do (_, TSingle y) <- lookup name tenv
      valueEquiv tenv (Var y)
 valueEquiv' tenv _ =
   Nothing
@@ -69,7 +69,6 @@ lablookup lll cases =
   maybe (TC.mfail ("No case for label " ++ show lll)) return $ 
   lookup lll cases
 
-varlookup :: Ident -> TEnv -> TCM (Occurrence, Type)
 varlookup x tenv =
   maybe (TC.mfail ("No binding for variable " ++ show x)) return $
   lookup x tenv
@@ -108,13 +107,13 @@ unfold tenv (TName b tn) = do
   kentry <- mlookup tn
   unfold tenv $ cdualof b $ keType kentry -- was: return $
 unfold tenv (TCase val cases)
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val = do
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = do
       ty <- lablookup lll cases
       unfold tenv ty
 unfold tenv (TCase val@(Var x) cases) = do
   (lty, labs) <- varlookupLabel x tenv
   results <- mapM (\lll -> lablookup lll cases >>= 
-                    unfold (("*unfold*", (Many, TEqn val (Lab lll) lty)) : tenv))
+                    unfold (("*unfold*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv))
              labs
   (_, tyx) <- varlookup x tenv
   tcaseM tenv val tyx (zip labs results)
@@ -122,10 +121,10 @@ unfold tenv (TCase val@(Var x) cases) = do
 unfold tenv (TNatRec e1 tz1 tv1 ts1)
   | Just (v, TNat) <- valueEquiv tenv e1 =
       case v of
-        Nat 0 ->
+        Lit (LNat 0) ->
           unfold tenv tz1
-        Nat n | n > 0 ->
-          unfold tenv (tsubst tv1 (TNatRec (Nat (n-1)) tz1 tv1 ts1) ts1)
+        Lit (LNat n) | n > 0 ->
+          unfold tenv (tsubst tv1 (TNatRec (Lit $ LNat (n-1)) tz1 tv1 ts1) ts1)
         Succ var ->
           unfold tenv (tsubst tv1 (TNatRec var tz1 tv1 ts1) ts1)
         _ ->
@@ -183,23 +182,23 @@ eqvtype' tenv (TRecv sx sin sout) (TRecv tx tin tout) =
                      (subst tx (Var nx) tout)
      return Kssn
 eqvtype' tenv (TCase val cases) ty2 
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val = 
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = 
   do ty1 <- lablookup lll cases
      eqvtype tenv ty1 ty2
 eqvtype' tenv (TCase val@(Var x) cases) ty2 = 
   do (lty, labs) <- varlookupLabel x tenv
      results <- mapM (\lll -> lablookup lll cases >>= \ty1 ->
-                         eqvtype (("*lft*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                         eqvtype (("*lft*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                 labs
      return $ foldr1 klub results
 eqvtype' tenv ty1 (TCase val cases)
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val =
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
   do ty2 <- lablookup lll cases
      eqvtype tenv ty1 ty2
 eqvtype' tenv ty1 (TCase val@(Var x) cases) =
   do (lty, labs) <- varlookupLabel x tenv
      results <- mapM (\lll -> lablookup lll cases >>= \ty2 ->
-                         eqvtype (("*rgt*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                         eqvtype (("*rgt*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                 labs
      return $ foldr1 klub results
 
@@ -207,10 +206,10 @@ eqvtype' tenv ty1 (TCase val@(Var x) cases) =
 eqvtype' tenv ty1@(TNatRec e1 tz1 tv1 ts1) ty2
   | Just (v, TNat) <- valueEquiv tenv e1 =
       case v of
-        Nat 0 ->
+        Lit (LNat 0) ->
           eqvtype tenv tz1 ty2
-        Nat n | n > 0 ->
-          eqvtype tenv (tsubst tv1 (TNatRec (Nat (n-1)) tz1 tv1 ts1) ts1) ty2
+        Lit (LNat n) | n > 0 ->
+          eqvtype tenv (tsubst tv1 (TNatRec (Lit $ LNat (n-1)) tz1 tv1 ts1) ts1) ty2
         Succ var ->
           eqvtype tenv (tsubst tv1 (TNatRec var tz1 tv1 ts1) ts1) ty2
         _ ->
@@ -220,7 +219,7 @@ eqvtype' tenv ty1@(TNatRec e1 tz1 tv1 ts1) ty2
 eqvtype' tenv ty1@(TNatRec val@(Var n) tz1 tv1 ts1) ty2 = 
   do varlookupNat n tenv
      let n' = freshvar n (fv ty1)
-     eqvtype (("*nlft*", (Many, TEqn val (Nat 0) TNat)) : tenv) tz1 ty2
+     eqvtype (("*nlft*", (Many, TEqn val (Lit $ LNat 0) TNat)) : tenv) tz1 ty2
      eqvtype (("*nlft*", (Many, TEqn val (Succ (Var n')) TNat)) :
               (n', (Many, TNat)): tenv)
        (tsubst tv1 (TNatRec (Var n') tz1 tv1 ts1) ts1)
@@ -231,10 +230,10 @@ eqvtype' tenv ty1@(TNatRec val@(Var n) tz1 tv1 ts1) ty2 =
 eqvtype' tenv ty1 ty2@(TNatRec e tz tv ts)
   | Just (v, TNat) <- valueEquiv tenv e =
       case v of
-        Nat 0 ->
+        Lit (LNat 0) ->
           eqvtype tenv ty1 tz
-        Nat n | n > 0 ->
-          eqvtype tenv ty1 (tsubst tv (TNatRec (Nat (n-1)) tz tv ts) ts)
+        Lit (LNat n) | n > 0 ->
+          eqvtype tenv ty1 (tsubst tv (TNatRec (Lit $ LNat (n-1)) tz tv ts) ts)
         Succ var -> do
           let ty2'= tsubst tv (TNatRec var tz tv ts) ts
               ty1c = complete (fv ty1) tenv ty1
@@ -244,8 +243,7 @@ eqvtype' tenv ty1 ty2@(TNatRec e tz tv ts)
           if incache then
             return Kunit        -- TODO!! unhack
             else
-            eqvtype tenv ty1 ty2'
-  -- need to do something about tv1: unfolding should be ok as we have a constant
+            eqvtype tenv ty1 ty2  -- need to do something about tv1: unfolding should be ok as we have a constant
 
 eqvtype' tenv ty1 ty2@(TNatRec val@(Var n) tz tv ts) = 
   do varlookupNat n tenv
@@ -257,7 +255,7 @@ eqvtype' tenv ty1 ty2@(TNatRec val@(Var n) tz tv ts) =
          ty1c = complete (fv ty1) tenv ty1
          ty2c = complete (fv ty2') tenv ty2'
          centry = (ty1c, ty2c)
-     eqvtype (("*nrgt*", (Many, TEqn val (Nat 0) TNat)) : tenv) ty1 tz
+     eqvtype (("*nrgt*", (Many, TEqn val (Lit $ LNat 0) TNat)) : tenv) ty1 tz
      incache <- eqvCacheLookup centry
      if incache then
        return Kunit             -- TODO!! unhack
@@ -274,10 +272,11 @@ eqvtype tenv t1 t2 = do
   return $ D.trace ("eqvtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ show r) r
 
 -- close a type wrt typing environment
-complete [] tenv ty = ty
+complete :: Set Ident -> TEnv -> Type -> Type
+complete xs tenv ty | Set.null xs = ty
 complete xs ((x, (_, tx)) : tenv) ty =
   if x `elem` xs
-  then complete (xs \\ [x]) tenv (TAbs x tx ty)
+  then complete (Set.delete x xs) tenv (TAbs x tx ty)
   else complete xs tenv ty
 complete xs [] ty =
   error ("complete failed on " ++ pshow ty)
@@ -286,12 +285,12 @@ complete xs [] ty =
 subtype' :: TEnv -> Type -> Type -> TCM Kind
 subtype' tenv ty1 ty2@(TVar b tv) = do
   kentry <- mlookup tv
-  DT.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
+  D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
 subtype' tenv ty1@(TVar b tv) ty2 = do
   kentry <- mlookup tv
-  DT.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
+  D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
 subtype' tenv TUnit TUnit = return Kunit
@@ -328,23 +327,23 @@ subtype' tenv (TRecv sx sin sout) (TRecv tx tin tout) =
                      (subst tx (Var nx) tout)
      return Kssn
 subtype' tenv (TCase val cases) ty2 
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val = 
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = 
   do ty1 <- lablookup lll cases
      subtype tenv ty1 ty2
 subtype' tenv (TCase val@(Var x) cases) ty2 = 
   do (lty, labs) <- varlookupLabel x tenv
      results <- mapM (\lll -> lablookup lll cases >>= \ty1 ->
-                              subtype (("*lft*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                              subtype (("*lft*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ foldr1 klub results
 subtype' tenv ty1 (TCase val cases)
-  | Just (Lab lll, TLab _) <- valueEquiv tenv val =
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
   do ty2 <- lablookup lll cases
      subtype tenv ty1 ty2
 subtype' tenv ty1 (TCase val@(Var x) cases) =
   do (lty, labs) <- varlookupLabel x tenv
      results <- mapM (\lll -> lablookup lll cases >>= \ty2 ->
-                              subtype (("*rgt*", (Many, TEqn val (Lab lll) lty)) : tenv) ty1 ty2)
+                              subtype (("*rgt*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ foldr1 klub results
 
@@ -352,10 +351,10 @@ subtype' tenv ty1 (TCase val@(Var x) cases) =
 subtype' tenv ty1@(TNatRec e1 tz1 tv1 ts1) ty2
   | Just (v, TNat) <- valueEquiv tenv e1 =
       case v of
-        Nat 0 ->
+        Lit (LNat 0)  ->
           subtype tenv tz1 ty2
-        Nat n ->
-          subtype tenv (tsubst tv1 (TNatRec (Nat (n-1)) tz1 tv1 ts1) ts1) ty2
+        Lit (LNat n)  ->
+          subtype tenv (tsubst tv1 (TNatRec (Lit $ LNat (n-1)) tz1 tv1 ts1) ts1) ty2
         Succ var ->
           subtype tenv (tsubst tv1 (TNatRec var tz1 tv1 ts1) ts1) ty2
         _ ->
@@ -365,7 +364,7 @@ subtype' tenv ty1@(TNatRec e1 tz1 tv1 ts1) ty2
 subtype' tenv ty1@(TNatRec val@(Var n) tz1 tv1 ts1) ty2 = 
   do varlookupNat n tenv
      let n' = freshvar n (fv ty1)
-     subtype (("*nlft*", (Many, TEqn val (Nat 0) TNat)) : tenv) tz1 ty2
+     subtype (("*nlft*", (Many, TEqn val (Lit $ LNat 0) TNat)) : tenv) tz1 ty2
      subtype (("*nlft*", (Many, TEqn val (Succ (Var n')) TNat)) :
               (n', (Many, TNat)): tenv)
        (tsubst tv1 (TNatRec (Var n') tz1 tv1 ts1) ts1)
@@ -376,10 +375,10 @@ subtype' tenv ty1@(TNatRec val@(Var n) tz1 tv1 ts1) ty2 =
 subtype' tenv ty1 ty2@(TNatRec e tz tv ts)
   | Just (v, TNat) <- valueEquiv tenv e =
       case v of
-        Nat 0 ->
+        Lit (LNat 0) ->
           subtype tenv ty1 tz
-        Nat n ->
-          subtype tenv ty1 (tsubst tv (TNatRec (Nat (n-1)) tz tv ts) ts)
+        Lit (LNat n) ->
+          subtype tenv ty1 (tsubst tv (TNatRec (Lit $ LNat (n-1)) tz tv ts) ts)
         Succ var -> do
           let ty2'= tsubst tv (TNatRec var tz tv ts) ts
               ty1c = complete (fv ty1) tenv ty1
@@ -402,7 +401,7 @@ subtype' tenv ty1 ty2@(TNatRec val@(Var n) tz tv ts) =
          ty1c = complete (fv ty1) tenv ty1
          ty2c = complete (fv ty2') tenv ty2'
          centry = (ty1c, ty2c)
-     subtype (("*nrgt*", (Many, TEqn val (Nat 0) TNat)) : tenv) ty1 tz
+     subtype (("*nrgt*", (Many, TEqn val (Lit $ LNat 0) TNat)) : tenv) ty1 tz
      incache <- subCacheLookup centry
      if incache then
        return Kunit             -- TODO!! unhack
@@ -441,7 +440,7 @@ subtype' tenv ty1@(TSingle z1) ty2 = do
 subtype' tenv t1 t2 = TC.mfail ("Subtyping fails to establish " ++ pshow t1 ++ " <: " ++ pshow t2)
 
 subtype tenv t1 t2 = do
-  DT.traceM ("Entering subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
+  D.traceM ("Entering subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
   r <- subtype' tenv t1 t2
   return $ D.trace ("subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ show r) r
 
