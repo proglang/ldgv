@@ -19,12 +19,43 @@ example_head = hspec $ do
     it "throws an exception if used with an empty list" $ do
       evaluate (head []) `shouldThrow` anyException
 
+scan :: String -> [T.Token]
+scan = T.alexScanTokens
+
+scanTest =
+  describe "LDGV scanner" $ do
+    it "scans an integer" $ do
+      scan "42" `shouldBe`
+        [T.Int 42]
+    it "scans a double" $ do
+      scan "-3.14159" `shouldBe`
+        [T.Double (negate 3.14159)]
+    it "scans another double" $ do
+      scan "-0.0" `shouldBe`
+        [T.Double (negate 0.0)]
+    it "scans an empty string" $ do
+      scan "\"\"" `shouldBe`
+        [T.Str ""]
+    it "scans alphanumeric string" $ do
+      scan "\"abhcg3555\"" `shouldBe`
+        [T.Str "abhcg3555"]
+    it "scans numeric string" $ do
+      scan "\"4711lskdfj\"" `shouldBe`
+        [T.Str "4711lskdfj"]
+    it "scans string with whitespace" $ do
+      scan "\"I found salvation\"" `shouldBe`
+        [T.Str "I found salvation"]
+    it "scans string with special symbols" $ do
+      scan "\". ; , $|*abs#?~-{}[]/\"" `shouldBe`
+        [T.Str ". ; , $|*abs#?~-{}[]/"]
+    it "scans string with double quote" $ do
+      scan "\"affe\\\"nschande\"" `shouldBe`
+        [T.Str "affe\"nschande"]
 
 parse :: String -> [Decl]
 parse = G.parseCalc . T.alexScanTokens
 
-main :: IO ()
-main = hspec $ do
+parseTest = 
   describe "LDGV parser" $ do
     it "parses an addition" $ do
       parse "val f (m:Int) (n:Int) = m + n" `shouldBe`
@@ -102,6 +133,19 @@ main = hspec $ do
              (App (Send (Var "c")) (Var "v"))))
           Nothing]
 
+    it "parses a case without 'of'" $ do
+      parse "val iors(x:*)=case x{'True: 42, 'False: ()}" `shouldBe`
+        [DFun "iors" [(MMany, "x",TDyn)] (Case (Var "x") [("True",Nat 42), ("False", Unit)]) Nothing]
 
+    it "parses a case with 'of'" $ do
+      parse "val iors(x:*) = case x of{'True: 42, 'False: ()}" `shouldBe`
+        [DFun "iors" [(MMany, "x",TDyn)] (Case (Var "x") [("True",Nat 42), ("False", Unit)]) Nothing]
 
+    it "parses a dynamic type" $ do
+      parse "val f (m:*) = m" `shouldBe`
+        [DFun "f" [(MMany,"m",TDyn)] (Var "m") Nothing]
 
+main :: IO ()
+main = hspec $ do
+  scanTest
+  parseTest
