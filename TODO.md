@@ -1,11 +1,12 @@
 ## TODO
 
-* nats with recursor
 * trees with recursor
-* pretty printing for types and expressions
+* catch the renaming bug!
 
 ## DONE
 
+* pretty printing for types and expressions 
+* nats with recursor 
 * algorithmic Sigma-G rule and implementation 
 * get all examples to run
 

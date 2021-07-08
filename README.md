@@ -1,29 +1,56 @@
-# ldgv - Label dependent session types
+# Gradual LDLC
 
-This reponsitory contains an implementation of a frontend (parser and
-type checker) for LDGV.
+An implementation of a frontend (parser and type checker) for LDGV, a
+type system for label-dependent session types.
+LDLC is a proper subset of LDGV.
+
+The typechecker has been extended to GLDLC.
 
 ## requirements
 
-Installation of the Haskell stack, tested with Version 1.9.3
+Installation of the Haskell stack Version 2.7.1 or a recent version of
+docker (see last section).
 
 ## build
 
 In the toplevel directory:
 
-`stack build`
+* `stack build` (obtains and builds compiler and libraries according to
+  the resolver lts-13.19 and) compiles the type checker
 
 ## usage
 
 In the toplevel directory:
 
-`stack exec ld-session-code-exe`
+`stack test` runs tests for scanner and parser 
+
+To run the toplevel CLI:
+
+`stack run`
 
 The input syntax is explained in file `syntax.txt`.
-There are examples in the `examples` directory. Source files end in
-`.ldgv`. They should be redirected into the executable as in
+There are examples in the `examples` directory. Source files that
+contain LDLC or LDGV end in `.ldgv`. They should be redirected into the executable as in
 
-`stack exec ld-session-code-exe < examples/node.ldgv`
+`stack run < examples/node.ldgv`
 
-There are further test cases in `example-inputs`, but this file contains
-single lines which test subtyping and other features in isolation.
+There are further test cases in `example-inputs`. This file contains
+single lines which test subtyping and other features in isolation. It
+can be processed as a whole.
+
+Examples specific for GLDLC are marked by the file extension `.gldlc`.
+
+* `examples-subtyping-dynamic.txt` exercises subtyping. This file can be processed as a whole.
+* `section1.gldlc` contains all LDLC and GLDLC code from Section 1 of the paper.
+* `section2.gldlc` LDLC and GLDLC examples from Section 2, except:
+* `examples/person.gldlc` an example built on the Person datatype in section 2.4.
+* `examples/optionalint.gldlc` an examples built on the OptionalInt dataype in section 2.4.
+
+## using the docker image
+
+Instead of installing stack on your local machine, you can run the
+whole process with docker (which needs to be installed). This is a
+quick-and-dirty image, but it seems to work ok.
+
+* Build the image using `docker build -t pthie/gldlc .`
+* Redirect the input files into `docker run -i pthie/gldlc`

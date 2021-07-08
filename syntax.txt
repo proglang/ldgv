@@ -2,6 +2,11 @@
 
 TID --- type identifier, starts with uppercase letter
 
+# Comments
+
+* lines starting with `--` to the end of the line
+* any test between `{-` and `-}` (not nested)
+
 # Declarations
 
 The top-level accepts a *sequence* of declarations as follows:
@@ -14,7 +19,7 @@ The top-level accepts a *sequence* of declarations as follows:
 * (obsolete) compute least upper bound of types
 * (obsolete) compute greatest lower bound of types
 
-D ::= "type" TID ":" m K "=" T
+D ::= "type" TID (":" m K)? "=" T
   | "val" id ":" m T
   | "val" id { m "(" id ":" T ")" } "=" M
   | T "<:" T
@@ -33,16 +38,19 @@ K' ::= "un" | "lin" | "unit" | "ssn" | "idx"
 
 # labels
 
-lab ::= "'" id
+lab ::= "'" id | "`" id
 
 # Types
 
 T ::= "Unit"
   | "Int"
+  | "Nat"
+  | "Double"
+  | "String"
   | "Bot"
   | TID
   | "{" lab { "," lab } "}"
-  | "case" M "of" "{" lab ":" T { "," lab ":" T } "}"
+  | "case" M ("of")? "{" lab ":" T { "," lab ":" T } "}"
   | "(" id ":" T ")" m "->" T
   | "[" m id ":" T "," T "]"
   | "!" "(" id ":" T ")" T
@@ -57,7 +65,7 @@ T ::= "Unit"
 M ::= "()"
   | lab
   | id
-  | "fun" m "(" id ":" T ")" M
+  | "fn" m "(" id ":" T ")" M
   | "rec" id "(" id ":" T ")" ":" T "=" M
   | M M
   | "let" id "=" M "in" M
@@ -69,8 +77,9 @@ M ::= "()"
   | "new" T
   | "send" M
   | "recv" M
-  | "case" M "of"  "{" lab ":" M { "," lab ":" M } "}"
+  | "case" M ("of")?  "{" lab ":" M { "," lab ":" M } "}"
   | "(" M ")"
+  | "(" M ":" T ")"
 
 ## later:
 
