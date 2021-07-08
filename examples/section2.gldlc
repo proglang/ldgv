@@ -1,0 +1,29 @@
+type Bool : ~un = {'T, 'F}
+
+val not (b : Bool) = (case b of {'T : 'F, 'F : 'T} : Bool)
+
+-- section 2,1
+-- 𝑓 =𝜆(𝑥∶Bool).𝜆(𝑦∶case𝑥{𝑇∶Int,𝐹∶Bool}).case𝑥{𝑇∶17+𝑦,𝐹∶not𝑦}
+
+val f  = 𝜆(x:Bool) 𝜆(y:case x{`T:Int,`F:Bool}) case x {'T: 17+y, 'F: not y}
+
+val f1 = 𝜆(x:Bool) 𝜆(y:*) case x {'T: 17+y, 'F: not y}
+
+val usef1_1 = f1 'T 42
+val usef1_2 = f1 'F 42
+val usef1_3 = f1 'T "foobar"
+
+val f2 = 𝜆(x:*) 𝜆(y:case x{`T:Int,`F:Bool}) case x {'T: 17+y, 'F: not y}
+
+val usef2_1_error = f2 ()
+val usef2_2 (z:*) = f2 z
+val usef2_3 = (fn(z:*) f2 z 'T) 'F
+val usef2_4 = f2 'F 'T
+val usef2_5 = f2 'F ('T : *)
+val usef2_6_error = f2 'F 4711
+val usef2_7_error = f2 4711 'F
+
+
+val f3 = 𝜆(x:*) 𝜆(y:case x{`T:Int,`F:*}) case x {'T: 17+y, 'F: not y}
+
+val usef3_1 = f3 'F 42

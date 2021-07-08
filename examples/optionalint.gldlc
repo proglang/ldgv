@@ -1,0 +1,23 @@
+type OptionalInt = [ t : {'none, 'some}, case t {'none: Unit, 'some: Int}]
+
+type OptionalInt' = [ t : *, case t {'none: Unit, 'some: Int}]
+
+val opt_map (f : (i : Int) -> Int) (oi : OptionalInt) =
+    let < tag, v > = oi in
+    case tag of { 'none: <t = tag, ()>, 'some: <t = tag, f v> }
+
+val opt_map1 = (opt_map : (f : (i : Int) -> Int) -> (oi : OptionalInt) -> OptionalInt)
+val opt_map2 = (opt_map : (f : (i : Int) -> Int) -> (oi : OptionalInt) -> OptionalInt')
+
+val opt'_map (f : (i : Int) -> Int) (oi : OptionalInt') =
+    let < tag, v > = oi in
+    case tag of { 'none: <t = tag, ()>, 'some: <t=tag, f v> }
+
+val opt'_map1 = (opt'_map : (f : (i : Int) -> Int) -> (oi : OptionalInt) -> OptionalInt)
+val opt'_map1 = (opt'_map : (f : (i : Int) -> Int) -> (oi : OptionalInt') -> OptionalInt')
+
+
+val opt'''' = (opt'_map : (f : *) -> (oi : *) -> OptionalInt')
+
+
+

@@ -1,0 +1,68 @@
+type Bool = {'True, 'False}
+
+-- section 1.1
+
+-- iors = 𝜆(𝑥 ∶ Bool)case𝑥 {𝑇 ∶ 42,𝐹 ∶ "bar"} ∶ Π(𝑥 ∶ Bool)case𝑥 {𝑇 ∶ Int,𝐹 ∶ Str}
+
+val iors = 𝜆(x:Bool)case x {'True: 42, 'False: "bar"}
+
+-- 𝜆(𝑥 ∶ {𝑇,𝐹,𝐷})case𝑥 {𝑇 ∶ 42,𝐹 ∶ "bar",𝐷 ∶ 3.14159}
+
+val iorsord (x : {'True, 'False, 'Double}) =  case x {'True: 42, 'False: "bar", 'Double: 3.14159}
+
+-- let𝑥 = (𝑧 = 2)in(case𝑥 {𝑇 ∶ 𝜆𝑥.𝑥,𝐹 ∶ 𝜆𝑥.len(𝑥)})(iors𝑥)
+
+val equal : (x: Nat) -> (y: Nat) -> Bool
+val len   : (x: String) -> Int
+
+-- renaming bug: don't use x in place of y!
+val try_iors1 (x : Bool) =
+    (case x {'True:   𝜆 (y:Int) y, 'False:   𝜆 (y:String) (len y)}) (iors x)
+
+val try_iors (z : Nat) =
+    let x = (equal z 2) in
+    (case x {'True:   𝜆 (y:Int) y, 'False:  len}) (iors x)
+
+-- 1.2 Sigma types
+
+-- 𝜆(𝑧 ∶Int) <𝑥 ∶Bool=(𝑧 >42),case𝑥{𝑇 ∶𝑧−42,𝐹 ∶str(𝑧)}>
+
+val greater : (x: Int) -> (y: Int) -> Bool
+val int_to_string : (x:Int) -> String
+
+val sigma_ex = 𝜆(z :Int) < x = (greater z 42), case x {'True: z - 42, 'False: int_to_string z} >
+
+val iors' = 𝜆(x:*)case x {'True: 42, 'False: "bar"}
+
+val iors1 = (iors' : (x : *) -> case x {'True: Int, 'False: String})
+val iors2 = (iors' : (x : *) -> case x {'True: *, 'False: String})
+val iors3 = (iors' : (x : *) -> case x {'True: Int, 'False: *})
+val iors4 = (iors' : (x : *) -> case x {'True: *, 'False: *})
+val iors5 = (iors' : (x : *) -> *)
+val iors6 = (iors' : *)
+
+val a6 = iors6 'Default
+val a5 = iors5 'Default
+val a4_error = iors4 'Default -- type error!
+val a4 = int_to_string (iors4 'True)
+val a3_runtime_error = int_to_string (iors3 'False)
+val a3 = int_to_string (iors3 'True)
+val a2_error = int_to_string (iors2 'False)
+
+val dp0' = < x = 'False, "foo" >
+val dp' = < x = ('False:*), "foo" >
+
+val dp1 = (dp' : [x:*, case x {'True: Int, 'False: String}])
+val dp2 = (dp' : [x:*, case x {'True: *, 'False: String}])
+val dp3 = (dp' : [x:*, case x {'True: Int, 'False: *}])
+val dp4 = (dp' : [x:*, case x {'True: *, 'False: *}])
+val dp5 = (dp' : [x:*, *])
+val dp6 = (dp' : *)
+
+val b6 = let < x, y > = dp6 in case x of {'True: y }
+val b5 = let < x, y > = dp5 in case x of {'True: y }
+val b4 = let < a, b > = dp4 in case a of {'True: b }
+
+val b3 = let < a, b > = dp3 in case a of {'True: b }
+val b2 = let < a, b > = dp2 in case a of {'True: b }
+val b1 = let < a, b > = dp1 in case a of {'True: b }

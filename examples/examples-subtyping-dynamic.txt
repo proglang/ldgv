@@ -1,0 +1,21 @@
+-- successful examples for consistent subtyping
+
+* <: Int
+Int <: *
+
+(x:*) -> Int <: (x:Unit) -> *
+
+(x:{'a}) -> case x of {'a: Int}  <: (x:{'a}) -> case x of {'a: * }
+
+(x:*) -> case x of {'a: Int}  <: (x:{'a}) -> case x of {'a: * }
+ 
+(x:{'a}) -> case x of {'a: Int}  <: (x:*) -> case x of {'a: * }
+
+(x:{'a}) -> Int  <: (x:*) -> case x of {'a: * }
+
+(x:{'a}) -> Int  <: (x:*) -> case x of {'a: * , 'b: Unit}
+
+(x:{'a,'b}) -> Int  <: (x:*) -> case x of {'a: Int , 'b: Unit}
+
+(x:{'a,'b}) -> Int  <: (x:*) -> case x of {'a: Unit , 'b: Unit}   -- should fail
+

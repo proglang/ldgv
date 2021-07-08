@@ -15,9 +15,9 @@ import PrettySyntax
 
 printResult :: (Pretty a, Pretty b) => (Either a b, s) -> IO ()
 printResult (Left a, _) =
-  putStrLn ("Error: " ++ pshow a)
+  putStrLn ("--- Error\t" ++ pshow a)
 printResult (Right b, _) =
-  putStrLn ("Success: " ++ pshow b)
+  putStrLn ("--- Success\t" ++ pshow b)
 
 main :: IO ()
 main = do
@@ -60,13 +60,13 @@ main = do
                     
             tenv' <- case mty of
               Nothing -> do
-                let r = (TC.runM (TT.tySynthUnfold tenv e') kenv TS.initCaches)
-                    tenv' = case fst r of
+                let r = fst (TC.runM (TT.tySynthUnfold tenv e') kenv TS.initCaches)
+                    tenv' = case r of
                           Left _ ->
                             tenv
                           Right ((ty, _), _) ->
                             ((f,(K.Many, ty)) : tenv)
-                printResult r
+                printResult (either Left (Right . VPair (f++":") . fst . fst) r, ())
                 return tenv'
 
               Just ty -> do

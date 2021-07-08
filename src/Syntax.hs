@@ -15,6 +15,8 @@ data Exp = Let Ident Exp Exp
          | Div Exp Exp
          | Negate Exp
          | Int Int
+         | Double Double
+         | Str String
          | Nat Nat
          | Succ Exp
          | NatRec Exp Exp Ident TIdent Ident Type Exp
@@ -33,11 +35,15 @@ data Exp = Let Ident Exp Exp
          | Send Exp
          | Recv Exp
          | Case Exp [(String, Exp)]
+         | Typed Exp Type
   deriving (Show,Eq)
 
 data Type = TUnit
           | TInt
+          | TDouble
+          | TString
           | TBot
+          | TDyn
           | TNat
           | TNatRec Exp Type TIdent Type
           | TVar Bool TIdent
@@ -135,6 +141,8 @@ instance Freevars Exp where
   fv (Div e1 e2) = fv e1 `union` fv e2
   fv (Negate e1) = fv e1
   fv (Int n) = []
+  fv (Double _) = []
+  fv (Str _) = []
   fv (Var x) = [x]
   fv Unit = []
   fv (Lab lab) = []
@@ -152,11 +160,15 @@ instance Freevars Exp where
   fv (Case e cases) = fv e `union` foldr union [] (map (fv . snd) cases)
   fv (Nat n) = []
   fv (NatRec e ez x t y tyy es) = fv e `union` fv ez `union` (fv es \\ [x, y]) `union` fv tyy
+  fv (Typed e t) = fv e `union` fv t
 
 instance Freevars Type where
   fv TUnit = []
   fv TInt = []
+  fv TDouble = []
+  fv TString = []
   fv TBot = []
+  fv TDyn = []
   fv (TName b tn) = []
   fv (TVar b tv) = []
   fv (TLab labs) = []
@@ -200,6 +212,7 @@ instance Substitution Exp where
                                      (if x /= y then subst x exp ty else ty)
                                      (if x /= f && x /= y then sb e1 else e1)
     sb (Case e1 cases) = Case (sb e1) [(lll, sb e) | (lll, e) <- cases]
+    sb (Typed e t) = Typed (sb e) (subst x exp t)
     sb (App e1 e2) = App (sb e1) (sb e2)
     sb (Pair m y e1 e2) = Pair m y (sb e1) (if x /= y then sb e2 else e2)
     sb (Fst e1) = Fst (sb e1)
@@ -213,8 +226,34 @@ instance Substitution Exp where
     sb orig = orig       -- sloppy!
 
 instance Substitution Type where
-  subst x exp (TCase val cases) =
-    TCase (subst x exp val) (map (\(lll, ty) -> (lll, subst x exp ty)) cases)
+  subst x exp ty@TUnit =
+    ty
+  subst x exp ty@TInt =
+    ty
+  subst x exp ty@TDouble =
+    ty
+  subst x exp ty@TString =
+    ty
+  subst x exp ty@TBot =
+    ty
+  subst x exp ty@TDyn =
+    ty
+  subst x exp ty@TNat =
+    ty
+  subst x exp ty@(TNatRec e tz y ts) =
+    TNatRec (subst x exp e) (subst x exp tz) y (if x /= y then subst x exp ts else ts)
+  subst x exp ty@(TVar b tid) =
+    ty
+  subst x exp (TAbs z ty1 ty2) =
+    if x == z then
+      TAbs z (subst x exp ty1) ty2
+    else
+      TAbs z (subst x exp ty1) (subst x exp ty2)
+  -- rationale: a type abbreviation has no free variables
+  subst x exp ty@(TName b tid) =
+    ty
+  subst x exp ty@(TLab labs) =
+    ty
   subst x exp (TFun m z ty1 ty2) =
     if x == z then
       TFun m z (subst x exp ty1) ty2
@@ -235,32 +274,14 @@ instance Substitution Type where
       TRecv z (subst x exp ty1) ty2
     else
       TRecv z (subst x exp ty1) (subst x exp ty2)
+  subst x exp (TCase val cases) =
+    TCase (subst x exp val) (map (\(lll, ty) -> (lll, subst x exp ty)) cases)
   subst x exp (TEqn ex1 ex2 ty) =
     TEqn (subst x exp ex1) (subst x exp ex2) ty
-  subst x exp ty@(TLab labs) =
-    ty
-  subst x exp ty@TInt =
-    ty
-  subst x exp ty@TUnit =
-    ty
-  subst x exp ty@TBot =
-    ty
-  -- rationale: a type abbreviation has no free variables
-  subst x exp ty@(TName b tid) =
-    ty
-  subst x exp ty@(TVar b tid) =
-    ty
   subst x (Var y) ty@(TSingle z) =
     if x == z then TSingle y else ty
-  subst x exp ty@TNat =
-    ty
-  subst x exp ty@(TNatRec e tz y ts) =
-    TNatRec (subst x exp e) (subst x exp tz) y (if x /= y then subst x exp ts else ts)
-  subst x exp (TAbs z ty1 ty2) =
-    if x == z then
-      TAbs z (subst x exp ty1) ty2
-    else
-      TAbs z (subst x exp ty1) (subst x exp ty2)
+  subst x exp ty@(TSingle z) =
+    ty -- if x == z then error ("substituting non variable "++show exp++" into singleton type "++show ty) else ty
 
 -- replace singleton types for x by tyx
 single :: Ident -> Type -> Type -> Type
@@ -282,7 +303,10 @@ single x tyx ty =
       TEqn e1 e2 (single x tyx t)
     TUnit -> TUnit
     TInt -> TInt
+    TDouble -> TDouble
+    TString -> TString
     TBot -> TBot
+    TDyn -> TDyn
     TName b i -> TName b i
     TVar b i -> TVar b i
     TLab labs -> TLab labs
@@ -304,7 +328,10 @@ freshvar x vars = head [ x' | x' <- varsupply x, not (x' `elem` vars)]
 instance Eq Type where
   TUnit == TUnit = True
   TInt  == TInt  = True
+  TDouble  == TDouble  = True
+  TString  == TString  = True
   TBot  == TBot  = True
+  TDyn  == TDyn  = True
   TName b s == TName b' s' = b == b' && s == s'
   TVar b s == TVar b' s' = b == b' && s == s'
   TLab labs == TLab labs'  = sort labs == sort labs'
@@ -360,7 +387,10 @@ tsubst tn tyn ty = ts ty
         TName b ti -> if ti == tn then tyn else ty
         TVar b ti -> ty
         TInt -> TInt
+        TDouble -> TDouble
+        TString -> TString
         TBot -> TBot
+        TDyn -> TDyn
         TNat -> TNat
         TNatRec e tz ti tsu ->
           TNatRec e (ts tz) ti (if ti == tn then tsu else ts tsu)

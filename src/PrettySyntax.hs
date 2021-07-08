@@ -1,4 +1,4 @@
-module PrettySyntax (Pretty(), pretty, pshow) where
+module PrettySyntax (Pretty(), pretty, pshow, VPair(VPair)) where
 
 import Kinds
 import Syntax
@@ -6,6 +6,12 @@ import Syntax
 import Data.Text.Prettyprint.Doc
 
 pshow x = show (pretty x)
+
+data VPair a b = VPair a b
+
+instance (Pretty a, Pretty b) => Pretty (VPair a b) where
+  pretty (VPair a b) =
+    vcat [pretty a, pretty b] 
 
 instance Pretty Constraint where
   pretty (t1 :<: t2) = pretty t1 <+> pretty "<:" <+> pretty t2
@@ -41,8 +47,11 @@ ptyped id t1 =
 instance Pretty Type where
   pretty TUnit = pretty "()"
   pretty TInt = pretty "Int"
+  pretty TDouble = pretty "Double"
+  pretty TString = pretty "String"
   pretty TNat = pretty "Nat"
   pretty TBot = pretty "_|_"
+  pretty TDyn = pretty "*"
     -- the bool indicates whether the type needs to be dualized
   pretty (TName b s) = (if b then pretty "~" else mempty) <> pretty s
   pretty (TVar b s) = (if b then pretty "~" else mempty) <> brackets (pretty s)
@@ -57,8 +66,8 @@ instance Pretty Type where
     pretty "!" <> ptyped id t1 <+> pretty t2
   pretty (TRecv id t1 t2) = 
     pretty "?" <> ptyped id t1 <+> pretty t2
-  pretty (TCase e (st : sts)) =
-    pcase e (st : sts)
+  pretty (TCase e sts) =
+    pcase e sts
   pretty (TEqn e1 e2 t) =
     pretty "{{" <> pretty e1 <+> equals <> equals <+> pretty e2 <+> colon <+> pretty t <> pretty "}}"
   pretty (TSingle x) =
@@ -71,12 +80,14 @@ instance Pretty Type where
   pretty (TAbs id t1 t2) =
     ptyped id t1 <+> pretty t2
 
-pcase e (st : sts) = 
+pcase e cases = 
   pretty "case" <+> pretty e <+>
+  braces (sep $ punctuate comma [plab s <> colon <+> pretty t | (s, t) <- cases])
+{-
   braces (g st <> foldr f mempty sts)
-    where g (s, t) = plab s <> colon <> pretty t
+    where g (s, t) = plab s <> colon <+> pretty t
           f st rest = comma <+> g st <> rest
-
+-}
 instance Pretty Exp where
   pretty (Let id e1 e2) =
     pretty "let" <+> pretty id <+> equals <+> pretty e1 <+> pretty "in" <+> 
@@ -93,11 +104,15 @@ instance Pretty Exp where
     pretty "-" <> pretty e
   pretty (Int i) = 
     pretty i
+  pretty (Double i) = 
+    pretty i
+  pretty (Str i) = 
+    pretty "\"" <> pretty i <> pretty "\""
   pretty (Var id) =
     pretty id
   pretty Unit =
     pretty "()"
-  pretty (Lab s) = plab s
+  pretty (Lab s) = pretty "`" <> plab s
   pretty (Lam m id t e) =
     pretty "fun" <> pretty m <+> ptyped id t <+>
     pretty e
@@ -118,6 +133,7 @@ instance Pretty Exp where
   pretty (Recv e) = pretty "recv" <+> pretty e
   pretty (Case e ses) = 
     pcase e ses
+  pretty (Typed e t) = parens (pretty e <> colon <+> pretty t)
   pretty (Nat n) =
     pretty n
   pretty (Succ e) =

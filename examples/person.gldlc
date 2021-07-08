@@ -1,0 +1,21 @@
+type BOOL = {'True, 'False}
+
+type PERSON = (x : {'Name, 'Age, 'Flag}) -> case x of {'Name: Int, 'Age: Nat, 'Flag: BOOL}
+
+type PERSONX = (x : *) -> case x of {'Name: Int, 'Age: Nat, 'Flag: BOOL}
+
+val jim (x : {'Name,'Age, 'Flag}) =
+  case x of
+  { 'Name: 65536
+  , 'Age:  27
+  , 'Flag: 'False
+  }
+
+val ageof (p : PERSON) = p 'Age
+
+val ageofX (p : PERSONX) = p 'Age
+
+val main = ageofX jim
+
+
+

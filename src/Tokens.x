@@ -9,11 +9,19 @@ $digit = 0-9                    -- digits
 $alpha = [a-zA-Z]               -- alphabetic characters
 $lower = [a-z]
 $upper = [A-Z]
+$special    = [\.\;\,\$\|\*\+\?\#\~\-\{\}\(\)\[\]\^\/]
+
+@label      = [\'\`] [$alpha $digit]+
+@ident      = $lower [$alpha $digit \_ \']*
+@tident     = $upper [$alpha $digit \_ \']*
+@string     = [\"] ($printable # [\\\"] | [\\][\"\\])* [\"]
+@kind       = "~" ("un" | "lin" | "unit" | "ssn" | "idx")
 
 tokens :-
 
   $white+                               ;
   "--".*                                ;
+  "{-" (.| \n)* "-}"                    ;
   assume                                { const Assume }
   case                                  { const Case }
   type                                  { const Type }
@@ -33,15 +41,18 @@ tokens :-
   close                                 { const Close }
   wait                                  { const Wait }
   expect                                { const Expect }
-  $digit+                               { Int . read }
+  ("+"|"-")? $digit+ "." $digit+        { Double . read }
+  ("+"|"-")? $digit+                    { Int . read }
   Bot                                   { const TBot }
   Unit                                  { const TUnit }
+  Double                                { const TDouble }
+  String                                { const TString }
   Int                                   { const TInt }
   natrec                                { const NatRec } 
   Nat                                   { const TNat }
   dualof                                { const DualOf }
   "_|_"                                 { const TBot }
-  "/\"                                  { const Glb }
+  "|-|"                                  { const Glb }
   "\/"                                  { const Lub }
   "()"                                  { const Unit }
   "->"                                  { const Arrow }
@@ -52,14 +63,23 @@ tokens :-
   ":"                                   { const Colon }
   ","                                   { const Comma }
   "."                                   { const Dot }
-  fn                                    { const Lambda }
+  fn |   𝜆                              { const Lambda }
   [\=\+\-\*\/\(\)\:\!\?\{\}\[\]\<\>]    { Sym . head }
-  "'" [$alpha $digit]*                  { Lab }
-  "~" $alpha+                           { Kind . read . ('K':) . tail }
-  $lower [$alpha $digit \_ \']*         { Var }
-  $upper [$alpha $digit \_ \']*         { TID }
+  @label                                { Lab . tail }
+  @kind                                 { Kind . read . ('K':) . tail }
+  @ident                                { Var }
+  @tident                               { TID }
+  @string                               { Str . cleanup . tail . init }         -- needs cleanup
 
 {
+
+-- cleanup a string token
+-- character following a backslash is taken literally
+cleanup :: String -> String
+cleanup "" = ""
+cleanup ('\\':x:xs) = x:cleanup xs
+cleanup (x:xs) = x:cleanup xs
+
 -- Each action has type :: String -> Token
 
 -- The token type:
@@ -93,9 +113,11 @@ data Token =
         TUnit           |
         TInt            |
         TNat            |
+        TDouble         |
+        TString         |
         NatRec          |
         Subtype         |
-        Equiv         |
+        Equiv           |
         OpenEqn         |
         CloseEqn        |
         Arrow           |
@@ -106,10 +128,15 @@ data Token =
         DualOf          |
         Glb          |
         Lub          |
-        Int Int
+        Int Int      |
+        Double Double |
+        Str String
         deriving (Eq,Show)
-
+{- only with
+%wrapper "basic"
 main = do
   s <- getContents
   print (alexScanTokens s)
+-}
+
 }
