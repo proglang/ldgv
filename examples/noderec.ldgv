@@ -1,6 +1,6 @@
 type Close : ~unit = Unit
 
-type Node : ~un =
+type Node =
   [ tag : {'Empty, 'Node},
     case tag of { 'Empty: Unit
                 , 'Node : [ Int, Node ] }
@@ -16,8 +16,8 @@ val recvList (c : dualof NodeC) : Node =
   let <tag,c> = recv c in
   let <payload,c> = recv c in
   case tag of
-  { 'Empty : <tag = tag , payload>
-  , 'Node  : <tag = tag , <elem = payload , recvList c> >
+  { 'Empty : <t = tag , ()>
+  , 'Node  : <t = tag , <elem = payload , recvList c> >
   }
 
 val recvListb (c : dualof NodeC) : Node =

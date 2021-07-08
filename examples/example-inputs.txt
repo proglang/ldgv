@@ -8,7 +8,7 @@
 
 {'a} <: {'a,'b}
 
-[ x : {'a}] |- case x of {'a : Int, 'b : Unit} <: case x of {'a : Int}
+-- [ x : {'a}] |- case x of {'a : Int, 'b : Unit} <: case x of {'a : Int}
 
 (x:{'a,'b}) -> Unit <: (x:{'a}) -> case x of { 'a : Unit , 'b : Int }
 
