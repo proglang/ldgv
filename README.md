@@ -49,8 +49,11 @@ Examples specific for GLDLC are marked by the file extension `.gldlc`.
 ## using the docker image
 
 Instead of installing stack on your local machine, you can run the
-whole process with docker (which needs to be installed). This is a
-quick-and-dirty image, but it seems to work ok.
+whole process with docker (Docker version 20.10.7, build
+f0df350). This is a quick-and-dirty image, but it seems to work ok.
 
-* Build the image using `docker build -t pthie/gldlc .`
-* Redirect the input files into `docker run -i pthie/gldlc`
+* Build the image using `docker build -t pthie/gldlc .` in the top-level directory.
+* Replace `stack run` by `docker run -i pthie/gldlc`. For example
+
+`docker run -i pthie/gldlc < examples/node.ldgv`
+
