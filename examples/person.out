@@ -1,0 +1,20 @@
+[DType "BOOL" MMany Kun (TLab ["True","False"]),DType "PERSON" MMany Kun (TFun MMany "x" (TLab ["Name","Age","Flag"]) (TCase (Var "x") [("Name",TInt),("Age",TNat),("Flag",TName False "BOOL")])),DType "PERSONX" MMany Kun (TFun MMany "x" TDyn (TCase (Var "x") [("Name",TInt),("Age",TNat),("Flag",TName False "BOOL")])),DFun "jim" [(MMany,"x",TLab ["Name","Age","Flag"])] (Case (Var "x") [("Name",Nat 65536),("Age",Nat 27),("Flag",Lab "False")]) Nothing,DFun "ageof" [(MMany,"p",TName False "PERSON")] (App (Var "p") (Lab "Age")) Nothing,DFun "ageofX" [(MMany,"p",TName False "PERSONX")] (App (Var "p") (Lab "Age")) Nothing,DFun "main" [] (App (Var "ageofX") (Var "jim")) Nothing]
+-------- running request --------
+--- type declaration: BOOL ---
+--- Success	((), [])
+--- type declaration: PERSON ---
+--- Success	((), [])
+--- type declaration: PERSONX ---
+--- Success	((), [])
+--- type checking: jim ---
+--- Success	jim:
+(x : {Name, Age, Flag}) -> case x {Name: Nat, Age: Nat, Flag: {False}}
+--- type checking: ageof ---
+--- Success	ageof:
+(p : PERSON) -> case `Age {Name: Int, Age: Nat, Flag: BOOL}
+--- type checking: ageofX ---
+--- Success	ageofX:
+(p : PERSONX) -> case `Age {Name: Int, Age: Nat, Flag: BOOL}
+--- type checking: main ---
+--- Success	main:
+Nat

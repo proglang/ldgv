@@ -1,0 +1,49 @@
+[DType "Bool" MMany Kun (TLab ["T","F"]),DFun "not" [(MMany,"b",TName False "Bool")] (Typed (Case (Var "b") [("T",Lab "F"),("F",Lab "T")]) (TName False "Bool")) Nothing,DFun "f" [] (Lam MMany "x" (TName False "Bool") (Lam MMany "y" (TCase (Var "x") [("T",TInt),("F",TName False "Bool")]) (Case (Var "x") [("T",Plus (Nat 17) (Var "y")),("F",App (Var "not") (Var "y"))]))) Nothing,DFun "f1" [] (Lam MMany "x" (TName False "Bool") (Lam MMany "y" TDyn (Case (Var "x") [("T",Plus (Nat 17) (Var "y")),("F",App (Var "not") (Var "y"))]))) Nothing,DFun "usef1_1" [] (App (App (Var "f1") (Lab "T")) (Nat 42)) Nothing,DFun "usef1_2" [] (App (App (Var "f1") (Lab "F")) (Nat 42)) Nothing,DFun "usef1_3" [] (App (App (Var "f1") (Lab "T")) (Str "foobar")) Nothing,DFun "f2" [] (Lam MMany "x" TDyn (Lam MMany "y" (TCase (Var "x") [("T",TInt),("F",TName False "Bool")]) (Case (Var "x") [("T",Plus (Nat 17) (Var "y")),("F",App (Var "not") (Var "y"))]))) Nothing,DFun "usef2_1_error" [] (App (Var "f2") Unit) Nothing,DFun "usef2_2" [(MMany,"z",TDyn)] (App (Var "f2") (Var "z")) Nothing,DFun "usef2_3" [] (App (Lam MMany "z" TDyn (App (App (Var "f2") (Var "z")) (Lab "T"))) (Lab "F")) Nothing,DFun "usef2_4" [] (App (App (Var "f2") (Lab "F")) (Lab "T")) Nothing,DFun "usef2_5" [] (App (App (Var "f2") (Lab "F")) (Typed (Lab "T") TDyn)) Nothing,DFun "usef2_6_error" [] (App (App (Var "f2") (Lab "F")) (Nat 4711)) Nothing,DFun "usef2_7_error" [] (App (App (Var "f2") (Nat 4711)) (Lab "F")) Nothing,DFun "f3" [] (Lam MMany "x" TDyn (Lam MMany "y" (TCase (Var "x") [("T",TInt),("F",TDyn)]) (Case (Var "x") [("T",Plus (Nat 17) (Var "y")),("F",App (Var "not") (Var "y"))]))) Nothing,DFun "usef3_1" [] (App (App (Var "f3") (Lab "F")) (Nat 42)) Nothing]
+-------- running request --------
+--- type declaration: Bool ---
+--- Success	((), [])
+--- type checking: not ---
+--- Success	not:
+(b : Bool) -> Bool
+--- type checking: f ---
+--- Success	f:
+(x : Bool) -> (y : case x {T: Int, F: Bool}) -> case x {T: Int, F: Bool}
+--- type checking: f1 ---
+--- Success	f1:
+(x : Bool) -> (y : *) -> case x {T: Int, F: Bool}
+--- type checking: usef1_1 ---
+--- Success	usef1_1:
+Int
+--- type checking: usef1_2 ---
+--- Success	usef1_2:
+{T, F}
+--- type checking: usef1_3 ---
+--- Success	usef1_3:
+Int
+--- type checking: f2 ---
+--- Success	f2:
+(x : *) -> (y : case x {T: Int, F: Bool}) -> case x {T: Int, F: Bool}
+--- type checking: usef2_1_error ---
+--- Error	Subtyping fails to establish () <: {T, F}
+--- type checking: usef2_2 ---
+--- Success	usef2_2:
+(z : *) -> (y : case z {T: Int, F: Bool}) -> case z {T: Int, F: Bool}
+--- type checking: usef2_3 ---
+--- Success	usef2_3:
+{T, F}
+--- type checking: usef2_4 ---
+--- Success	usef2_4:
+{T, F}
+--- type checking: usef2_5 ---
+--- Success	usef2_5:
+{T, F}
+--- type checking: usef2_6_error ---
+--- Error	Subtyping fails to establish Nat <: {T, F}
+--- type checking: usef2_7_error ---
+--- Error	Subtyping fails to establish Nat <: {T, F}
+--- type checking: f3 ---
+--- Success	f3:
+(x : *) -> (y : case x {T: Int, F: *}) -> case x {T: Int, F: Bool}
+--- type checking: usef3_1 ---
+--- Success	usef3_1:
+{T, F}

@@ -40,11 +40,14 @@ can be processed as a whole.
 
 Examples specific for GLDLC are marked by the file extension `.gldlc`.
 
-* `examples-subtyping-dynamic.txt` exercises subtyping. This file can be processed as a whole.
-* `section1.gldlc` contains all LDLC and GLDLC code from Section 1 of the paper.
-* `section2.gldlc` LDLC and GLDLC examples from Section 2, except:
+* `examples/examples-subtyping-dynamic.txt` exercises subtyping. This file can be processed as a whole.
+* `examples/section1.gldlc` contains all LDLC and GLDLC code from Section 1 of the paper.
+* `examples/section2.gldlc` LDLC and GLDLC examples from Section 2, except:
 * `examples/person.gldlc` an example built on the Person datatype in section 2.4.
 * `examples/optionalint.gldlc` an examples built on the OptionalInt dataype in section 2.4.
+
+The expected outputs may be found in the corresponding `.out` files as
+in `examples/section1.out`.
 
 ## using the docker image
 

@@ -1,0 +1,22 @@
+[DSub TDyn TInt,DSub TInt TDyn,DSub (TFun MMany "x" TDyn TInt) (TFun MMany "x" TUnit TDyn),DSub (TFun MMany "x" (TLab ["a"]) (TCase (Var "x") [("a",TInt)])) (TFun MMany "x" (TLab ["a"]) (TCase (Var "x") [("a",TDyn)])),DSub (TFun MMany "x" TDyn (TCase (Var "x") [("a",TInt)])) (TFun MMany "x" (TLab ["a"]) (TCase (Var "x") [("a",TDyn)])),DSub (TFun MMany "x" (TLab ["a"]) (TCase (Var "x") [("a",TInt)])) (TFun MMany "x" TDyn (TCase (Var "x") [("a",TDyn)])),DSub (TFun MMany "x" (TLab ["a"]) TInt) (TFun MMany "x" TDyn (TCase (Var "x") [("a",TDyn)])),DSub (TFun MMany "x" (TLab ["a"]) TInt) (TFun MMany "x" TDyn (TCase (Var "x") [("a",TDyn),("b",TUnit)])),DSub (TFun MMany "x" (TLab ["a","b"]) TInt) (TFun MMany "x" TDyn (TCase (Var "x") [("a",TInt),("b",TUnit)])),DSub (TFun MMany "x" (TLab ["a","b"]) TInt) (TFun MMany "x" TDyn (TCase (Var "x") [("a",TUnit),("b",TUnit)]))]
+-------- running request --------
+--- subtyping ---
+--- Success	(Kunit, [])
+--- subtyping ---
+--- Success	(Kunit, [])
+--- subtyping ---
+--- Success	(Kun, [])
+--- subtyping ---
+--- Success	(Kun, [])
+--- subtyping ---
+--- Success	(Kun, [])
+--- subtyping ---
+--- Success	(Kun, [])
+--- subtyping ---
+--- Success	(Kun, [])
+--- subtyping ---
+--- Success	(Kun, [])
+--- subtyping ---
+--- Success	(Kun, [])
+--- subtyping ---
+--- Error	subtype': no right branch succeeded

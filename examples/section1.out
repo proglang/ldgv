@@ -1,0 +1,101 @@
+[DType "Bool" MMany Kun (TLab ["True","False"]),DFun "iors" [] (Lam MMany "x" (TName False "Bool") (Case (Var "x") [("True",Nat 42),("False",Str "bar")])) Nothing,DFun "iorsord" [(MMany,"x",TLab ["True","False","Double"])] (Case (Var "x") [("True",Nat 42),("False",Str "bar"),("Double",Double 3.14159)]) Nothing,DSig "equal" Many (TFun MMany "x" TNat (TFun MMany "y" TNat (TName False "Bool"))),DSig "len" Many (TFun MMany "x" TString TInt),DFun "try_iors1" [(MMany,"x",TName False "Bool")] (App (Case (Var "x") [("True",Lam MMany "y" TInt (Var "y")),("False",Lam MMany "y" TString (App (Var "len") (Var "y")))]) (App (Var "iors") (Var "x"))) Nothing,DFun "try_iors" [(MMany,"z",TNat)] (Let "x" (App (App (Var "equal") (Var "z")) (Nat 2)) (App (Case (Var "x") [("True",Lam MMany "y" TInt (Var "y")),("False",Var "len")]) (App (Var "iors") (Var "x")))) Nothing,DSig "greater" Many (TFun MMany "x" TInt (TFun MMany "y" TInt (TName False "Bool"))),DSig "int_to_string" Many (TFun MMany "x" TInt TString),DFun "sigma_ex" [] (Lam MMany "z" TInt (Pair MMany "x" (App (App (Var "greater") (Var "z")) (Nat 42)) (Case (Var "x") [("True",Minus (Var "z") (Nat 42)),("False",App (Var "int_to_string") (Var "z"))]))) Nothing,DFun "iors'" [] (Lam MMany "x" TDyn (Case (Var "x") [("True",Nat 42),("False",Str "bar")])) Nothing,DFun "iors1" [] (Typed (Var "iors'") (TFun MMany "x" TDyn (TCase (Var "x") [("True",TInt),("False",TString)]))) Nothing,DFun "iors2" [] (Typed (Var "iors'") (TFun MMany "x" TDyn (TCase (Var "x") [("True",TDyn),("False",TString)]))) Nothing,DFun "iors3" [] (Typed (Var "iors'") (TFun MMany "x" TDyn (TCase (Var "x") [("True",TInt),("False",TDyn)]))) Nothing,DFun "iors4" [] (Typed (Var "iors'") (TFun MMany "x" TDyn (TCase (Var "x") [("True",TDyn),("False",TDyn)]))) Nothing,DFun "iors5" [] (Typed (Var "iors'") (TFun MMany "x" TDyn TDyn)) Nothing,DFun "iors6" [] (Typed (Var "iors'") TDyn) Nothing,DFun "a6" [] (App (Var "iors6") (Lab "Default")) Nothing,DFun "a5" [] (App (Var "iors5") (Lab "Default")) Nothing,DFun "a4_error" [] (App (Var "iors4") (Lab "Default")) Nothing,DFun "a4" [] (App (Var "int_to_string") (App (Var "iors4") (Lab "True"))) Nothing,DFun "a3_runtime_error" [] (App (Var "int_to_string") (App (Var "iors3") (Lab "False"))) Nothing,DFun "a3" [] (App (Var "int_to_string") (App (Var "iors3") (Lab "True"))) Nothing,DFun "a2_error" [] (App (Var "int_to_string") (App (Var "iors2") (Lab "False"))) Nothing,DFun "dp0'" [] (Pair MMany "x" (Lab "False") (Str "foo")) Nothing,DFun "dp'" [] (Pair MMany "x" (Typed (Lab "False") TDyn) (Str "foo")) Nothing,DFun "dp1" [] (Typed (Var "dp'") (TPair MMany "x" TDyn (TCase (Var "x") [("True",TInt),("False",TString)]))) Nothing,DFun "dp2" [] (Typed (Var "dp'") (TPair MMany "x" TDyn (TCase (Var "x") [("True",TDyn),("False",TString)]))) Nothing,DFun "dp3" [] (Typed (Var "dp'") (TPair MMany "x" TDyn (TCase (Var "x") [("True",TInt),("False",TDyn)]))) Nothing,DFun "dp4" [] (Typed (Var "dp'") (TPair MMany "x" TDyn (TCase (Var "x") [("True",TDyn),("False",TDyn)]))) Nothing,DFun "dp5" [] (Typed (Var "dp'") (TPair MMany "x" TDyn TDyn)) Nothing,DFun "dp6" [] (Typed (Var "dp'") TDyn) Nothing,DFun "b6" [] (LetPair "x" "y" (Var "dp6") (Case (Var "x") [("True",Var "y")])) Nothing,DFun "b5" [] (LetPair "x" "y" (Var "dp5") (Case (Var "x") [("True",Var "y")])) Nothing,DFun "b4" [] (LetPair "a" "b" (Var "dp4") (Case (Var "a") [("True",Var "b")])) Nothing,DFun "b3" [] (LetPair "a" "b" (Var "dp3") (Case (Var "a") [("True",Var "b")])) Nothing,DFun "b2" [] (LetPair "a" "b" (Var "dp2") (Case (Var "a") [("True",Var "b")])) Nothing,DFun "b1" [] (LetPair "a" "b" (Var "dp1") (Case (Var "a") [("True",Var "b")])) Nothing]
+-------- running request --------
+--- type declaration: Bool ---
+--- Success	((), [])
+--- type checking: iors ---
+--- Success	iors:
+(x : Bool) -> case x {True: Nat, False: String}
+--- type checking: iorsord ---
+--- Success	iorsord:
+(x : {True, False, Double}) -> case x {True: Nat, False: String, Double: Double}
+--- type checking: try_iors1 ---
+--- Success	try_iors1:
+(x : Bool) -> case x {True: Int, False: Int}
+--- type checking: try_iors ---
+--- Success	try_iors:
+(z : Nat) -> case equal z 2 {True: Int, False: Int}
+--- type checking: sigma_ex ---
+--- Success	sigma_ex:
+(z : Int) -> [x : Bool, case x {True: Int, False: String}]
+--- type checking: iors' ---
+--- Success	iors':
+(x : *) -> case x {True: Nat, False: String}
+--- type checking: iors1 ---
+--- Success	iors1:
+(x : *) -> case x {True: Int, False: String}
+--- type checking: iors2 ---
+--- Success	iors2:
+(x : *) -> case x {True: *, False: String}
+--- type checking: iors3 ---
+--- Success	iors3:
+(x : *) -> case x {True: Int, False: *}
+--- type checking: iors4 ---
+--- Success	iors4:
+(x : *) -> case x {True: *, False: *}
+--- type checking: iors5 ---
+--- Success	iors5:
+(x : *) -> *
+--- type checking: iors6 ---
+--- Success	iors6:
+*
+--- type checking: a6 ---
+--- Success	a6:
+*
+--- type checking: a5 ---
+--- Success	a5:
+*
+--- type checking: a4_error ---
+--- Error	Subtyping fails to establish {Default} <: {True, False}
+--- type checking: a4 ---
+--- Success	a4:
+String
+--- type checking: a3_runtime_error ---
+--- Success	a3_runtime_error:
+String
+--- type checking: a3 ---
+--- Success	a3:
+String
+--- type checking: a2_error ---
+--- Error	Subtyping fails to establish String <: Int
+--- type checking: dp0' ---
+--- Success	dp0':
+[x : {False}, String]
+--- type checking: dp' ---
+--- Success	dp':
+[x : *, String]
+--- type checking: dp1 ---
+--- Success	dp1:
+[x : *, case x {True: Int, False: String}]
+--- type checking: dp2 ---
+--- Success	dp2:
+[x : *, case x {True: *, False: String}]
+--- type checking: dp3 ---
+--- Success	dp3:
+[x : *, case x {True: Int, False: *}]
+--- type checking: dp4 ---
+--- Success	dp4:
+[x : *, case x {True: *, False: *}]
+--- type checking: dp5 ---
+--- Success	dp5:
+[x : *, *]
+--- type checking: dp6 ---
+--- Success	dp6:
+*
+--- type checking: b6 ---
+--- Success	b6:
+*
+--- type checking: b5 ---
+--- Success	b5:
+*
+--- type checking: b4 ---
+--- Success	b4:
+case fst dp4 {True: *, False: *}
+--- type checking: b3 ---
+--- Success	b3:
+case fst dp3 {True: Int, False: *}
+--- type checking: b2 ---
+--- Success	b2:
+case fst dp2 {True: *, False: String}
+--- type checking: b1 ---
+--- Success	b1:
+case fst dp1 {True: Int, False: String}

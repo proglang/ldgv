@@ -1,0 +1,29 @@
+[DType "OptionalInt" MMany Kun (TPair MMany "t" (TLab ["none","some"]) (TCase (Var "t") [("none",TUnit),("some",TInt)])),DType "OptionalInt'" MMany Kun (TPair MMany "t" TDyn (TCase (Var "t") [("none",TUnit),("some",TInt)])),DFun "opt_map" [(MMany,"f",TFun MMany "i" TInt TInt),(MMany,"oi",TName False "OptionalInt")] (LetPair "tag" "v" (Var "oi") (Case (Var "tag") [("none",Pair MMany "t" (Var "tag") Unit),("some",Pair MMany "t" (Var "tag") (App (Var "f") (Var "v")))])) Nothing,DFun "opt_map1" [] (Typed (Var "opt_map") (TFun MMany "f" (TFun MMany "i" TInt TInt) (TFun MMany "oi" (TName False "OptionalInt") (TName False "OptionalInt")))) Nothing,DFun "opt_map2" [] (Typed (Var "opt_map") (TFun MMany "f" (TFun MMany "i" TInt TInt) (TFun MMany "oi" (TName False "OptionalInt") (TName False "OptionalInt'")))) Nothing,DFun "opt'_map" [(MMany,"f",TFun MMany "i" TInt TInt),(MMany,"oi",TName False "OptionalInt'")] (LetPair "tag" "v" (Var "oi") (Case (Var "tag") [("none",Pair MMany "t" (Var "tag") Unit),("some",Pair MMany "t" (Var "tag") (App (Var "f") (Var "v")))])) Nothing,DFun "opt'_map1" [] (Typed (Var "opt'_map") (TFun MMany "f" (TFun MMany "i" TInt TInt) (TFun MMany "oi" (TName False "OptionalInt") (TName False "OptionalInt")))) Nothing,DFun "opt'_map1" [] (Typed (Var "opt'_map") (TFun MMany "f" (TFun MMany "i" TInt TInt) (TFun MMany "oi" (TName False "OptionalInt'") (TName False "OptionalInt'")))) Nothing,DFun "opt''''" [] (Typed (Var "opt'_map") (TFun MMany "f" TDyn (TFun MMany "oi" TDyn (TName False "OptionalInt'")))) Nothing]
+-------- running request --------
+--- type declaration: OptionalInt ---
+--- Success	((), [])
+--- type declaration: OptionalInt' ---
+--- Success	((), [])
+--- type checking: opt_map ---
+--- Success	opt_map:
+(f : (i : Int) -> Int) -> (oi : OptionalInt) -> [t : {none, some}, case t {none: (),
+some: Int}]
+--- type checking: opt_map1 ---
+--- Success	opt_map1:
+(f : (i : Int) -> Int) -> (oi : OptionalInt) -> OptionalInt
+--- type checking: opt_map2 ---
+--- Success	opt_map2:
+(f : (i : Int) -> Int) -> (oi : OptionalInt) -> OptionalInt'
+--- type checking: opt'_map ---
+--- Success	opt'_map:
+(f : (i : Int) -> Int) -> (oi : OptionalInt') -> [t : {none, some}, case t {none: (),
+some: Int}]
+--- type checking: opt'_map1 ---
+--- Success	opt'_map1:
+(f : (i : Int) -> Int) -> (oi : OptionalInt) -> OptionalInt
+--- type checking: opt'_map1 ---
+--- Success	opt'_map1:
+(f : (i : Int) -> Int) -> (oi : OptionalInt') -> OptionalInt'
+--- type checking: opt'''' ---
+--- Success	opt'''':
+(f : *) -> (oi : *) -> OptionalInt'
