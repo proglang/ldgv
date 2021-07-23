@@ -9,7 +9,8 @@ The typechecker has been extended to GLDLC.
 ## requirements
 
 Installation of the Haskell stack Version 2.7.1 or a recent version of
-docker (see last section).
+docker (see last section). Installation of the Haskell stack is
+described on https://docs.haskellstack.org/en/stable/README/
 
 ## build
 
@@ -28,6 +29,7 @@ To run the toplevel CLI:
 
 `stack run`
 
+This program is interactive and reads from standard input!
 The input syntax is explained in file `syntax.txt`.
 There are examples in the `examples` directory. Source files that
 contain LDLC or LDGV end in `.ldgv`. They should be redirected into the executable as in
