@@ -26,7 +26,7 @@ instance Pretty Occurrence where
   pretty Zero = pretty '0'
 
 instance Pretty Kind where
-  pretty k = pretty (show k)
+  pretty k = pretty "~" <> pretty (tail $ show k)
 
 instance Pretty TypeSegment where
   pretty (Seg SegSend x t) = pretty "!" <> ptyped x t
@@ -36,7 +36,7 @@ instance Pretty TypeSegment where
 
 
 plab str =
-  -- pretty "'" <> -- seem built into the lab string
+  pretty "`" <>
   pretty str
 
 ptyped ('#':_) t1 =

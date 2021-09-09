@@ -4,7 +4,6 @@ import qualified Tokens as T
 import qualified Grammar as G
 import qualified Syntax as G
 import qualified Subtyping as S
-import qualified Typing as Ty
 import qualified Kinds as K
 
 import qualified TCXMonad as TC
@@ -80,7 +79,6 @@ main = do
             putStrLn ("--- type declaration: " ++ tid ++ " ---")
             -- TODO: in general, we need to wait with this check until all types are declared
             let kenv' = (tid, (ty, k)):kenv
-            -- print (Ty.kiCheck tenv ty k)
             printResult (TC.runM (TT.kiCheck tenv ty k) kenv' TS.initCaches)
             exec tenv kenv' cmds
           _ ->

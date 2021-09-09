@@ -34,7 +34,6 @@ library
       Tokens
       Grammar
       Subtyping
-      Typing
       Kinds
       Syntax
       TCSubtyping

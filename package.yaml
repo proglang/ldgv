@@ -7,6 +7,7 @@ maintainer:          "peter.thiemann@gmail.com"
 copyright:           "2018 Peter Thiemann"
 
 extra-source-files:
+- OVERVIEW.md
 - README.md
 - ChangeLog.md
 
@@ -21,6 +22,9 @@ description:         Please see the README on GitHub at <https://github.com/pete
 
 dependencies:
 - base >= 4.7 && < 5
+- array >= 0.4 && < 0.6
+- prettyprinter >= 1.1.1
+- mtl >= 2.2.2
 
 library:
   source-dirs: src

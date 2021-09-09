@@ -10,7 +10,8 @@ The Getting Started Guide should contain setup instructions (including, for exam
 ## Getting Started
 
 1. The `README.md` file in the `ld-session-code` directory contains instructions to build the type checker. The easiest way is to use docker as described in the last paragraph. Producing the docker image takes on the order of 10 minutes on my machine.
-2. If you happen to have Agda 2.6.1.3 and version 1.6 of the standard library installed, then it's a matter of loading the file ... in the `formalization` directory into an emacs buffer and running the Agda type checker using C-C C-C. Otherwise, use `docker build -t formalization .` to create the image (this will take quite a while). 
+2. If you happen to have Agda 2.6.1.3 and version 1.6 of the standard library installed, then it's a matter of loading the file ... in the `formalization` directory into an emacs buffer and running the Agda type checker using C-C C-C. Otherwise, use
+`docker build ./agda-docker -f Dockerfile -t agda-docker` to create the image (this will take quite a while). 
 
 ## Step by Step Instructions
 
@@ -24,4 +25,22 @@ Further experiments: after studying the subtyping in Figure 4, try modifying the
 
 There is not much to do here apart noticing that the files provided type check. Here is an overview of the most important definitions that you might want to study.
 
+#### Syntax.agda
+* Exp - syntax of expressions indexed by the number of labels that may occur therein
+* Ty - syntax of types indexed by the number of labels that may occur therein
+* ValU - predicate for generalized values
+* Val - predicate for values
+* TyG - predicate for ground types
+* TyB - predicate for base types
 
+#### Typing-Semantics.agda
+* TyNf - predicate for types in normal form
+* evaluate-full/evaluate-full-steps - evaluation of expressions with optional output of evaluation steps
+* TyG⊂TyNf - proof that ground types are a subset of types in normal form
+* _match - implementation of type matching
+* cast - implementation of the precise cast function
+
+#### Progress.agda
+* no-reduce-value - proof that values can't be reduced further
+* cf-pi - canonical forms for function types
+* progress - the progress theorem (proof by induction on the typing judgment)
