@@ -1,136 +1,165 @@
-cabal-version:       2.0
-name:                ldgv
-version:             0.0.1
-synopsis:            Frontend, interpreter and C backend for LDGV/LDST.
--- description:
--- bug-reports:
-license:             BSD3
-license-file:        LICENSE
-author:              Nils Hagner (web frontend, interpreter), Janek Spaderna (command line fronted, C backend), Peter Thiemann (parser, typechecker)
-maintainer:          Programming Languages Uni Freiburg
--- copyright:
--- category:
-build-type:          Simple
-extra-source-files:  CHANGELOG.md
-                   , src/Parsing/Tokens.x
-                   , src/Parsing/Grammar.y
-                   , examples/*.ldgv
+cabal-version: 1.12
 
-data-files: c-support/runtime/LDST.h
-          , c-support/runtime/LDST_debug.h
-          , c-support/runtime/LDST.c
-          , c-support/runtime/LDST_serial.c
-          , c-support/runtime/LDST_concurrent.c
-          , c-support/runtime/thpool.h
-          , c-support/runtime/thpool.c
+-- This file has been generated from package.yaml by hpack version 0.34.4.
+--
+-- see: https://github.com/sol/hpack
+
+name:           ldgv
+version:        0.0.1
+synopsis:       Frontend, interpreter and C backend for LDGV/LDST
+homepage:       https://github.com/proglang/ldgv#readme
+bug-reports:    https://github.com/proglang/ldgv/issues
+author:         Nils Hagner (web frontend, interpreter),
+                Janek Spaderna (command line fronted, C backend),
+                Peter Thiemann (parser, typechecker)
+maintainer:     thiemann@informatik.uni-freiburg.de
+copyright:      2019-2021 Chair of Programming Languages, Uni Freiburg
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    ChangeLog.md
+    examples/add.ldgv
+    examples/casesub.ldgv
+    examples/casetest.ldgv
+    examples/depsum.ldgv
+    examples/natsum.ldgv
+    examples/natsum2.ldgv
+    examples/node.ldgv
+    examples/noderec.ldgv
+    examples/simple.ldgv
+    examples/simple_recursion.ldgv
+    examples/tclient.ldgv
+    examples/tserver.ldgv
+data-files:
+    c-support/runtime/LDST.h
+    c-support/runtime/LDST_debug.h
+    c-support/runtime/thpool.h
+    c-support/runtime/LDST.c
+    c-support/runtime/LDST_concurrent.c
+    c-support/runtime/LDST_serial.c
+    c-support/runtime/thpool.c
+
+source-repository head
+  type: git
+  location: https://github.com/proglang/ldgv
 
 library
-  hs-source-dirs: src
-  exposed-modules: C.Compile
-                 , C.Generate
-                 , Config
-                 , Examples
-                 , Interpreter
-                 , Kinds
-                 , Parsing
-                 , Parsing.Grammar
-                 , Parsing.Tokens
-                 , ProcessEnvironment
-                 , Syntax
-                 , Syntax.CPS
-                 , Typechecker
-  other-modules: Subtyping
-               , Syntax.Pretty
-               , TCSubtyping
-               , TCTyping
-               , TCXMonad
-               , Typing
-               , MonadStack
-               , Paths_ldgv
-  build-tool-depends: alex:alex, happy:happy
-  build-depends: base
-               , array
-               , bytestring
-               , containers
-               , file-embed
-               , filepath
-               , lens
-               , mtl
-               , prettyprinter
-               , text
-               , transformers
-               , typed-process
-               , validation-selective
+  exposed-modules:
+      C.Compile
+      C.Generate
+      Config
+      Examples
+      Interpreter
+      Kinds
+      Parsing
+      Parsing.Grammar
+      Parsing.Tokens
+      ProcessEnvironment
+      Syntax
+      Syntax.CPS
+      Typechecker
+  other-modules:
+      Subtyping
+      Syntax.Pretty
+      TCSubtyping
+      TCTyping
+      TCXMonad
+      TCLubGlb
+      Typing
+      MonadStack
+      Paths_ldgv
+  hs-source-dirs:
+      src
+  build-tools:
+      alex
+    , happy
+  build-depends:
+      array
+    , base >=4.12 && <5
+    , bytestring
+    , containers
+    , file-embed
+    , filepath
+    , lens
+    , mtl
+    , prettyprinter
+    , text
+    , transformers
+    , typed-process
+    , validation-selective
+  default-language: Haskell2010
+
+executable ldgv-browser
+  main-is: Main.hs
+  other-modules:
+      SyntaxDescription
+  hs-source-dirs:
+      browser
+  build-depends:
+      array
+    , base >=4.12 && <5
+    , containers
+    , jsaddle
+    , ldgv
+    , lens
+    , reflex
+    , reflex-dom
+    , text
+  if impl(ghcjs)
+    ghc-options: -dedupe -Wall
+  else
+    buildable: False
+  default-language: Haskell2010
+
+executable ldgv-exe
+  main-is: Main.hs
+  other-modules:
+      Output
+  hs-source-dirs:
+      exe
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -rtsopts
+  build-depends:
+      base >=4.12 && <5
+    , bytestring
+    , filepath
+    , ldgv
+    , mtl
+    , optparse-applicative
+    , prettyprinter
+    , prettyprinter-ansi-terminal
+    , terminal-size
+    , text
+    , unliftio
+  if impl(ghcjs)
+    buildable: False
   default-language: Haskell2010
 
 test-suite ldgv-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
-  hs-source-dirs: test
-  other-modules: ArithmeticSpec
-               , CSpec
-               , FunctionApplicationSpec
-               , FunctionSignaturesSpec
-               , Utils
+  other-modules:
+      ArithmeticSpec
+      CSpec
+      FunctionApplicationSpec
+      FunctionSignaturesSpec
+      Utils
+  hs-source-dirs:
+      test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
-  build-tool-depends: hspec-discover:hspec-discover
-  build-depends: base >=4.12 && <5
-               , ldgv
-               , QuickCheck
-               , array
-               , bytestring
-               , containers
-               , filepath
-               , hspec
-               , mtl
-               , text
-               , typed-process
-               , unliftio
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  build-depends:
+      QuickCheck
+    , array
+    , base >=4.12 && <5
+    , bytestring
+    , containers
+    , filepath
+    , hspec
+    , ldgv
+    , mtl
+    , text
+    , typed-process
+    , unliftio
   default-language: Haskell2010
-
-
-executable ldgv-exe
-  main-is: Main.hs
-  other-modules: Output
-  hs-source-dirs: exe
-  build-depends: base >=4.12 && < 5
-               , ldgv
-               , bytestring
-               , filepath
-               , mtl
-               , optparse-applicative
-               , prettyprinter ^>=1.7.0
-               , prettyprinter-ansi-terminal ^>=1.1.2
-               , terminal-size
-               , text
-               , unliftio
-  default-language: Haskell2010
-  ghc-options:
-    -Wall
-    -Wincomplete-uni-patterns
-    -Wincomplete-record-updates
-    -Wpartial-fields
-    -Wredundant-constraints
-    -rtsopts
-  if impl(ghcjs)
-    buildable: False
-
-
-executable ldgv-browser
-  main-is: Main.hs
-  other-modules: SyntaxDescription
-  hs-source-dirs: browser
-  build-depends: base >=4.12 && <4.13
-               , ldgv
-               , array
-               , containers
-               , lens
-               , jsaddle
-               , reflex
-               , reflex-dom
-               , text
-  default-language: Haskell2010
-  if impl(ghcjs)
-    ghc-options: -dedupe -Wall
-  if !impl(ghcjs)
-    buildable: False

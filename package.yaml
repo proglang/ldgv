@@ -1,0 +1,127 @@
+name:                ldgv
+version:             0.0.1
+github:              "proglang/ldgv"
+synopsis:            Frontend, interpreter and C backend for LDGV/LDST
+license:             BSD3
+license-file:        LICENSE
+author:
+- Nils Hagner (web frontend, interpreter)
+- Janek Spaderna (command line fronted, C backend)
+- Peter Thiemann (parser, typechecker)
+maintainer:          "thiemann@informatik.uni-freiburg.de"
+copyright:           "2019-2021 Chair of Programming Languages, Uni Freiburg"
+
+extra-source-files:
+- ChangeLog.md
+- examples/*.ldgv
+
+data-files:
+- c-support/runtime/*.h
+- c-support/runtime/*.c
+
+dependencies:
+- base >=4.12 && <5
+- text
+
+library:
+  source-dirs: src
+  other-modules:
+  - Subtyping
+  - Syntax.Pretty
+  - TCSubtyping
+  - TCTyping
+  - TCXMonad
+  - TCLubGlb
+  - Typing
+  - MonadStack
+  - Paths_ldgv
+  build-tools:
+  - alex
+  - happy
+  dependencies:
+  - array
+  - bytestring
+  - containers
+  - file-embed
+  - filepath
+  - lens
+  - mtl
+  - prettyprinter
+  - transformers
+  - typed-process
+  - validation-selective
+
+tests:
+  ldgv-test:
+    main: Spec.hs
+    source-dirs: test
+    other-modules:
+    - ArithmeticSpec
+    - CSpec
+    - FunctionApplicationSpec
+    - FunctionSignaturesSpec
+    - Utils
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    build-tools: hspec-discover
+    dependencies:
+    - ldgv
+    - QuickCheck
+    - array
+    - bytestring
+    - containers
+    - filepath
+    - hspec
+    - mtl
+    - typed-process
+    - unliftio
+
+executables:
+  ldgv-exe:
+    main: Main.hs
+    other-modules: Output
+    source-dirs: exe
+    dependencies:
+    - ldgv
+    - bytestring
+    - filepath
+    - mtl
+    - optparse-applicative
+    - prettyprinter
+    - prettyprinter-ansi-terminal
+    - terminal-size
+    - text
+    - unliftio
+    ghc-options:
+    - -Wall
+    - -Wincomplete-uni-patterns
+    - -Wincomplete-record-updates
+    - -Wpartial-fields
+    - -Wredundant-constraints
+    - -rtsopts
+    when:
+    - condition: impl(ghcjs)
+      buildable: False
+
+  ldgv-browser:
+    main: Main.hs
+    other-modules: SyntaxDescription
+    source-dirs: browser
+    dependencies:
+    - ldgv
+    - array
+    - containers
+    - lens
+    - jsaddle
+    - reflex
+    - reflex-dom
+    when:
+    - condition: impl(ghcjs)
+      then:
+        ghc-options:
+        - -dedupe
+        - -Wall
+      else:
+        buildable: False
