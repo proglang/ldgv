@@ -1,10 +1,10 @@
 name:                ld-session-code
 version:             0.1.0.0
-github:              "peterthiemann/ld-session-code"
+github:              "proglang/ldgv"
 license:             BSD3
 author:              "Peter Thiemann"
 maintainer:          "peter.thiemann@gmail.com"
-copyright:           "2018 Peter Thiemann"
+copyright:           "2018-2021 Peter Thiemann"
 
 extra-source-files:
 - OVERVIEW.md
@@ -28,6 +28,9 @@ dependencies:
 
 library:
   source-dirs: src
+  build-tools:
+    - alex
+    - happy
 
 executables:
   ld-session-code-exe:
@@ -50,3 +53,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - ld-session-code
+    - hspec
+    - QuickCheck
