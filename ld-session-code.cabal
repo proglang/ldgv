@@ -29,11 +29,9 @@ library
       Config
       Grammar
       Kinds
-      Lib
       PrettySyntax
       Subtyping
       Syntax
-      TCLubGlb
       TCSubtyping
       TCTyping
       TCXMonad
