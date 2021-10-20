@@ -47,12 +47,14 @@ tokens :-
   close                                 { tok $ const Close }
   wait                                  { tok $ const Wait }
   expect                                { tok $ const Expect }
-  $digit+                               { tok $ Int . read }
+  ("+"|"-")? $digit+ "." $digit+        { tok $ Double . read . removePrecedingPlus }
+  ("+"|"-")? $digit+                    { tok $ Int . read . removePrecedingPlus }
   Bot                                   { tok $ const TBot }
   Unit                                  { tok $ const TUnit }
   Int                                   { tok $ const TInt }
   natrec                                { tok $ const NatRec } 
   Nat                                   { tok $ const TNat }
+  Double                                { tok $ const TDouble }
   dualof                                { tok $ const DualOf }
   "_|_"                                 { tok $ const TBot }
   "/\"                                  { tok $ const Glb }
@@ -96,7 +98,7 @@ data Token =
         Expect          |
         Type            |
         Sym Char        |
-        Kind Kind      |
+        Kind Kind       |
         Lab String      |
         Var String      |
         TID String      |
@@ -105,9 +107,10 @@ data Token =
         TUnit           |
         TInt            |
         TNat            |
+        TDouble         |
         NatRec          |
         Subtype         |
-        Equiv         |
+        Equiv           |
         OpenEqn         |
         CloseEqn        |
         Arrow           |
@@ -116,9 +119,10 @@ data Token =
         Dot             |
         Lambda          |
         DualOf          |
-        Glb          |
-        Lub          |
+        Glb             |
+        Lub             |
         Int Int         |
+        Double Double   |
         EOF
         deriving (Eq,Show)
 
@@ -151,4 +155,10 @@ tokKind = tok' \k ->
     $ readMaybe
     $ ('K':)    -- Subsitutes the initial '~' with 'K'
     $ tail k
+
+-- When reading a number explicitly marked as positive, e.g. +2
+-- one needs to remove the preceding + sign.
+removePrecedingPlus :: String -> String
+removePrecedingPlus ('+':chars) = chars
+removePrecedingPlus s = s
 }

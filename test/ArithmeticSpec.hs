@@ -64,3 +64,27 @@ spec =
         DFun "f" [(MMany,"m",TInt),(MMany,"n",TInt)]
           (Math $ Div (Var "m") (Var "n"))
           Nothing
+
+    it "parses substraction of negative double literals" $ do
+      "val f = -12.34 - -56.78" `shouldParseDecl`
+        DFun "f" [] (Math $ Sub
+          (Lit $ LDouble (-12.34)) (Lit $ LDouble (-56.78)))
+          Nothing
+
+    it "parses addition of explicitly positive double literals" $ do
+      "val f = +12.34 + +56.78" `shouldParseDecl`
+        DFun "f" [] (Math $ Add
+          (Lit $ LDouble 12.34) (Lit $ LDouble 56.78))
+          Nothing
+
+    it "parses substraction of negative integer literals" $ do
+      "val f = -12 - -56" `shouldParseDecl`
+        DFun "f" [] (Math $ Sub
+          (Lit $ LInt (-12)) (Lit $ LInt (-56)))
+          Nothing
+
+    it "parses addition of explicitly positive integer literals" $ do
+      "val f = +12 + +56" `shouldParseDecl`
+        DFun "f" [] (Math $ Add
+          (Lit $ LNat 12) (Lit $ LNat 56))
+          Nothing

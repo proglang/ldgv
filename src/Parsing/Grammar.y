@@ -23,6 +23,7 @@ import qualified Parsing.Tokens as T
     rec { T _ T.Rec }
     in  { T _ T.In }
     int { T _ (T.Int $$) }
+    double { T _ (T.Double $$) }
     var { T _ (T.Var $$) }
     case { T _ T.Case }
     fst { T _ T.Fst }
@@ -46,6 +47,7 @@ import qualified Parsing.Tokens as T
     Bot { T _ T.TBot }
     Int { T _ T.TInt }
     Nat { T _ T.TNat }
+    Double { T _ T.TDouble }
     natrec { T _ T.NatRec }
     '()' { T _ T.Unit }
     '->' { T _ T.Arrow }
@@ -78,7 +80,7 @@ import qualified Parsing.Tokens as T
     '?' { T _ (T.Sym '?') }
 
 %right LET
-%nonassoc int '(' var lab case natrec '()' lam rec fst snd new fork
+%nonassoc int double '(' var lab case natrec '()' lam rec fst snd new fork
 %right in
 %nonassoc '>' '<'
 %left '+' '-' NEG
@@ -125,6 +127,7 @@ Mul : '!' { MOne }
 
 AExp
     : int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
+    | double                 { Lit $ LDouble $1 }
     | var                    { Var $1 }
     | lab                    { Lit $ LLab $1 }
     | '(' Exp ')'            { $2 }
@@ -137,6 +140,7 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | '(' Exp ')'            { $2 }
     | '-' Exp %prec NEG      { Math $ Neg $2 }
     | int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
+    | double                 { Lit $ LDouble $1 }
     | var                    { Var $1 }
     | lab                    { Lit $ LLab $1 }
     | case Exp of '{' ExpCases '}'  { Case $2 $5 }
@@ -169,9 +173,10 @@ ExpCase : lab ':' Exp { ($1, $3) }
 ExpCases : ExpCase { [$1] }
          | ExpCase ',' ExpCases { $1 : $3 }
 
-ATyp : Unit                          { TUnit }
+ATyp : Unit                         { TUnit }
     | Int                           { TInt }
     | Nat                           { TNat }
+    | Double                        { TDouble }
     | Bot                           { TBot }
     | tid                           { TName False $1 }
     | '{' Labs '}'                  { TLab $2 }

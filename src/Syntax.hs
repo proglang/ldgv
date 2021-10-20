@@ -3,6 +3,7 @@ module Syntax where
 
 import Data.List (foldl', sortBy, sort)
 import Data.Set (Set)
+import Data.Bifunctor (second)
 import qualified Data.Set as Set
 
 import Kinds
@@ -42,12 +43,14 @@ data MathOp e
 data Literal
   = LInt !Int
   | LNat !Nat
+  | LDouble !Double
   | LLab !String
   | LUnit
   deriving (Show, Eq)
 
 data Type = TUnit
           | TInt
+          | TDouble
           | TBot
           | TNat
           | TNatRec Exp Type TIdent Type
@@ -65,7 +68,7 @@ data Type = TUnit
   deriving (Show)
 
 dualof :: Type -> Type
-dualof (TCase e cases) = TCase e (map (\(l, t) -> (l, dualof t)) cases)
+dualof (TCase e cases) = TCase e (map (second dualof) cases)
 dualof (TSend x t s) = TRecv x t (dualof s)
 dualof (TRecv x t s) = TSend x t (dualof s)
 dualof (TName b tn) = TName (not b) tn
@@ -81,7 +84,7 @@ cdualof False ty = ty
 data Constraint = Type :<: Type
 
 instance Show Constraint where
-  show (t1 :<: t2) = (show t1) ++ " :<: " ++ show t2
+  show (t1 :<: t2) = show t1 ++ " :<: " ++ show t2
 
 data SegType = SegSend | SegRecv | SegFun Multiplicity | SegPair Multiplicity
   deriving (Show, Eq)
@@ -167,6 +170,7 @@ instance Freevars e => Freevars (MathOp e) where
 instance Freevars Type where
   fv TUnit = Set.empty
   fv TInt = Set.empty
+  fv TDouble = Set.empty
   fv TBot = Set.empty
   fv (TName b tn) = Set.empty
   fv (TVar b tv) = Set.empty
@@ -227,7 +231,7 @@ instance Substitution e => Substitution (MathOp e) where
 
 instance Substitution Type where
   subst x exp (TCase val cases) =
-    TCase (subst x exp val) (map (\(lll, ty) -> (lll, subst x exp ty)) cases)
+    TCase (subst x exp val) (map (second(subst x exp)) cases)
   subst x exp (TFun m z ty1 ty2) =
     if x == z then
       TFun m z (subst x exp ty1) ty2
@@ -253,6 +257,8 @@ instance Substitution Type where
   subst x exp ty@(TLab labs) =
     ty
   subst x exp ty@TInt =
+    ty
+  subst x exp ty@TDouble =
     ty
   subst x exp ty@TUnit =
     ty
@@ -301,11 +307,12 @@ single x tyx ty =
     TRecv y t1 t2 ->
       TRecv y (single x tyx t1) (if x==y then t2 else single x tyx t2)
     TCase e lts ->
-      TCase e (map (\(lab, ty) -> (lab, single x tyx ty)) lts)
+      TCase e (map (second(single x tyx)) lts)
     TEqn e1 e2 t ->
       TEqn e1 e2 (single x tyx t)
     TUnit -> TUnit
     TInt -> TInt
+    TDouble -> TDouble
     TBot -> TBot
     TName b i -> TName b i
     TVar b i -> TVar b i
@@ -328,6 +335,7 @@ freshvar x vars = head [ x' | x' <- varsupply x,  x' `Set.notMember` vars]
 instance Eq Type where
   TUnit == TUnit = True
   TInt  == TInt  = True
+  TDouble == TDouble = True
   TBot  == TBot  = True
   TName b s == TName b' s' = b == b' && s == s'
   TVar b s == TVar b' s' = b == b' && s == s'
@@ -384,6 +392,7 @@ tsubst tn tyn ty = ts ty
         TName b ti -> if ti == tn then tyn else ty
         TVar b ti -> ty
         TInt -> TInt
+        TDouble -> TDouble
         TBot -> TBot
         TNat -> TNat
         TNatRec e tz ti tsu ->
@@ -393,7 +402,7 @@ tsubst tn tyn ty = ts ty
         TPair m x t1 t2 -> TPair m x (ts t1) (ts t2)
         TSend x t1 t2 -> TSend x (ts t1) (ts t2)
         TRecv x t1 t2 -> TRecv x (ts t1) (ts t2)
-        TCase e cases -> TCase e (map (\(l, t) -> (l, ts t)) cases)
+        TCase e cases -> TCase e (map (second ts) cases)
         TEqn e1 e2 t -> TEqn e1 e2 (ts t)
         TSingle x -> ty
         TUnit -> TUnit
