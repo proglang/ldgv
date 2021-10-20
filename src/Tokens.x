@@ -41,8 +41,8 @@ tokens :-
   close                                 { const Close }
   wait                                  { const Wait }
   expect                                { const Expect }
-  ("+"|"-")? $digit+ "." $digit+        { Double . read }
-  ("+"|"-")? $digit+                    { Int . read }
+  ("+"|"-")? $digit+ "." $digit+        { Double . read . removePrecedingPlus }
+  ("+"|"-")? $digit+                    { Int . read . removePrecedingPlus }
   Bot                                   { const TBot }
   Unit                                  { const TUnit }
   Double                                { const TDouble }
@@ -52,7 +52,7 @@ tokens :-
   Nat                                   { const TNat }
   dualof                                { const DualOf }
   "_|_"                                 { const TBot }
-  "|-|"                                  { const Glb }
+  "|-|"                                 { const Glb }
   "\/"                                  { const Lub }
   "()"                                  { const Unit }
   "->"                                  { const Arrow }
@@ -80,6 +80,10 @@ cleanup "" = ""
 cleanup ('\\':x:xs) = x:cleanup xs
 cleanup (x:xs) = x:cleanup xs
 
+removePrecedingPlus :: String -> String
+removePrecedingPlus ('+':chars) = chars
+removePrecedingPlus s = s
+
 -- Each action has type :: String -> Token
 
 -- The token type:
@@ -104,7 +108,7 @@ data Token =
         Expect          |
         Type            |
         Sym Char        |
-        Kind Kind      |
+        Kind Kind       |
         Lab String      |
         Var String      |
         TID String      |
@@ -126,10 +130,10 @@ data Token =
         Dot             |
         Lambda          |
         DualOf          |
-        Glb          |
-        Lub          |
-        Int Int      |
-        Double Double |
+        Glb             |
+        Lub             |
+        Int Int         |
+        Double Double   |
         Str String
         deriving (Eq,Show)
 {- only with
