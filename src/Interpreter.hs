@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Interpreter (interpret) where
+module Interpreter (interpret, evalDFun) where
 
 import qualified Config as C
 import Syntax
@@ -9,6 +9,7 @@ import Control.Concurrent (forkIO)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State as S
+import Control.Exception
 
 -- | interpret the "main" value in an ldgv file given over stdin
 interpret :: [Decl] -> IO Value
@@ -35,7 +36,7 @@ evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
                                                   -- bind the identifier to the given value at application
                                                   createPMEntry (id, arg)
                                                   -- and evaluate the rest of the declaration
-                                                  evalDFun decl') 
+                                                  evalDFun decl')
 
 -- | interpret a single Expression
 interpret' :: Exp ->  InterpretM
@@ -68,10 +69,10 @@ interpret' e =
                         put $ (i1, VInt (n-1)):(i2, lower):env
                         interpret' e3
   Lam m i t e -> do
-                 env <- get 
+                 env <- get
                  let f = \arg -> do
-                                 liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env) 
-                 return $ VFun f 
+                                 liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env)
+                 return $ VFun f
   Var s -> pmlookup s
   Let s e1 e2 -> do
       v  <- interpret' e1
@@ -85,7 +86,7 @@ interpret' e =
       -- is the function with its first argument
       v1 <- interpret' e1
       arg <- interpret' e2
-      -- check if the variable refers to a function declaration 
+      -- check if the variable refers to a function declaration
       case v1 of
           VDecl d -> do
             res <- (evalDFun d)
@@ -155,25 +156,37 @@ interpretLit = \case
   LInt i -> VInt i
   LNat n -> VInt n
   LLab l -> VLabel l
+  LDouble d -> VDouble d
   LUnit  -> VUnit
+
+data InterpreterException
+  = MathException
+  deriving Show
+
+instance Exception InterpreterException
+
+interpretMathOp :: Exp -> Exp -> (Int -> Int -> Int) -> (Double -> Double -> Double) -> InterpretM
+interpretMathOp a b opInt opDouble = do
+  v <- interpret' a
+  w <- interpret' b
+  return $ case (v, w) of
+    (VInt x, VInt y) -> VInt (opInt x y)
+    (VDouble x, VDouble y) -> VDouble (opDouble x y)
+    (_, _) -> throw MathException
 
 interpretMath :: MathOp Exp -> InterpretM
 interpretMath = \case
-  Add a b -> f (+) a b
-  Sub a b -> f (-) a b
-  Mul a b -> f (*) a b
-  Div a b -> f quot a b
-  Neg a   -> f (-) (Lit (LInt 0)) a
-  where
-    f op a b = do
-      v1 <- interpret' a
-      v2 <- interpret' b
-      C.traceIO $ "interpretMath works on " ++ show v1 ++ " and " ++ show v2
-      return $ case (v1, v2) of
-        (VInt a, VInt b) -> VInt (op a b)
+  Add a b -> interpretMathOp a b (+) (+)
+  Sub a b -> interpretMathOp a b (-) (-)
+  Mul a b -> interpretMathOp a b (*) (*)
+  Div a b -> interpretMathOp a b quot (/)
+  Neg a   -> interpret' a >>= (\v -> return $ case v of
+    VInt x -> VInt (negate x)
+    VDouble x -> VDouble (negate x)
+    _ -> throw MathException)
 
 createPEnv :: [Decl] -> PEnv
-createPEnv = map createEntry 
+createPEnv = map createEntry
 
 createEntry :: Decl -> PEnvEntry
 createEntry d@(DType str mult kind typ) = (str, VType typ)

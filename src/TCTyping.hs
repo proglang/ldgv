@@ -24,6 +24,7 @@ kiSynth te (TName b tn) = do
   return (k, mult k)
 kiSynth te TUnit = return (Kunit, MMany)
 kiSynth te TInt  = return (Kun, MMany)
+kiSynth te TDouble = return (Kun, MMany)
 kiSynth te TNat  = return (Kun, MMany)
 kiSynth te TBot  = return (Kunit, MMany) -- this kind is compatible with everything
 kiSynth te (TLab labs) = do
@@ -41,17 +42,17 @@ kiSynth te ty@(TPair m x ty1 ty2) = do
   if mout <= m then return (kindof mout, mout) else TC.mfail ("kiSynth " ++ pshow ty)
 kiSynth te (TSend x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
-  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn 
+  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
   return (Kssn, MOne)
 kiSynth te (TRecv x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
-  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn 
+  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
   return (Kssn, MOne)
 kiSynth te (TCase e1 cases) = do
   -- alternative: synthesize the type of e1 and only check the cases arising from this type
   let tlabs = TLab (map fst cases)
   _ <- tyCheck te e1 tlabs
-  ks <- mapM (\(lab, elab) -> 
+  ks <- mapM (\(lab, elab) ->
               kiSynth (("*kis*", (Many, TEqn e1 (Lit $ LLab lab) tlabs)) : te) elab)
              cases
   return (foldr1 kolub ks)
@@ -86,7 +87,7 @@ strengthenTop e ((x, (One, _)) : te) = TC.mfail ("Linear variable " ++ x ++ " no
 -- unrestricted strengthening + expanding singletons if needed
 strengthen :: Exp -> (Type, TEnv) -> TCM (Type, TEnv)
 strengthen e (ty, (x, (mm, tyx)) : te) =
-  if mm == One then 
+  if mm == One then
     TC.mfail ("Linear variable " ++ x ++ " not used in " ++ pshow e)
   else
     return (single x tyx ty, te)
@@ -102,7 +103,7 @@ tySynthUnfold te e = do
 
 -- type synthesis
 tySynth :: TEnv -> Exp -> TCM (Type, TEnv)
-tySynth te e = 
+tySynth te e =
   ap (return (\r@(ty, te) -> D.trace ("Leaving tySynth with " ++ pshow e ++ " : " ++ pshow ty ++ " -| " ++ pshow te) r)) $
   case D.trace ("Invoking tySynth on " ++ pshow te ++ " |- " ++ pshow e) $ e of
   Let x e1 e2 -> do
@@ -175,7 +176,7 @@ tySynth te e =
         (ki2, mu2) <- kiSynth ((x, (demote mu1, ty1)) : demoteTE te) ty2'
         (ty3, te2) <- case ty1 of
           TLab labs ->
-            tySynth ((y, (inject mu2, ty2')) : (x, (inject mu1, ty1)) : te1) 
+            tySynth ((y, (inject mu2, ty2')) : (x, (inject mu1, ty1)) : te1)
                       $ Case (Var x) (map (,e2) labs)
           _ ->
             tySynth ((y, (inject mu2, ty2')) : (x, (inject mu1, ty1)) : te1) e2
@@ -293,6 +294,7 @@ tySynthLit :: Literal -> Type
 tySynthLit = \case
   LInt _ -> TInt
   LNat _ -> TNat
+  LDouble _ -> TDouble
   LLab l -> TLab [l]
   LUnit  -> TUnit
 

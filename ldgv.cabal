@@ -143,6 +143,7 @@ test-suite ldgv-test
       CSpec
       FunctionApplicationSpec
       FunctionSignaturesSpec
+      InterpreterSpec
       Utils
   hs-source-dirs:
       test

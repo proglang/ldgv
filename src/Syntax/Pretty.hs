@@ -30,25 +30,25 @@ instance Pretty TypeSegment where
   pretty (Seg (SegPair m) x t) = pretty "Sg" <> pretty m <> ptyped x t
 
 
-plab str =
+plab = pretty
   -- pretty "'" <> -- seem built into the lab string
-  pretty str
 
 ptyped ('#':_) t1 =
   pretty t1 <> dot
 ptyped id t1 =
-  parens (pretty id <+> colon <+> pretty t1)  
+  parens (pretty id <+> colon <+> pretty t1)
 
 instance Pretty Type where
   pretty TUnit = pretty "()"
   pretty TInt = pretty "Int"
   pretty TNat = pretty "Nat"
   pretty TBot = pretty "_|_"
+  pretty TDouble = pretty "Double"
     -- the bool indicates whether the type needs to be dualized
   pretty (TName b s) = (if b then pretty "~" else mempty) <> pretty s
   pretty (TVar b s) = (if b then pretty "~" else mempty) <> brackets (pretty s)
   pretty (TLab (str:strs)) = braces (plab str <> foldr f mempty strs)
-    where 
+    where
       f str rest = comma <+> plab str <> rest
   pretty (TFun m id t1 t2) =
     pretty m <> ptyped id t1 <+> pretty "->" <+> pretty t2
@@ -56,7 +56,7 @@ instance Pretty Type where
     brackets (pretty m <> pretty id <+> colon <+> pretty t1 <> comma <+> pretty t2)
   pretty (TSend id t1 t2) =
     pretty "!" <> ptyped id t1 <+> pretty t2
-  pretty (TRecv id t1 t2) = 
+  pretty (TRecv id t1 t2) =
     pretty "?" <> ptyped id t1 <+> pretty t2
   pretty (TCase e (st : sts)) =
     pcase e (st : sts)
@@ -72,7 +72,7 @@ instance Pretty Type where
   pretty (TAbs id t1 t2) =
     ptyped id t1 <+> pretty t2
 
-pcase e (st : sts) = 
+pcase e (st : sts) =
   pretty "case" <+> pretty e <+>
   braces (g st <> foldr f mempty sts)
     where g (s, t) = plab s <> colon <> pretty t
@@ -80,7 +80,7 @@ pcase e (st : sts) =
 
 instance Pretty Exp where
   pretty (Let id e1 e2) =
-    pretty "let" <+> pretty id <+> equals <+> pretty e1 <+> pretty "in" <+> 
+    pretty "let" <+> pretty id <+> equals <+> pretty e1 <+> pretty "in" <+>
     pretty e2
   pretty (Var id) =
     pretty id
@@ -96,7 +96,7 @@ instance Pretty Exp where
     colon <> pretty t2 <+> equals <+> pretty e
   pretty (App e1 e2) =
     pretty e1 <+> pretty e2
-  pretty (Pair m id e1 e2) = 
+  pretty (Pair m id e1 e2) =
     angles (pretty m <> pretty id <+> equals <+> pretty e1 <> comma <+> pretty e2)
   pretty (LetPair x y e1 e2) =
     pretty "let" <+> angles (pretty x <> comma <> pretty y) <+> equals <+> pretty e1 <+> pretty "in" <+> pretty e2
@@ -106,7 +106,7 @@ instance Pretty Exp where
   pretty (New t) = pretty "new" <+> pretty t
   pretty (Send e) = pretty "send" <+> pretty e
   pretty (Recv e) = pretty "recv" <+> pretty e
-  pretty (Case e ses) = 
+  pretty (Case e ses) =
     pcase e ses
   pretty (Succ e) =
     pretty "succ" <+> pretty e
@@ -120,6 +120,7 @@ instance Pretty Literal where
   pretty = \case
     LInt i -> pretty i
     LNat n -> pretty n
+    LDouble d -> pretty d
     LLab l -> plab l
     LUnit  -> pretty "()"
 

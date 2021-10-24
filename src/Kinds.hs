@@ -26,6 +26,7 @@ instance Demote Occurrence where
 data Kind = Kun | Klin | Kunit | Kssn | Kidx
   deriving (Show, Read, Eq)
 
+klub :: Kind -> Kind -> Kind
 klub Klin k = Klin
 klub k Klin = Klin
 klub Kunit Kidx = Kun

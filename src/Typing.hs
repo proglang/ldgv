@@ -11,6 +11,7 @@ import Subtyping
 kiSynth :: TEnv -> Type -> Maybe (Kind, Multiplicity)
 kiSynth te TUnit = return (Kunit, MMany)
 kiSynth te TInt  = return (Kun, MMany)
+kiSynth te TDouble = return (Kun, MMany)
 kiSynth te TBot  = return (Kunit, MMany) -- this kind is compatible with everything
 kiSynth te (TLab labs) = do
   (l1 : _) <- return labs
@@ -26,17 +27,17 @@ kiSynth te ty@(TPair m x ty1 ty2) = do
   if mout <= m then return (kindof mout, mout) else fail ("kiSynth " ++ show ty)
 kiSynth te (TSend x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
-  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn 
+  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
   return (Kssn, MOne)
 kiSynth te (TRecv x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
-  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn 
+  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
   return (Kssn, MOne)
 kiSynth te (TCase e1 cases) = do
   -- alternative: synthesize the type of e1 and only check the cases arising from this type
   let tlabs = TLab (map fst cases)
   _ <- tyCheck te e1 tlabs
-  ks <- mapM (\(lab, elab) -> 
+  ks <- mapM (\(lab, elab) ->
               kiSynth (("*kis*", (Many, TEqn e1 (Lit $ LLab lab) tlabs)) : te) elab)
              cases
   return (foldr1 kolub ks)
@@ -153,6 +154,7 @@ tySynthLit :: Literal -> Type
 tySynthLit = \case
   LInt _ -> TInt
   LNat _ -> TNat
+  LDouble _ -> TDouble
   LLab l -> TLab [l]
   LUnit  -> TUnit
 
@@ -177,6 +179,6 @@ tenvJoin :: TEnv -> TEnv -> Maybe TEnv
 tenvJoin = zipWithM tenvEntryJoin
 
 tenvEntryJoin :: TEnvEntry -> TEnvEntry -> Maybe TEnvEntry
-tenvEntryJoin e1@(x1, (m1, ty1)) (x2, (m2, ty2)) 
+tenvEntryJoin e1@(x1, (m1, ty1)) (x2, (m2, ty2))
   | x1 == x2 && m1 == m2 && ty1 == ty2 = return e1
 tenvEntryJoin _ _ = Nothing

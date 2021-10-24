@@ -60,6 +60,7 @@ tests:
     - CSpec
     - FunctionApplicationSpec
     - FunctionSignaturesSpec
+    - InterpreterSpec
     - Utils
     ghc-options:
     - -threaded
