@@ -7,7 +7,7 @@ import Control.Applicative
 
 import Control.Monad.Reader
 import Control.Monad.Writer
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Except
 
 import Data.Tuple (swap)
@@ -20,7 +20,7 @@ runM ma r s =
   runState (runExceptT (runWriterT (runReaderT ma r))) s
 
 mget :: Monoid w => M r s w r
-mget = ask 
+mget = ask
 
 mstate :: Monoid w => M r s w s
 mstate = get

@@ -8,7 +8,7 @@ import Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import ProcessEnvironment
 import qualified Control.Monad as M
-import Control.Monad.State as S
+import Control.Monad.State.Strict as S
 import Control.Exception
 
 -- | interpret the "main" value in an ldgv file given over stdin

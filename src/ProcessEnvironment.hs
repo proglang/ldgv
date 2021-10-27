@@ -2,7 +2,7 @@ module ProcessEnvironment where
 import Syntax as S
 import qualified Config as D
 import Control.Concurrent.Chan as C
-import Control.Monad.State as T
+import Control.Monad.State.Strict as T
 
 -- | the interpretation monad
 type InterpretM = T.StateT PEnv IO Value

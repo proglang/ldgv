@@ -4,7 +4,7 @@ import Parsing
 import Syntax
 import Interpreter
 import ProcessEnvironment
-import Control.Monad.State (evalStateT)
+import Control.Monad.State.Strict (evalStateT)
 import Test.Hspec
 
 shouldParseDecl :: HasCallStack => String -> Decl -> Expectation
