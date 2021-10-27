@@ -67,4 +67,4 @@ instance Eq Value where
   (VPair x1 y1) == (VPair x2 y2) = x1 == x2 && y1 == y2
   (VDecl d1) == (VDecl d2) = d1 == d2
   (VType t1) == (VType t2) = t1 == t2
-  (VFun _) == (VFun _) = False
+  _ == _ = False

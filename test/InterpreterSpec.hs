@@ -9,6 +9,8 @@ import ProcessEnvironment
 spec :: Spec
 spec =
   describe "LDGV interpretation of single arithmetic declarations" $ do
+    it "compares integer and double value" $ do
+      VInt 42 == VDouble 42.0 `shouldBe` False
     it "interprets 12 + 56" $ do
       DFun "f" [] (Math $ Add (Lit $ LNat 12) (Lit $ LNat 56)) Nothing
       `shouldInterpretTo`
