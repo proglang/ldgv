@@ -122,6 +122,7 @@ newtype CStmt = CStmt Builder
 
 data Tag a where
   TagInt :: Tag Int
+  TagDouble :: Tag Double
   TagLabel :: Tag String
   TagPair :: Tag (CExp V, CExp V)
   TagLam :: Tag (CExp L)
@@ -342,6 +343,7 @@ explainExpression ty0 v0 =
         TUnit -> literal "()"
         TInt -> formatted "Int %d" $ access TagInt v
         TNat -> formatted "Nat %d" $ access TagInt v
+        TDouble -> formatted "Double %.6f" $ access TagDouble v
         TLab _ -> formatted "Label %s" $ access TagLabel v
         TPair _ _ t1 t2 ->
           let (v1, v2) = accessPair v in
@@ -459,7 +461,7 @@ signatureParameters name args = do
           & insertRecArg
 
   pure (params, bindings)
-  
+
 -- | @functionDeclDef signature body@ returns a pair of @(declaration, definition)@.
 --
 -- The @signature@ should be built by 'functionSignature'.
@@ -658,6 +660,7 @@ generateLiteral :: Literal -> GenM (CVar V)
 generateLiteral = \case
   LInt i -> mkValue TagInt i
   LNat n -> mkValue TagInt n
+  LDouble d -> mkValue TagDouble d
   LLab l -> mkValue TagLabel l
   LUnit  -> newUnitVar
 
@@ -786,6 +789,7 @@ takeAddress = declareFresh . (B.char7 '&' <>) . unCExp . toCExp
 mkValue :: Tag a -> a -> GenM (CVar V)
 mkValue tag a = liftValue tag =<< case tag of
   TagInt -> pure $ B.intDec a
+  TagDouble -> pure $ B.doubleDec a
   TagLabel -> pure $ labelForC a
   TagPair -> do
     let (x, y) = a
@@ -928,6 +932,7 @@ accessValChannel = CVar . access TagChan
 tagAccessor :: Tag a -> Builder
 tagAccessor = \case
   TagInt   -> "val_int"
+  TagDouble -> "val_double"
   TagLabel -> "val_label"
   TagPair  -> "val_pair"
   TagLam   -> "val_lam"

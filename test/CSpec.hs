@@ -29,12 +29,19 @@ import qualified Examples
 spec :: Spec
 spec = parallel do
   describe "simple returns" do
-    it "prints numbers" do
+    it "prints integer" do
       let src = unlines
             [ "val main : Int"
             , "val main = 42"
             ]
       src `shouldEvaluateTo` Right "Int 42"
+
+    it "prints double" do
+      let src = unlines
+            [ "val main : Double"
+            , "val main = 42.23"
+            ]
+      src `shouldEvaluateTo` Right "Double 42.230000"
 
     it "prints labels" do
       let src = unlines
@@ -87,7 +94,7 @@ spec = parallel do
               , "val main = "
               , "  let x = 10 in"
               , "  let p = < a = 20, 30 > in"
-              , "  (let <x, y> = p in add x) x" 
+              , "  (let <x, y> = p in add x) x"
               ]
         src `shouldEvaluateTo` Right "Int 30"
 
