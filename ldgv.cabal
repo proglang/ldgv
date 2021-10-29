@@ -18,7 +18,6 @@ license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
-    ChangeLog.md
     examples/add.ldgv
     examples/casesub.ldgv
     examples/casetest.ldgv

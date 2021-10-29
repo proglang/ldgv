@@ -12,7 +12,6 @@ maintainer:          "thiemann@informatik.uni-freiburg.de"
 copyright:           "2019-2021 Chair of Programming Languages, Uni Freiburg"
 
 extra-source-files:
-- ChangeLog.md
 - examples/*.ldgv
 
 data-files:
