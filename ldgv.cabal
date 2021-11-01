@@ -65,7 +65,6 @@ library
       TCTyping
       TCXMonad
       TCLubGlb
-      Typing
       MonadStack
       Paths_ldgv
   hs-source-dirs:

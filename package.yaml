@@ -31,7 +31,6 @@ library:
   - TCTyping
   - TCXMonad
   - TCLubGlb
-  - Typing
   - MonadStack
   - Paths_ldgv
   build-tools:
