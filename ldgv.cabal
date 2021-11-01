@@ -56,7 +56,6 @@ library
       Parsing.Tokens
       ProcessEnvironment
       Syntax
-      Syntax.CPS
       Typechecker
   other-modules:
       Subtyping
@@ -65,7 +64,8 @@ library
       TCTyping
       TCXMonad
       TCLubGlb
-      MonadStack
+      C.CPS
+      C.MonadStack
       Paths_ldgv
   hs-source-dirs:
       src

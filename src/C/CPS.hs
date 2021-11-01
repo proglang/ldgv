@@ -4,7 +4,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wall #-}
-module Syntax.CPS
+module C.CPS
   ( toCPS
 
     -- * CPS Types

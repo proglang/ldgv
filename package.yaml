@@ -31,7 +31,8 @@ library:
   - TCTyping
   - TCXMonad
   - TCLubGlb
-  - MonadStack
+  - C.CPS
+  - C.MonadStack
   - Paths_ldgv
   build-tools:
   - alex

@@ -12,7 +12,7 @@
 --
 -- For now this module provides only the instances used in other parts of the
 -- code.
-module MonadStack (StackT, evalStack, evalStackT, hoistStack, generalizeStack, MonadStack(..)) where
+module C.MonadStack (StackT, evalStack, evalStackT, hoistStack, generalizeStack, MonadStack(..)) where
 
 import Control.Monad.Error.Class
 import Control.Monad.State.Strict

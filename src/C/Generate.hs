@@ -40,9 +40,9 @@ import Data.Set (Set)
 import Data.String
 import Data.Version
 import Kinds (Multiplicity(..))
-import MonadStack
+import C.MonadStack
 import Numeric
-import Syntax.CPS
+import C.CPS
 import Validation
 import qualified Data.ByteString.Builder as B
 import qualified Data.Char as C
