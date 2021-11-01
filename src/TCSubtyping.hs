@@ -9,7 +9,7 @@ import qualified Data.Set as Set
 import qualified Config as D
 
 import Syntax
-import Syntax.Pretty
+import PrettySyntax
 import Kinds
 import qualified TCXMonad as TC
 

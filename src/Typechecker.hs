@@ -10,7 +10,7 @@ import qualified Data.Map.Strict as Map
 import qualified Kinds as K
 import qualified Subtyping as S
 import qualified Syntax as G
-import qualified Syntax.Pretty as PS
+import qualified PrettySyntax as PS
 import qualified TCSubtyping as TS
 import qualified TCTyping as TT
 import qualified TCXMonad as TC

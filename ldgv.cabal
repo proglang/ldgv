@@ -59,7 +59,7 @@ library
       Typechecker
   other-modules:
       Subtyping
-      Syntax.Pretty
+      PrettySyntax
       TCSubtyping
       TCTyping
       TCXMonad

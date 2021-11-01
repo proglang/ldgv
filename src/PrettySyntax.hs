@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-module Syntax.Pretty (Pretty(), pretty, pshow) where
+module PrettySyntax (Pretty(), pretty, pshow) where
 
 import Kinds
 import Syntax

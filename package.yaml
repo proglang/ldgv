@@ -26,7 +26,7 @@ library:
   source-dirs: src
   other-modules:
   - Subtyping
-  - Syntax.Pretty
+  - PrettySyntax
   - TCSubtyping
   - TCTyping
   - TCXMonad

@@ -8,7 +8,7 @@ import qualified Data.Set as Set
 import qualified Config as D
 
 import Syntax
-import Syntax.Pretty
+import PrettySyntax
 import Kinds
 import TCSubtyping
 import qualified TCXMonad as TC
