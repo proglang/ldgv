@@ -1,0 +1,17 @@
+-- These are examples from section 2 of the paper "Label Dependent Lambda Calculus and Gradual Typing.pdf" (2021)
+
+type Bool : ~un = {'T, 'F}
+val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
+
+-- This is a LDLC function:
+--  f :: Π(x: Bool).Π(y: case x {'T: Int, 'F: Bool}).case x {'T: Int,  'F: Bool}
+val f  = 𝜆(x: Bool) 𝜆(y: case x {'T: Int, 'F: Bool}) case x {'T: 17+y, 'F: not y}
+
+-- This is the first GLDLC function:
+-- f1 :: Π(x: Bool).Π(y: *).case x {'T: Int, 'F: Bool}
+
+-- This is the second GLDLC function:
+-- f2 :: Π(x: *).Π(y: case x {'T: Int, 'F: Bool}).case x {'T: Int, 'F: Bool}
+
+-- This is from the internal CCLDLC representation:
+-- f2' :: Π(x: *).Π(y: case (x: * => Bool) {'T: Int, 'F: Bool}).case (x: * => Bool) {'T: Int, 'F: Bool}

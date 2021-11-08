@@ -52,7 +52,7 @@ tokens :-
   Bot                                   { tok $ const TBot }
   Unit                                  { tok $ const TUnit }
   Int                                   { tok $ const TInt }
-  natrec                                { tok $ const NatRec } 
+  natrec                                { tok $ const NatRec }
   Nat                                   { tok $ const TNat }
   Double                                { tok $ const TDouble }
   dualof                                { tok $ const DualOf }
@@ -68,7 +68,7 @@ tokens :-
   ":"                                   { tok $ const Colon }
   ","                                   { tok $ const Comma }
   "."                                   { tok $ const Dot }
-  fn                                    { tok $ const Lambda }
+  fn | 𝜆                                { tok $ const Lambda }
   [\=\+\-\*\/\(\)\:\!\?\{\}\[\]\<\>]    { tok $ Sym . head }
   "'" [$alpha $digit]+                  { tok $ Lab }
   "~" $alpha+                           { tokKind }
@@ -82,8 +82,8 @@ data Token =
         Rec             |
         Fst             |
         Snd             |
-        Case            |       
-        Assume          |       
+        Case            |
+        Assume          |
         In              |
         Of              |
         Val             |

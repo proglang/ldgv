@@ -125,6 +125,8 @@ Vars : { [] }
 Mul : '!' { MOne }
     | { MMany }
 
+Of : of {()} | {()}
+
 AExp
     : int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
     | double                 { Lit $ LDouble $1 }
@@ -143,7 +145,7 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | double                 { Lit $ LDouble $1 }
     | var                    { Var $1 }
     | lab                    { Lit $ LLab $1 }
-    | case Exp of '{' ExpCases '}'  { Case $2 $5 }
+    | case Exp Of '{' ExpCases '}'  { Case $2 $5 }
     | natrec Exp '{' Exp ',' var '.' tid '.' '(' var ':' Typ ')' '.' Exp '}'
                              { NatRec $2 $4 $6 $8 $11 $13 $16 }
     | '()'                   { Lit LUnit }
@@ -192,7 +194,7 @@ Typ : ATyp                          { $1 }
     | '?' '(' var ':' Typ ')' Typ   { TRecv $3 $5 $7 }
     | '!' ATyp '.' Typ   { TSend "#!" $2 $4 }
     | '?' ATyp '.' Typ   { TRecv "#?" $2 $4 }
-    | case Exp of '{' TypCases '}'  { TCase $2 $5 }
+    | case Exp Of '{' TypCases '}'  { TCase $2 $5 }
     | natrec Exp '{' Typ ',' tid '.' Typ '}' { TNatRec $2 $4 $6 $8 }
     | dualof ATyp                    { dualof $2 }
 
