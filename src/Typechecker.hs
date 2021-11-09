@@ -8,7 +8,6 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import qualified Kinds as K
-import qualified Subtyping as S
 import qualified Syntax as G
 import qualified PrettySyntax as PS
 import qualified TCSubtyping as TS
@@ -40,12 +39,6 @@ exec seendIds tenv kenv (cmd:cmds) = execCmd cmd
       exec seendIds tenv kenv cmds
     execCmd (G.DSubst x e1 e2) = do
       C.traceShowM $ G.subst x e1 e2
-      exec seendIds tenv kenv cmds
-    execCmd (G.DLub _ ty1 ty2) = do
-      C.traceShowM (S.lub tenv ty1 ty2)
-      exec seendIds tenv kenv cmds
-    execCmd (G.DGlb _ ty1 ty2) = do
-      C.traceShowM (S.glb tenv ty1 ty2)
       exec seendIds tenv kenv cmds
     execCmd (G.DSig x m ty) = do
       C.traceM ("--- signature: " ++ x ++ " ---")

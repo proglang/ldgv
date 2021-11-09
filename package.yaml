@@ -25,12 +25,10 @@ dependencies:
 library:
   source-dirs: src
   other-modules:
-  - Subtyping
   - PrettySyntax
   - TCSubtyping
   - TCTyping
   - TCXMonad
-  - TCLubGlb
   - C.CPS
   - C.MonadStack
   - Paths_ldgv

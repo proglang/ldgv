@@ -57,8 +57,6 @@ tokens :-
   Double                                { tok $ const TDouble }
   dualof                                { tok $ const DualOf }
   "_|_"                                 { tok $ const TBot }
-  "/\"                                  { tok $ const Glb }
-  "\/"                                  { tok $ const Lub }
   "()"                                  { tok $ const Unit }
   "->"                                  { tok $ const Arrow }
   "{{"                                  { tok $ const OpenEqn }
@@ -119,8 +117,6 @@ data Token =
         Dot             |
         Lambda          |
         DualOf          |
-        Glb             |
-        Lub             |
         Int Int         |
         Double Double   |
         EOF

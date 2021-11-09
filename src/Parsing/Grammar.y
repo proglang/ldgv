@@ -54,8 +54,6 @@ import qualified Parsing.Tokens as T
     '{{' { T _ T.OpenEqn }
     '}}' { T _ T.CloseEqn }
     assume { T _ T.Assume }
-    glb { T _ T.Glb }
-    lub { T _ T.Lub }
     '<:' { T _ T.Subtype }
     '=:' { T _ T.Equiv }
     ':' { T _ T.Colon }
@@ -101,8 +99,6 @@ Cmd  : type tid ':' Mul kind '=' Typ    { DType $2 $4 $5 $7 }
      | Typ '=:' Typ          { DEqv $1 $3 }
      | '=' var Exp Exp       { DSubst $2 $3 $4 }
      | assume TENV Cmd      { DAssume $2 $3 }
-     | Typ lub Typ          { DLub [] $1 $3 }
-     | Typ glb Typ          { DGlb [] $1 $3 }
 
 Check : {Nothing}
       | ':' Typ {Just $2}

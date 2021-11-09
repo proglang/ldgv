@@ -114,8 +114,6 @@ data Decl = DType TIdent Multiplicity Kind Type
           | DSub Type Type
           | DEqv Type Type
           | DSubst Ident Exp Exp
-          | DLub TEnv Type Type
-          | DGlb TEnv Type Type
           | DAssume TEnv Decl
           deriving (Show, Eq)
 
@@ -195,7 +193,7 @@ instance (Freevars t) => Freevars [t] where
 instance (Freevars t1, Freevars t2) => Freevars (t1, t2) where
   fv (x1, x2) = fv x1 <> fv x2
 
--- substitution 
+-- substitution
 class Substitution t where
   subst :: Ident -> Exp -> t -> t
 
@@ -209,7 +207,7 @@ instance Substitution Exp where
     sb (Lam m y ty e1)
       | x /= y = Lam m y (subst x exp ty) (sb e1)
       | otherwise = Lam m y (subst x exp ty) e1
-    sb (Rec f y tyx ty e1) = Rec f y (subst x exp tyx) 
+    sb (Rec f y tyx ty e1) = Rec f y (subst x exp tyx)
                                      (if x /= y then subst x exp ty else ty)
                                      (if x /= f && x /= y then sb e1 else e1)
     sb (Case e1 cases) = Case (sb e1) [(lll, sb e) | (lll, e) <- cases]
@@ -223,7 +221,7 @@ instance Substitution Exp where
     sb (Send e1) = Send (sb e1)
     sb (Recv e1) = Recv (sb e1)
     sb (Succ e1) = Succ (sb e1)
-    sb (NatRec e ez y t z tyz es) = 
+    sb (NatRec e ez y t z tyz es) =
       NatRec (sb e) (sb ez) y t z (subst x exp tyz) (if x /= y && x /= z then sb es else es)
 
 instance Substitution e => Substitution (MathOp e) where
@@ -322,7 +320,7 @@ single x tyx ty =
       TNatRec e (single x tyx tz) y (if x==y then ts else single x tyx ts)
     TAbs y t1 t2 ->
       TAbs y (single x tyx t1) (if x==y then t2 else single x tyx t2)
-    
+
 
 varsupply :: Ident -> [Ident]
 varsupply x = x : [ x ++ show n | n <- [0..]]
@@ -386,7 +384,7 @@ instance Eq Type where
 -- substitute a type name by a type
 tsubst :: TIdent -> Type -> Type -> Type
 tsubst tn tyn ty = ts ty
-  where 
+  where
     ts ty =
       case ty of
         TName b ti -> if ti == tn then tyn else ty
