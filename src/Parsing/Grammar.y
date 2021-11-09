@@ -19,63 +19,66 @@ import qualified Parsing.Tokens as T
 %name parseType  Typ
 
 %token
-    let { T _ T.Let }
-    rec { T _ T.Rec }
-    in  { T _ T.In }
-    int { T _ (T.Int $$) }
-    double { T _ (T.Double $$) }
-    var { T _ (T.Var $$) }
-    case { T _ T.Case }
-    fst { T _ T.Fst }
-    snd { T _ T.Snd }
-    of { T _ T.Of }
-    val { T _ T.Val }
-    type { T _ T.Type }
-    fork { T _ T.Fork }
-    new { T _ T.New }
-    send { T _ T.Send }
-    recv { T _ T.Recv }
-    select { T _ T.Select }
-    rcase { T _ T.Rcase }
-    close { T _ T.Close }
-    wait { T _ T.Wait }
-    expect { T _ T.Expect }
-    lab { T _ (T.Lab $$) }
-    kind { T _ (T.Kind $$) }
-    tid { T _ (T.TID $$) }
-    Unit { T _ T.TUnit }
-    Bot { T _ T.TBot }
-    Int { T _ T.TInt }
-    Nat { T _ T.TNat }
-    Double { T _ T.TDouble }
-    natrec { T _ T.NatRec }
-    '()' { T _ T.Unit }
-    '->' { T _ T.Arrow }
-    '{{' { T _ T.OpenEqn }
-    '}}' { T _ T.CloseEqn }
-    assume { T _ T.Assume }
-    '<:' { T _ T.Subtype }
-    '=:' { T _ T.Equiv }
-    ':' { T _ T.Colon }
-    ',' { T _ T.Comma }
-    '.' { T _ T.Dot }
-    lam { T _ T.Lambda }
-    dualof { T _ T.DualOf }
-    '{' { T _ (T.Sym '{') }
-    '}' { T _ (T.Sym '}') }
-    '=' { T _ (T.Sym '=') }
-    '+' { T _ (T.Sym '+') }
-    '-' { T _ (T.Sym '-') }
-    '*' { T _ (T.Sym '*') }
-    '/' { T _ (T.Sym '/') }
-    '(' { T _ (T.Sym '(') }
-    ')' { T _ (T.Sym ')') }
-    '<' { T _ (T.Sym '<') }
-    '>' { T _ (T.Sym '>') }
-    '[' { T _ (T.Sym '[') }
-    ']' { T _ (T.Sym ']') }
-    '!' { T _ (T.Sym '!') }
-    '?' { T _ (T.Sym '?') }
+    let     { T _ T.Let }
+    rec     { T _ T.Rec }
+    in      { T _ T.In }
+    int     { T _ (T.Int $$) }
+    double  { T _ (T.Double $$) }
+    var     { T _ (T.Var $$) }
+    case    { T _ T.Case }
+    fst     { T _ T.Fst }
+    snd     { T _ T.Snd }
+    of      { T _ T.Of }
+    val     { T _ T.Val }
+    type    { T _ T.Type }
+    fork    { T _ T.Fork }
+    new     { T _ T.New }
+    send    { T _ T.Send }
+    recv    { T _ T.Recv }
+
+    -- for Binary Session Types; obsolete for Label Dependent ones
+    select  { T _ T.Select }
+    rcase   { T _ T.Rcase }
+    close   { T _ T.Close }
+    wait    { T _ T.Wait }
+
+    expect  { T _ T.Expect }
+    lab     { T _ (T.Lab $$) }
+    kind    { T _ (T.Kind $$) }
+    tid     { T _ (T.TID $$) }
+    Unit    { T _ T.TUnit }
+    Bot     { T _ T.TBot }
+    Int     { T _ T.TInt }
+    Nat     { T _ T.TNat }
+    Double  { T _ T.TDouble }
+    natrec  { T _ T.NatRec }
+    '()'    { T _ T.Unit }
+    '->'    { T _ T.Arrow }
+    '{{'    { T _ T.OpenEqn }
+    '}}'    { T _ T.CloseEqn }
+    assume  { T _ T.Assume }
+    '<:'    { T _ T.Subtype }
+    '=:'    { T _ T.Equiv }
+    ':'     { T _ T.Colon }
+    ','     { T _ T.Comma }
+    '.'     { T _ T.Dot }
+    lam     { T _ T.Lambda }
+    dualof  { T _ T.DualOf }
+    '{'     { T _ (T.Sym '{') }
+    '}'     { T _ (T.Sym '}') }
+    '='     { T _ (T.Sym '=') }
+    '+'     { T _ (T.Sym '+') }
+    '-'     { T _ (T.Sym '-') }
+    '*'     { T _ (T.Sym '*') }
+    '/'     { T _ (T.Sym '/') }
+    '('     { T _ (T.Sym '(') }
+    ')'     { T _ (T.Sym ')') }
+    '<'     { T _ (T.Sym '<') }
+    '>'     { T _ (T.Sym '>') }
+    '['     { T _ (T.Sym '[') }
+    ']'     { T _ (T.Sym ']') }
+    '!'     { T _ (T.Sym '!') }
+    '?'     { T _ (T.Sym '?') }
 
 %right LET
 %nonassoc int double '(' var lab case natrec '()' lam rec fst snd new fork

@@ -42,10 +42,13 @@ tokens :-
   new                                   { tok $ const New }
   send                                  { tok $ const Send }
   recv                                  { tok $ const Recv }
+
+  -- for Binary Session Types; obsolete for Label Dependent ones
   select                                { tok $ const Select }
   rcase                                 { tok $ const Rcase }
   close                                 { tok $ const Close }
   wait                                  { tok $ const Wait }
+
   expect                                { tok $ const Expect }
   ("+"|"-")? $digit+ "." $digit+        { tok $ Double . read . removePrecedingPlus }
   ("+"|"-")? $digit+                    { tok $ Int . read . removePrecedingPlus }
@@ -89,10 +92,13 @@ data Token =
         New             |
         Send            |
         Recv            |
+
+        -- for Binary Session Types; obsolete for Label Dependent ones
         Select          |
         Rcase           |
         Close           |
         Wait            |
+
         Expect          |
         Type            |
         Sym Char        |
