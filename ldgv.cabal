@@ -86,28 +86,6 @@ library
     , validation-selective
   default-language: Haskell2010
 
-executable ldgv-browser
-  main-is: Main.hs
-  other-modules:
-      SyntaxDescription
-  hs-source-dirs:
-      browser
-  build-depends:
-      array
-    , base >=4.12 && <5
-    , containers
-    , jsaddle
-    , ldgv
-    , lens
-    , reflex
-    , reflex-dom
-    , text
-  if impl(ghcjs)
-    ghc-options: -dedupe -Wall
-  else
-    buildable: False
-  default-language: Haskell2010
-
 executable ldgv-exe
   main-is: Main.hs
   other-modules:
@@ -127,8 +105,6 @@ executable ldgv-exe
     , terminal-size
     , text
     , unliftio
-  if impl(ghcjs)
-    buildable: False
   default-language: Haskell2010
 
 test-suite ldgv-test

@@ -20,6 +20,9 @@ data-files:
 
 dependencies:
 - base >=4.12 && <5
+- bytestring
+- filepath
+- mtl
 - text
 
 library:
@@ -37,12 +40,9 @@ library:
   - happy
   dependencies:
   - array
-  - bytestring
   - containers
   - file-embed
-  - filepath
   - lens
-  - mtl
   - prettyprinter
   - transformers
   - typed-process
@@ -68,11 +68,8 @@ tests:
     - ldgv
     - QuickCheck
     - array
-    - bytestring
     - containers
-    - filepath
     - hspec
-    - mtl
     - typed-process
     - unliftio
 
@@ -83,14 +80,10 @@ executables:
     source-dirs: exe
     dependencies:
     - ldgv
-    - bytestring
-    - filepath
-    - mtl
     - optparse-applicative
     - prettyprinter
     - prettyprinter-ansi-terminal
     - terminal-size
-    - text
     - unliftio
     ghc-options:
     - -Wall
@@ -99,27 +92,3 @@ executables:
     - -Wpartial-fields
     - -Wredundant-constraints
     - -rtsopts
-    when:
-    - condition: impl(ghcjs)
-      buildable: False
-
-  ldgv-browser:
-    main: Main.hs
-    other-modules: SyntaxDescription
-    source-dirs: browser
-    dependencies:
-    - ldgv
-    - array
-    - containers
-    - lens
-    - jsaddle
-    - reflex
-    - reflex-dom
-    when:
-    - condition: impl(ghcjs)
-      then:
-        ghc-options:
-        - -dedupe
-        - -Wall
-      else:
-        buildable: False
