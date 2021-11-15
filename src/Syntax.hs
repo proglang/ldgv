@@ -30,6 +30,7 @@ data Exp = Let Ident Exp Exp
          | Send Exp
          | Recv Exp
          | Case Exp [(String, Exp)]
+         | Cast Ident Type Type
   deriving (Show,Eq)
 
 data MathOp e
@@ -52,6 +53,7 @@ data Type = TUnit
           | TInt
           | TDouble
           | TBot
+          | TDyn
           | TNat
           | TNatRec Exp Type TIdent Type
           | TVar Bool TIdent
@@ -170,6 +172,7 @@ instance Freevars Type where
   fv TInt = Set.empty
   fv TDouble = Set.empty
   fv TBot = Set.empty
+  fv TDyn = Set.empty
   fv (TName b tn) = Set.empty
   fv (TVar b tv) = Set.empty
   fv (TLab labs) = Set.empty
@@ -262,6 +265,8 @@ instance Substitution Type where
     ty
   subst x exp ty@TBot =
     ty
+  subst x exp ty@TDyn =
+    ty
   -- rationale: a type abbreviation has no free variables
   subst x exp ty@(TName b tid) =
     ty
@@ -335,6 +340,7 @@ instance Eq Type where
   TInt  == TInt  = True
   TDouble == TDouble = True
   TBot  == TBot  = True
+  TDyn == TDyn   = True
   TName b s == TName b' s' = b == b' && s == s'
   TVar b s == TVar b' s' = b == b' && s == s'
   TLab labs == TLab labs'  = sort labs == sort labs'
@@ -392,6 +398,7 @@ tsubst tn tyn ty = ts ty
         TInt -> TInt
         TDouble -> TDouble
         TBot -> TBot
+        TDyn -> TDyn
         TNat -> TNat
         TNatRec e tz ti tsu ->
           TNatRec e (ts tz) ti (if ti == tn then tsu else ts tsu)

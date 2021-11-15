@@ -54,6 +54,7 @@ import qualified Parsing.Tokens as T
     natrec  { T _ T.NatRec }
     '()'    { T _ T.Unit }
     '->'    { T _ T.Arrow }
+    '=>'    { T _ T.DoubleArrow }
     '{{'    { T _ T.OpenEqn }
     '}}'    { T _ T.CloseEqn }
     assume  { T _ T.Assume }
@@ -118,8 +119,8 @@ Assumption : var ':' Mul Typ { ($1, (inject $3, $4)) }
 Assumptions :  { [] }
      | Assumption ',' Assumptions { $1 : $3 }
 
-Vars : { [] }
-     | var Vars { $1 : $2 }
+CCVar : var { Var $1 }
+    | var ':' '*' '=>' Typ { Var $1 }
 
 Mul : '!' { MOne }
     | { MMany }
@@ -142,6 +143,7 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | '-' Exp %prec NEG      { Math $ Neg $2 }
     | int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
     | double                 { Lit $ LDouble $1 }
+    | var ':' Typ '=>' Typ   { Cast $1 $3 $5 }
     | var                    { Var $1 }
     | lab                    { Lit $ LLab $1 }
     | case Exp Of '{' ExpCases '}'  { Case $2 $5 }
@@ -179,6 +181,7 @@ ATyp : Unit                         { TUnit }
     | Nat                           { TNat }
     | Double                        { TDouble }
     | Bot                           { TBot }
+    | '*'                           { TDyn }
     | tid                           { TName False $1 }
     | '{' Labs '}'                  { TLab $2 }
     | '[' Mul var ':' Typ ',' Typ ']'   { TPair $2 $3 $5 $7 }

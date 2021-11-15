@@ -43,6 +43,7 @@ instance Pretty Type where
   pretty TInt = pretty "Int"
   pretty TNat = pretty "Nat"
   pretty TBot = pretty "_|_"
+  pretty TDyn = pretty "*"
   pretty TDouble = pretty "Double"
     -- the bool indicates whether the type needs to be dualized
   pretty (TName b s) = (if b then pretty "~" else mempty) <> pretty s

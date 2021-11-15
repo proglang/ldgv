@@ -62,6 +62,7 @@ tokens :-
   "_|_"                                 { tok $ const TBot }
   "()"                                  { tok $ const Unit }
   "->"                                  { tok $ const Arrow }
+  "=>"                                  { tok $ const DoubleArrow }
   "{{"                                  { tok $ const OpenEqn }
   "}}"                                  { tok $ const CloseEqn }
   "<:"                                  { tok $ const Subtype }
@@ -118,6 +119,7 @@ data Token =
         OpenEqn         |
         CloseEqn        |
         Arrow           |
+        DoubleArrow     |
         Colon           |
         Comma           |
         Dot             |
