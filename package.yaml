@@ -54,6 +54,7 @@ tests:
     source-dirs: test
     other-modules:
     - ArithmeticSpec
+    - CcldlcSpec
     - CSpec
     - FunctionApplicationSpec
     - FunctionSignaturesSpec

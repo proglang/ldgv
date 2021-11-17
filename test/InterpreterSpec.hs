@@ -3,6 +3,7 @@ module InterpreterSpec (spec) where
 import Test.Hspec
 import Utils
 
+import Kinds
 import Syntax
 import ProcessEnvironment
 
@@ -23,3 +24,16 @@ spec =
       DFun "f" [] (Math $ Div (Math $ Mul (Lit $ LDouble 2.0) (Math $ Sub (Lit $ LDouble 1.0) (Lit $ LDouble 3.0))) (Lit $ LDouble 4.0)) Nothing
       `shouldInterpretTo`
       VDouble (-1.0)
+
+    it "interprets application of (x='T, y='T) on section2 example function f2'" $ do
+      DFun "f2'" []
+        (App (App
+          (Lam MMany "x" TDyn
+            (Lam MMany "y"
+              (TCase (Cast "x" TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")])
+              (Case (Cast "x" TDyn (TName False "Bool")) [("'T",Math (Add (Lit (LNat 17)) (Var "y"))),("'F",App (Var "not") (Var "y"))])
+            )
+          )
+        (Lit (LLab "'T"))) (Lit (LLab "'T"))) Nothing
+      `shouldInterpretTo`
+      VLabel "'F"

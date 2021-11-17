@@ -112,6 +112,7 @@ test-suite ldgv-test
   main-is: Spec.hs
   other-modules:
       ArithmeticSpec
+      CcldlcSpec
       CSpec
       FunctionApplicationSpec
       FunctionSignaturesSpec
