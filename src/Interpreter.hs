@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Interpreter (interpret, evalDFun) where
+module Interpreter (interpret, evalDFun, createPEnv) where
 
 import qualified Config as C
 import Syntax
@@ -16,8 +16,8 @@ interpret :: [Decl] -> IO Value
 interpret decls = do
     -- gather Type and Function definitions
     let penv = createPEnv $ filter isInterestingDecl decls
-        isInterestingDecl (DFun _ _ _ _) = True
-        isInterestingDecl (DType _ _ _ _) = True
+        isInterestingDecl DFun {} = True
+        isInterestingDecl DType {} = True
         isInterestingDecl _ = False
 
     -- find the main DFun
@@ -73,6 +73,7 @@ interpret' e =
                  let f = \arg -> do
                                  liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env)
                  return $ VFun f
+  Cast s from to -> pmlookup s
   Var s -> pmlookup s
   Let s e1 e2 -> do
       v  <- interpret' e1
@@ -160,7 +161,7 @@ interpretLit = \case
   LUnit  -> VUnit
 
 data InterpreterException
-  = MathException
+  = MathException String
   deriving Show
 
 instance Exception InterpreterException
@@ -172,8 +173,7 @@ interpretMathOp a b opInt opDouble = do
   return $ case (v, w) of
     (VInt x, VInt y) -> VInt (opInt x y)
     (VDouble x, VDouble y) -> VDouble (opDouble x y)
-    (_, _) -> throw MathException
-
+    (_, _) -> throw (MathException (show v ++ " -> " ++ show w ++ " -> a: did not yield a value"))
 interpretMath :: MathOp Exp -> InterpretM
 interpretMath = \case
   Add a b -> interpretMathOp a b (+) (+)
@@ -183,7 +183,7 @@ interpretMath = \case
   Neg a   -> interpret' a >>= (\v -> return $ case v of
     VInt x -> VInt (negate x)
     VDouble x -> VDouble (negate x)
-    _ -> throw MathException)
+    _ -> throw (MathException ("negate " ++ show v ++ ": did not yield a value")))
 
 createPEnv :: [Decl] -> PEnv
 createPEnv = map createEntry

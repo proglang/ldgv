@@ -50,8 +50,8 @@ tokens :-
   wait                                  { tok $ const Wait }
 
   expect                                { tok $ const Expect }
-  ("+"|"-")? $digit+ "." $digit+        { tok $ Double . read . removePrecedingPlus }
-  ("+"|"-")? $digit+                    { tok $ Int . read . removePrecedingPlus }
+  $digit+ "." $digit+                   { tok $ Double . read }
+  $digit+                               { tok $ Int . read }
   Bot                                   { tok $ const TBot }
   Unit                                  { tok $ const TUnit }
   Int                                   { tok $ const TInt }
@@ -159,10 +159,4 @@ tokKind = tok' \k ->
     $ readMaybe
     $ ('K':)    -- Subsitutes the initial '~' with 'K'
     $ tail k
-
--- When reading a number explicitly marked as positive, e.g. +2
--- one needs to remove the preceding + sign.
-removePrecedingPlus :: String -> String
-removePrecedingPlus ('+':chars) = chars
-removePrecedingPlus s = s
 }

@@ -8,7 +8,7 @@ import Syntax
 import ProcessEnvironment
 
 spec :: Spec
-spec =
+spec = do
   describe "LDGV interpretation of single arithmetic declarations" $ do
     it "compares integer and double value" $ do
       VInt 42 == VDouble 42.0 `shouldBe` False
@@ -25,15 +25,29 @@ spec =
       `shouldInterpretTo`
       VDouble (-1.0)
 
-    it "interprets application of (x='T, y='T) on section2 example function f2'" $ do
+  describe "LDLC function interpretation" $ do
+    it "interprets application of (x='F, y='F) on section2 example function f" $ do
+      DFun "f" []
+        (App (App
+          (Lam MMany "x" (TName False "Bool")
+            (Lam MMany "y" (TCase (Var "x") [("'T",TInt),("'F",TName False "Bool")])
+              (Case (Var "x")
+                [("'T",Math (Add (Lit (LNat 17)) (Var "y")))
+                ,("'F",App (Var "not") (Var "y"))])))
+          (Lit (LLab "'F"))) (Lit (LLab "'F")))
+        Nothing
+      `shouldInterpretTo`
+      VLabel "'T"
+
+  describe "CCLDLC function interpretation" $ do
+    it "interprets application of (x='F, y='F) on section2 example function f2'" $ do
       DFun "f2'" []
         (App (App
           (Lam MMany "x" TDyn
             (Lam MMany "y"
               (TCase (Cast "x" TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")])
-              (Case (Cast "x" TDyn (TName False "Bool")) [("'T",Math (Add (Lit (LNat 17)) (Var "y"))),("'F",App (Var "not") (Var "y"))])
-            )
-          )
-        (Lit (LLab "'T"))) (Lit (LLab "'T"))) Nothing
+              (Case (Cast "x" TDyn (TName False "Bool")) [("'T",Math (Add (Lit (LNat 17)) (Var "y"))),("'F",App (Var "not") (Var "y"))])))
+        (Lit (LLab "'F"))) (Lit (LLab "'F")))
+        Nothing
       `shouldInterpretTo`
-      VLabel "'F"
+      VLabel "'T"

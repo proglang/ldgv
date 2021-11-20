@@ -85,7 +85,7 @@ import qualified Parsing.Tokens as T
 %nonassoc int double '(' var lab case natrec '()' lam rec fst snd new fork
 %right in
 %nonassoc '>' '<'
-%left '+' '-' NEG
+%left '+' '-' NEG POS
 %left '*' '/'
 %left send recv
 %nonassoc APP
@@ -140,6 +140,7 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | Exp '*' Exp            { Math $ Mul $1 $3 }
     | Exp '/' Exp            { Math $ Div $1 $3 }
     | '(' Exp ')'            { $2 }
+    | '+' Exp %prec POS      { $2 }
     | '-' Exp %prec NEG      { Math $ Neg $2 }
     | int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
     | double                 { Lit $ LDouble $1 }

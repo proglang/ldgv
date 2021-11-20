@@ -9,7 +9,7 @@ import Syntax
 import Kinds
 
 spec :: Spec
-spec = 
+spec =
   describe "LDGV parser arithmetic tests" $ do
     it "parses an addition" $ do
       "val f (m:Int) (n:Int) = m + n" `shouldParseDecl`
@@ -68,7 +68,8 @@ spec =
     it "parses substraction of negative double literals" $ do
       "val f = -12.34 - -56.78" `shouldParseDecl`
         DFun "f" [] (Math $ Sub
-          (Lit $ LDouble (-12.34)) (Lit $ LDouble (-56.78)))
+          (Math (Neg (Lit $ LDouble 12.34)))
+          (Math (Neg (Lit $ LDouble 56.78))))
           Nothing
 
     it "parses addition of explicitly positive double literals" $ do
@@ -80,7 +81,8 @@ spec =
     it "parses substraction of negative integer literals" $ do
       "val f = -12 - -56" `shouldParseDecl`
         DFun "f" [] (Math $ Sub
-          (Lit $ LInt (-12)) (Lit $ LInt (-56)))
+          (Math (Neg (Lit $ LNat 12)))
+          (Math (Neg (Lit $ LNat 56))))
           Nothing
 
     it "parses addition of explicitly positive integer literals" $ do
