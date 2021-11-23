@@ -30,7 +30,7 @@ data Exp = Let Ident Exp Exp
          | Send Exp
          | Recv Exp
          | Case Exp [(String, Exp)]
-         | Cast Ident Type Type
+         | Cast Exp Type Type
   deriving (Show,Eq)
 
 data MathOp e
@@ -161,6 +161,7 @@ instance Freevars Exp where
   fv (Send e1) = fv e1
   fv (Recv e1) = fv e1
   fv (Case e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
+  fv (Cast e t1 t2) = fv e
   fv (Succ e) = fv e
   fv (NatRec e ez x t y tyy es) = fv e <> fv ez <> Set.delete x (Set.delete y (fv es)) <> fv tyy
 
@@ -214,6 +215,7 @@ instance Substitution Exp where
                                      (if x /= y then subst x exp ty else ty)
                                      (if x /= f && x /= y then sb e1 else e1)
     sb (Case e1 cases) = Case (sb e1) [(lll, sb e) | (lll, e) <- cases]
+    sb orig@(Cast e t1 t2) = Cast (sb e) t1 t2
     sb (App e1 e2) = App (sb e1) (sb e2)
     sb (Pair m y e1 e2) = Pair m y (sb e1) (if x /= y then sb e2 else e2)
     sb (Fst e1) = Fst (sb e1)
@@ -317,6 +319,7 @@ single x tyx ty =
     TInt -> TInt
     TDouble -> TDouble
     TBot -> TBot
+    TDyn -> TDyn
     TName b i -> TName b i
     TVar b i -> TVar b i
     TLab labs -> TLab labs

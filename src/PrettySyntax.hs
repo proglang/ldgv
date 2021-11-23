@@ -109,6 +109,8 @@ instance Pretty Exp where
   pretty (Recv e) = pretty "recv" <+> pretty e
   pretty (Case e ses) =
     pcase e ses
+  pretty (Cast e t1 t2) =
+    pretty e <+> pretty ":" <+> pretty t1 <+> pretty "=>" <+> pretty t2
   pretty (Succ e) =
     pretty "succ" <+> pretty e
   pretty (NatRec e ez x t y tyy es) =

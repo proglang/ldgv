@@ -73,7 +73,7 @@ interpret' e =
                  let f = \arg -> do
                                  liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env)
                  return $ VFun f
-  Cast s from to -> pmlookup s
+  Cast e t1 t2 -> interpret' e
   Var s -> pmlookup s
   Let s e1 e2 -> do
       v  <- interpret' e1

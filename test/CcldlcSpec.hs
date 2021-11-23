@@ -14,10 +14,9 @@ spec =
     it "f2' example function" $ do
       "val f2'  = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}"
       `shouldParseDecl`
-       DFun "f2'" []
-         (Lam MMany "x" TDyn
-           (Lam MMany "y"
-             (TCase (Cast "x" TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")])
-             (Case (Cast "x" TDyn (TName False "Bool")) [("'T",Math (Add (Lit (LNat 17)) (Var "y"))),("'F",App (Var "not") (Var "y"))])
-           )
-         ) Nothing
+      DFun "f2'" []
+        (Lam MMany "x" TDyn
+          (Lam MMany "y"
+            (TCase (Cast (Var "x") TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")])
+            (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Math (Add (Lit (LNat 17)) (Var "y"))),("'F",App (Var "not") (Var "y"))])))
+        Nothing

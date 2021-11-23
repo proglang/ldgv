@@ -119,9 +119,6 @@ Assumption : var ':' Mul Typ { ($1, (inject $3, $4)) }
 Assumptions :  { [] }
      | Assumption ',' Assumptions { $1 : $3 }
 
-CCVar : var { Var $1 }
-    | var ':' '*' '=>' Typ { Var $1 }
-
 Mul : '!' { MOne }
     | { MMany }
 
@@ -135,71 +132,69 @@ AExp
     | '(' Exp ')'            { $2 }
 
 Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
-    | Exp '+' Exp            { Math $ Add $1 $3 }
-    | Exp '-' Exp            { Math $ Sub $1 $3 }
-    | Exp '*' Exp            { Math $ Mul $1 $3 }
-    | Exp '/' Exp            { Math $ Div $1 $3 }
-    | '(' Exp ')'            { $2 }
-    | '+' Exp %prec POS      { $2 }
-    | '-' Exp %prec NEG      { Math $ Neg $2 }
-    | int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
-    | double                 { Lit $ LDouble $1 }
-    | var ':' Typ '=>' Typ   { Cast $1 $3 $5 }
-    | var                    { Var $1 }
-    | lab                    { Lit $ LLab $1 }
+    | Exp '+' Exp           { Math $ Add $1 $3 }
+    | Exp '-' Exp           { Math $ Sub $1 $3 }
+    | Exp '*' Exp           { Math $ Mul $1 $3 }
+    | Exp '/' Exp           { Math $ Div $1 $3 }
+    | '(' Exp ')'           { $2 }
+    | '+' Exp %prec POS     { $2 }
+    | '-' Exp %prec NEG     { Math $ Neg $2 }
+    | int                   { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
+    | double                { Lit $ LDouble $1 }
+    | Exp ':' Typ '=>' Typ  { Cast $1 $3 $5 }
+    | var                   { Var $1 }
+    | lab                   { Lit $ LLab $1 }
     | case Exp Of '{' ExpCases '}'  { Case $2 $5 }
     | natrec Exp '{' Exp ',' var '.' tid '.' '(' var ':' Typ ')' '.' Exp '}'
-                             { NatRec $2 $4 $6 $8 $11 $13 $16 }
-    | '()'                   { Lit LUnit }
-    | lam Mul '(' var ':' Typ ')' Exp        { Lam $2 $4 $6 $8 }
-    | rec var '(' var ':' Typ ')' ':' Typ '=' Exp        { Rec $2 $4 $6 $9 $11 }
-    | '<' Mul var '=' Exp ',' Exp '>' { Pair $2 $3 $5 $7 }
-    | let '<' var ',' var '>' '=' Exp in Exp %prec LET { LetPair $3 $5 $8 $10 }
-    | fst Exp                { Fst $2 }
-    | snd Exp                { Snd $2 }
-    | new Typ { New $2 }
-    | fork Exp { Fork $2 }
-    | send Exp %prec send { Send $2 }
-    | recv Exp %prec recv { Recv $2 }
-    | Exp Exp  %prec APP  { App $1 $2 }
+                            { NatRec $2 $4 $6 $8 $11 $13 $16 }
+    | '()'                  { Lit LUnit }
+    | lam Mul '(' var ':' Typ ')' Exp                   { Lam $2 $4 $6 $8 }
+    | rec var '(' var ':' Typ ')' ':' Typ '=' Exp       { Rec $2 $4 $6 $9 $11 }
+    | '<' Mul var '=' Exp ',' Exp '>'                   { Pair $2 $3 $5 $7 }
+    | let '<' var ',' var '>' '=' Exp in Exp %prec LET  { LetPair $3 $5 $8 $10 }
+    | fst Exp               { Fst $2 }
+    | snd Exp               { Snd $2 }
+    | new Typ               { New $2 }
+    | fork Exp              { Fork $2 }
+    | send Exp %prec send   { Send $2 }
+    | recv Exp %prec recv   { Recv $2 }
+    | Exp Exp  %prec APP    { App $1 $2 }
 
-
-Labs : lab { [$1] }
+Labs : lab          { [$1] }
      | lab ',' Labs { $1 : $3 }
 
 TypCase : lab ':' Typ { ($1, $3) }
 
-TypCases : TypCase { [$1] }
-      | TypCase ',' TypCases { $1 : $3 }
+TypCases : TypCase            { [$1] }
+      | TypCase ',' TypCases  { $1 : $3 }
 
 ExpCase : lab ':' Exp { ($1, $3) }
 
-ExpCases : ExpCase { [$1] }
+ExpCases : ExpCase              { [$1] }
          | ExpCase ',' ExpCases { $1 : $3 }
 
-ATyp : Unit                         { TUnit }
-    | Int                           { TInt }
-    | Nat                           { TNat }
-    | Double                        { TDouble }
-    | Bot                           { TBot }
-    | '*'                           { TDyn }
-    | tid                           { TName False $1 }
-    | '{' Labs '}'                  { TLab $2 }
-    | '[' Mul var ':' Typ ',' Typ ']'   { TPair $2 $3 $5 $7 }
-    | '[' Mul Typ ',' Typ ']'   { TPair $2 "#*" $3 $5 }
-    | '{{' Exp '=' Exp ':' Typ '}}' { TEqn $2 $4 $6 }
-    | '(' Typ ')'                    { $2 }
+ATyp : Unit                           { TUnit }
+    | Int                             { TInt }
+    | Nat                             { TNat }
+    | Double                          { TDouble }
+    | Bot                             { TBot }
+    | '*'                             { TDyn }
+    | tid                             { TName False $1 }
+    | '{' Labs '}'                    { TLab $2 }
+    | '[' Mul var ':' Typ ',' Typ ']' { TPair $2 $3 $5 $7 }
+    | '[' Mul Typ ',' Typ ']'         { TPair $2 "#*" $3 $5 }
+    | '{{' Exp '=' Exp ':' Typ '}}'   { TEqn $2 $4 $6 }
+    | '(' Typ ')'                     { $2 }
 
-
-Typ : ATyp                          { $1 }
-    | '(' var ':' Typ ')' Mul '->' Typ  { TFun $6 $2 $4 $8 }
-    | '!' '(' var ':' Typ ')' Typ   { TSend $3 $5 $7 }
-    | '?' '(' var ':' Typ ')' Typ   { TRecv $3 $5 $7 }
-    | '!' ATyp '.' Typ   { TSend "#!" $2 $4 }
-    | '?' ATyp '.' Typ   { TRecv "#?" $2 $4 }
-    | case Exp Of '{' TypCases '}'  { TCase $2 $5 }
-    | natrec Exp '{' Typ ',' tid '.' Typ '}' { TNatRec $2 $4 $6 $8 }
-    | dualof ATyp                    { dualof $2 }
+Typ : ATyp                                    { $1 }
+    | '(' var ':' Typ ')' Mul '->' Typ        { TFun $6 $2 $4 $8 }
+    | '!' '(' var ':' Typ ')' Typ             { TSend $3 $5 $7 }
+    | '?' '(' var ':' Typ ')' Typ             { TRecv $3 $5 $7 }
+    | '!' ATyp '.' Typ                        { TSend "#!" $2 $4 }
+    | '?' ATyp '.' Typ                        { TRecv "#?" $2 $4 }
+    | case Exp Of '{' TypCases '}'            { TCase $2 $5 }
+    | natrec Exp '{' Typ ',' tid '.' Typ '}'  { TNatRec $2 $4 $6 $8 }
+    | dualof ATyp                             { dualof $2 }
 
 {
 parseError (T (T.AlexPn _ line column) t) = do
