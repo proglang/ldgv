@@ -26,8 +26,8 @@ pmlookup id = do
   case lookup id identifiers of
     Nothing -> fail ("No Value for identifier " ++ id ++ " in ProcessEnvironment")
     Just val -> do
-                liftIO $ D.traceIO $ "Looked up " ++ id ++ " and found " ++ show val
-                >> pure val
+      liftIO $ D.traceIO $ "Looked up " ++ id ++ " and found " ++ show val
+      >> pure val
 
 -- | a Process Envronment maps identifiers to Values of expressions and stores
 type PEnv = [PEnvEntry]
@@ -81,14 +81,12 @@ data NFType = NFBot
              | NFDyn
              | NFUnit
              | NFLab [String]
-             | NFTName String
 
 instance Show NFType where
   show = \case
     NFBot -> "NFBot"
     NFDyn -> "NFDyn"
     NFUnit -> "NFUnit"
-    NFTName s -> "NFTName " ++ s
     NFLab labels -> "NFLab [" ++ foldr (\la lb -> la ++ "," ++ lb) "" labels ++ "]"
 
 instance Eq NFType where
@@ -96,5 +94,4 @@ instance Eq NFType where
   NFDyn == NFDyn = True
   NFUnit == NFUnit = True
   NFLab ls1 == NFLab ls2 = Set.fromList ls1 == Set.fromList ls2
-  NFTName s1 == NFTName s2 = s1 == s2
   _ == _ = False
