@@ -28,7 +28,7 @@ interpret decls = do
                                                   return $ fst endResult)
 
 -- | interpret a DFun (Function declaration)
-evalDFun :: Decl -> InterpretM
+evalDFun :: Decl -> InterpretM Value
 evalDFun decl@(DFun name [] expression _) = interpret' expression  -- a Declaration without free variables can be just interpreted
 evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
                           let decl' = DFun name binds e mty
@@ -39,7 +39,7 @@ evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
                                                   evalDFun decl')
 
 -- | interpret a single Expression
-interpret' :: Exp ->  InterpretM
+interpret' :: Exp ->  InterpretM Value
 interpret' e =
   M.ap
   (return (\val -> C.trace ("Leaving interpretation of " ++ show e ++ " with value " ++ show val) val)) $
@@ -73,7 +73,11 @@ interpret' e =
                  let f = \arg -> do
                                  liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env)
                  return $ VFun f
-  Cast e t1 t2 -> interpret' e
+  Cast e t1 t2 -> do
+    v <- interpret' e
+    nft1 <- evalType t1
+    nft2 <- evalType t2
+    return $ reduceCast v nft1 nft2
   Var s -> pmlookup s
   Let s e1 e2 -> do
       v  <- interpret' e1
@@ -166,7 +170,7 @@ data InterpreterException
 
 instance Exception InterpreterException
 
-interpretMathOp :: Exp -> Exp -> (Int -> Int -> Int) -> (Double -> Double -> Double) -> InterpretM
+interpretMathOp :: Exp -> Exp -> (Int -> Int -> Int) -> (Double -> Double -> Double) -> InterpretM Value
 interpretMathOp a b opInt opDouble = do
   v <- interpret' a
   w <- interpret' b
@@ -174,7 +178,7 @@ interpretMathOp a b opInt opDouble = do
     (VInt x, VInt y) -> VInt (opInt x y)
     (VDouble x, VDouble y) -> VDouble (opDouble x y)
     (_, _) -> throw (MathException (show v ++ " -> " ++ show w ++ " -> a: did not yield a value"))
-interpretMath :: MathOp Exp -> InterpretM
+interpretMath :: MathOp Exp -> InterpretM Value
 interpretMath = \case
   Add a b -> interpretMathOp a b (+) (+)
   Sub a b -> interpretMathOp a b (-) (-)
@@ -191,3 +195,14 @@ createPEnv = map createEntry
 createEntry :: Decl -> PEnvEntry
 createEntry d@(DType str mult kind typ) = (str, VType typ)
 createEntry d@(DFun str args e mt) = (str, VDecl d)
+
+-- TODO: What about built-in types without normal form equivalent?
+evalType :: Type -> InterpretM NFType
+evalType = \case
+  TBot -> return NFBot
+  TDyn -> return NFDyn
+  TUnit -> return NFUnit
+  TName _ s -> return $ NFTName s -- TODO: not sure about this
+
+reduceCast :: Value -> NFType -> NFType -> Value
+reduceCast v t1 NFDyn = VDynCast v t1

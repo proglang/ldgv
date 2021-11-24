@@ -1,11 +1,15 @@
+{-# LANGUAGE LambdaCase #-}
+
 module ProcessEnvironment where
 import Syntax as S
 import qualified Config as D
 import Control.Concurrent.Chan as C
 import Control.Monad.State.Strict as T
+import Data.Set (Set)
+import qualified Data.Set as Set
 
 -- | the interpretation monad
-type InterpretM = T.StateT PEnv IO Value
+type InterpretM a = T.StateT PEnv IO a
 
 -- | create a new entry (requires identifier to be unique)
 createPMEntry :: PEnvEntry -> T.StateT PEnv IO ()
@@ -16,7 +20,7 @@ createPMEntry entry = do
 extendEnv :: PEnvEntry -> PEnv -> PEnv
 extendEnv e env = e:env
 
-pmlookup :: String -> InterpretM
+pmlookup :: String -> InterpretM Value
 pmlookup id = do
   identifiers <- get
   case lookup id identifiers of
@@ -44,10 +48,11 @@ data Value = VUnit
   | VPair Value Value -- pair of ids that map to two values
   | VDecl S.Decl -- when an identifier maps to another function we have not yet interpreted
   | VType S.Type
-  | VFun (Value -> InterpretM) -- Function Type
+  | VFun (Value -> InterpretM Value) -- Function Type
+  | VDynCast Value NFType -- (Value : Type => *)
 
 instance Show Value where
-  show v = case v of
+  show = \case
     VUnit -> "VUnit"
     VLabel s -> "VLabel " ++ s
     VInt i -> "VInt " ++ show i
@@ -57,6 +62,7 @@ instance Show Value where
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
     VFun _ -> "VFunction "
+    VDynCast v t -> "VDynCast (" ++ show v ++ ":" ++ show t ++ "=> *)"
 
 instance Eq Value where
   VUnit == VUnit = True
@@ -67,4 +73,28 @@ instance Eq Value where
   (VPair x1 y1) == (VPair x2 y2) = x1 == x2 && y1 == y2
   (VDecl d1) == (VDecl d2) = d1 == d2
   (VType t1) == (VType t2) = t1 == t2
+  (VDynCast v1 t1) == (VDynCast v2 t2) = v1 == v2 && t1 == t2
+  _ == _ = False
+
+-- Types in Head Normal Form
+data NFType = NFBot
+             | NFDyn
+             | NFUnit
+             | NFLab [String]
+             | NFTName String
+
+instance Show NFType where
+  show = \case
+    NFBot -> "NFBot"
+    NFDyn -> "NFDyn"
+    NFUnit -> "NFUnit"
+    NFTName s -> "NFTName " ++ s
+    NFLab labels -> "NFLab [" ++ foldr (\la lb -> la ++ "," ++ lb) "" labels ++ "]"
+
+instance Eq NFType where
+  NFBot == NFBot = True
+  NFDyn == NFDyn = True
+  NFUnit == NFUnit = True
+  NFLab ls1 == NFLab ls2 = Set.fromList ls1 == Set.fromList ls2
+  NFTName s1 == NFTName s2 = s1 == s2
   _ == _ = False
