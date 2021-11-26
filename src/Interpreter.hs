@@ -6,23 +6,36 @@ import qualified Config as C
 import Syntax
 import Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
-import Data.Maybe (fromMaybe)
+import Data.Functor ((<&>))
+import Data.Maybe (mapMaybe)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State.Strict as S
 import Control.Exception
 
+-- If the cast succeeds a single value is returned
+-- and in case of failure it returns types (t1 => t2).
+type CastResult = Either Value (NFType, NFType)
+
 data InterpreterException
   = MathException String
   | LookupException String
-  | CastException
+  | CastException NFType NFType
   | ApplicationException String
-  | NotImplementedError Exp
-  deriving Show
+  | NotImplementedException Exp
+
+instance Show InterpreterException where
+  show = \case
+    (MathException s) -> "MathException: " ++ s
+    (LookupException s) -> "LookupException: " ++ s
+    (CastException t1 t2) -> "CastException: (" ++ show t1 ++ " => " ++ show t2 ++ ") failed"
+    (ApplicationException s) -> "ApplicationException: " ++ s
+    (NotImplementedException exp) -> "NotImplementedError: " ++ show exp
 
 instance Exception InterpreterException
 
-blame = throw CastException
+blame :: (NFType, NFType) -> a
+blame (t1, t2) = throw $ CastException t1 t2
 
 -- | interpret the "main" value in an ldgv file given over stdin
 interpret :: [Decl] -> IO Value
@@ -34,17 +47,16 @@ interpret decls = do
       isInterestingDecl _ = False
   -- find the main DFun
   case lookup "main" penv of
-    Just (VDecl decl) -> do
-      endResult <- S.runStateT (evalDFun decl) penv
-      return $ fst endResult
+    Just (VDecl decl) ->
+      S.runStateT (evalDFun decl) penv <&> fst
     _ -> throw $ LookupException "No 'main' value declaration found"
 
 -- | interpret a DFun (Function declaration)
 evalDFun :: Decl -> InterpretM Value
-evalDFun decl@(DFun name [] expression _) = interpret' expression  -- a Declaration without free variables can be just interpreted
-evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
+evalDFun decl@(DFun name [] e _) = interpret' e  -- a Declaration without free variables can be just interpreted
+evalDFun decl@(DFun name ((_, id, _):binds) e mty) =
   let decl' = DFun name binds e mty
-  return $ VFun (\arg -> do
+  in return $ VFun (\arg -> do
     -- bind the identifier to the given value at application
     createPMEntry (id, arg)
     -- and evaluate the rest of the declaration
@@ -54,7 +66,7 @@ evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
 interpret' :: Exp ->  InterpretM Value
 interpret' e =
   M.ap
-  (return (\val -> C.trace ("Leaving interpretation of " ++ show e ++ " with value " ++ show val) val)) $
+  (return $ \val -> C.trace ("Leaving interpretation of " ++ show e ++ " with value " ++ show val) val) $
   case C.trace ("Invoking interpretation on " ++ show e) e of
   Succ e -> interpretMath $ Add (Lit (LInt 1)) e
   exp@(NatRec e1 e2 i1 t1 i2 t e3) -> do
@@ -87,7 +99,7 @@ interpret' e =
     v <- interpret' e
     nft1 <- evalType t1
     nft2 <- evalType t2
-    return $ fromMaybe blame (reduceCast v nft1 nft2)
+    return $ either id (blame (nft1, nft2)) (reduceCast v nft1 nft2)
   Var s -> pmlookup s
   Let s e1 e2 -> do
     v  <- interpret' e1
@@ -160,7 +172,7 @@ interpret' e =
         let e1 = lookup s cases
         case e1 of
           Just e' -> interpret' e'
-  e -> throw $ NotImplementedError e
+  e -> throw $ NotImplementedException e
 
 interpretLit :: Literal -> Value
 interpretLit = \case
@@ -190,11 +202,13 @@ interpretMath = \case
     _ -> throw $ MathException ("negate " ++ show v ++ ": did not yield a value"))
 
 createPEnv :: [Decl] -> PEnv
-createPEnv = map createEntry
+createPEnv = mapMaybe createEntry
 
-createEntry :: Decl -> PEnvEntry
-createEntry d@(DType str mult kind typ) = (str, VType typ)
-createEntry d@(DFun str args e mt) = (str, VDecl d)
+createEntry :: Decl -> Maybe PEnvEntry
+createEntry = \case
+  d@(DType str mult kind typ) -> Just (str, VType typ)
+  d@(DFun str args e mt) -> Just (str, VDecl d)
+  _ -> Nothing
 
 -- TODO: What about built-in types without normal form equivalent?
 evalType :: Type -> InterpretM NFType
@@ -207,8 +221,9 @@ evalType = \case
     (VType t) -> evalType t
     _ -> throw $ LookupException ("Type lookup of '" ++ s ++ "' did not yield a type value"))
 
-reduceCast :: Value -> NFType -> NFType -> Maybe Value
-reduceCast VUnit _ _ = Just VUnit
-reduceCast v t1 NFDyn = Just $ VDynCast v t1
-reduceCast v t1 NFBot = Nothing
-reduceCast v t1 t2 = if t1 == t2 then Just v else Nothing
+reduceCast :: Value -> NFType -> NFType -> CastResult
+reduceCast VUnit _ _ = Left VUnit
+reduceCast v t1 NFDyn = Left $ VDynCast v t1
+reduceCast v t1 NFBot = Right (t1, NFBot)
+reduceCast (VDynCast v t1) NFDyn t2 = if t1 == t2 then Left v else Right (t1, t2)
+reduceCast v t1 t2 = if t1 == t2 then Left v else Right (t1, t2)
