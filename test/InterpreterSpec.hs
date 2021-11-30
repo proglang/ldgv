@@ -45,7 +45,7 @@ spec = do
                 (Lam MMany "y"
                   (TCase (Cast (Var "x") TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")])
                   (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Math (Add (Lit (LNat 17)) (Var "y"))),("'F",App (Var "not") (Var "y"))]))
-    it "interprets application of (x='F, y='F) on section2 example function f2'" $ do
+    it "interprets application of x=('F: Bool => *), y='F on section2 example function f2'" $ do
       DFun "f2'" []
         (App
           (App f2'
@@ -54,12 +54,21 @@ spec = do
         Nothing
       `shouldInterpretTo`
       VLabel "'T"
-    it "interprets application of (x='T, y=6) on section2 example function f2'" $ do
+    it "interprets application of x=('T: Bool -> *), y=6 on section2 example function f2'" $ do
       DFun "f2'" []
         (App
           (App f2'
-            (Lit (LLab "'T")))
+            (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn))
           (Lit (LNat 6)))
         Nothing
       `shouldInterpretTo`
       VInt 23
+    it "interprets application of x=('F: MaybeBool => *), y='F on section2 example function f2'" $ do
+      DFun "f2'" []
+        (App
+          (App f2'
+            (Cast (Lit (LLab "'F")) (TName False "MaybeBool") TDyn))
+          (Lit (LLab "'F")))
+        Nothing
+      `shouldInterpretTo`
+      VLabel "'T"

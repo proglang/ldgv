@@ -21,6 +21,10 @@ raiseFailure msg = do
 boolTypeDecl :: Decl
 boolTypeDecl = DType "Bool" MMany Kun (TLab ["'T","'F"])
 
+-- type MaybeBool : ~un = {'T, 'F, 'N}
+maybeBoolTypeDecl :: Decl
+maybeBoolTypeDecl = DType "MaybeBool" MMany Kun (TLab ["'T","'F","'N"])
+
 -- val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
 notFuncDecl :: Decl
 notFuncDecl = DFun
@@ -31,6 +35,6 @@ notFuncDecl = DFun
 shouldInterpretTo :: Decl -> Value -> Expectation
 shouldInterpretTo givenDecl expectedValue = do
   -- load some functions in the environment
-  let penv = createPEnv [boolTypeDecl, notFuncDecl]
+  let penv = createPEnv [boolTypeDecl, notFuncDecl, maybeBoolTypeDecl]
   value <- evalStateT (evalDFun givenDecl) penv
   return value `shouldReturn` expectedValue

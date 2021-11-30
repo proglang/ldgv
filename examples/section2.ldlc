@@ -1,6 +1,7 @@
 -- These are examples from section 2 of the paper "Label Dependent Lambda Calculus and Gradual Typing.pdf" (2021)
 
 type Bool : ~un = {'T, 'F}
+type MaybeBool : ~un = {'T, 'F, 'N}
 val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
 
 -- This is a LDLC function:

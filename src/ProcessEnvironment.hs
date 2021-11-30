@@ -80,6 +80,9 @@ instance Eq Value where
 data NFType = NFBot
              | NFDyn
              | NFUnit
+             | NFInt
+             | NFDouble
+             | NFNat
              | NFLab [String]
 
 instance Show NFType where
@@ -87,11 +90,17 @@ instance Show NFType where
     NFBot -> "NFBot"
     NFDyn -> "NFDyn"
     NFUnit -> "NFUnit"
+    NFInt -> "NFInt"
+    NFDouble -> "NFDouble"
+    NFNat -> "NFNat"
     NFLab labels -> "NFLab [" ++ foldr (\la lb -> la ++ "," ++ lb) "" labels ++ "]"
 
 instance Eq NFType where
   NFBot == NFBot = True
   NFDyn == NFDyn = True
   NFUnit == NFUnit = True
+  NFInt == NFInt = True
+  NFDouble == NFDouble = True
+  NFNat == NFNat = True
   NFLab ls1 == NFLab ls2 = Set.fromList ls1 == Set.fromList ls2
   _ == _ = False

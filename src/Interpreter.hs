@@ -211,11 +211,15 @@ createEntry = \case
   _ -> Nothing
 
 -- TODO: What about built-in types without normal form equivalent?
+-- TODO: Make assumptions about subtyping between built-in numeric types?
 evalType :: Type -> InterpretM NFType
 evalType = \case
   TBot -> return NFBot
   TDyn -> return NFDyn
   TUnit -> return NFUnit
+  TInt -> return NFInt
+  TDouble -> return NFDouble
+  TNat -> return NFNat
   TLab labels -> return $ NFLab labels
   TName _ s -> pmlookup s >>= (\case
     (VType t) -> evalType t
