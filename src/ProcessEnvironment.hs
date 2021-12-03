@@ -34,8 +34,36 @@ type PEnv = [PEnvEntry]
 type PEnvEntry = (String, Value)
 
 printPEnv :: PEnv -> String
-printPEnv [] = ""
-printPEnv (x:xs) = show x ++ "\n" ++ printPEnv xs
+printPEnv = foldr (\entry string -> show entry ++ "\n" ++ string) ""
+
+type Label = String
+type LabelType = Set Label
+
+-- Ground Type
+data GType = GUnit
+  | GLabel LabelType
+  | GUnitSingleton                  -- S{():Unit)
+  | GLabelSingleton Value LabelType -- S{V:L}
+  | GSum                            -- Π(x: *)* aka * → *
+  | GProd                           -- Σ(x: *)* aka * ⨯ *
+
+instance Show GType where
+  show = \case
+    GUnit -> "GUnit"
+    GLabel ls -> "GLabel " ++ show ls
+    GUnitSingleton -> "GUnitSingleton {():Unit}"
+    GLabelSingleton v ls -> "GLabelSingleton {" ++ show v ++ ": " ++ show ls ++ "}"
+    GSum -> "GSum"
+    GProd -> "GProd"
+
+instance Eq GType where
+  GUnit == GUnit = True
+  (GLabel ls1) == (GLabel ls2) = ls1 == ls2
+  GUnitSingleton == GUnitSingleton = True
+  (GLabelSingleton v1 ls1) == (GLabelSingleton v2 ls2) = v1 == v2 && ls1 == ls2
+  GSum == GSum = True
+  GProd == GProd = True
+  _ == _ = False
 
 -- | (Unit, Label, Int, Values of self-declared Data Types), Channels
 data Value = VUnit
@@ -49,7 +77,8 @@ data Value = VUnit
   | VDecl S.Decl -- when an identifier maps to another function we have not yet interpreted
   | VType S.Type
   | VFun (Value -> InterpretM Value) -- Function Type
-  | VDynCast Value NFType -- (Value : Type => *)
+  | VDynCast Value GType -- (Value : G => *)
+  | VClosure PEnv String S.Type S.Exp -- Closure (ρ, λ(x: A) M)
 
 instance Show Value where
   show = \case
@@ -63,6 +92,7 @@ instance Show Value where
     VType t -> "VType " ++ show t
     VFun _ -> "VFunction "
     VDynCast v t -> "VDynCast (" ++ show v ++ ":" ++ show t ++ "=> *)"
+    VClosure penv v t e -> "VClosure (" ++ show penv ++ ", λ(" ++ show v ++ ":" ++ show t ++ ") " ++ show e ++ ")"
 
 instance Eq Value where
   VUnit == VUnit = True
@@ -78,29 +108,26 @@ instance Eq Value where
 
 -- Types in Head Normal Form
 data NFType = NFBot
-             | NFDyn
-             | NFUnit
-             | NFInt
-             | NFDouble
-             | NFNat
-             | NFLab [String]
+  | NFDyn
+  | NFUnit
+  | NFLab (Set String)
+  | NFSingleton Value NFType          -- S{V:A}
+  | NFApply PEnv String S.Type S.Type -- (ρ, Θ(x: A) B)
 
 instance Show NFType where
   show = \case
     NFBot -> "NFBot"
     NFDyn -> "NFDyn"
     NFUnit -> "NFUnit"
-    NFInt -> "NFInt"
-    NFDouble -> "NFDouble"
-    NFNat -> "NFNat"
-    NFLab labels -> "NFLab [" ++ foldr (\la lb -> la ++ "," ++ lb) "" labels ++ "]"
+    NFLab labels -> "NFLab {" ++ foldr (\la lb -> la ++ "," ++ lb) "" labels ++ "}"
+    NFSingleton v t -> "NFSingleton {" ++ show v ++ ": " ++ show t ++ "}"
+    NFApply penv v tA tB -> "NFApply (" ++ show penv ++ ", Θ(" ++ show v ++ ":" ++ show tA ++ ") " ++ show tB ++ ")"
 
 instance Eq NFType where
   NFBot == NFBot = True
   NFDyn == NFDyn = True
   NFUnit == NFUnit = True
-  NFInt == NFInt = True
-  NFDouble == NFDouble = True
-  NFNat == NFNat = True
-  NFLab ls1 == NFLab ls2 = Set.fromList ls1 == Set.fromList ls2
+  NFLab ls1 == NFLab ls2 = ls1 == ls2
+  (NFApply penv1 var1 typeA1 typeB1) == (NFApply penv2 var2 typeA2 typeB2) =
+    penv1 == penv2 && var1 == var2 && typeA1 == typeA2 && typeB1 == typeB2
   _ == _ = False

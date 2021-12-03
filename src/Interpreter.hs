@@ -8,19 +8,17 @@ import Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Data.Functor ((<&>))
 import Data.Maybe (mapMaybe)
+import Data.Foldable (find)
+import qualified Data.Set as Set
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State.Strict as S
 import Control.Exception
 
--- If the cast succeeds a single value is returned
--- and in case of failure it returns types (t1 => t2).
-type CastResult = Either Value (NFType, NFType)
-
 data InterpreterException
   = MathException String
   | LookupException String
-  | CastException NFType NFType
+  | CastException Exp
   | ApplicationException String
   | NotImplementedException Exp
 
@@ -28,14 +26,14 @@ instance Show InterpreterException where
   show = \case
     (MathException s) -> "MathException: " ++ s
     (LookupException s) -> "LookupException: " ++ s
-    (CastException t1 t2) -> "CastException: (" ++ show t1 ++ " => " ++ show t2 ++ ") failed"
+    (CastException exp) -> "CastException: (" ++ show exp ++ ") failed"
     (ApplicationException s) -> "ApplicationException: " ++ s
     (NotImplementedException exp) -> "NotImplementedError: " ++ show exp
 
 instance Exception InterpreterException
 
-blame :: (NFType, NFType) -> a
-blame (t1, t2) = throw $ CastException t1 t2
+blame :: Exp -> a
+blame exp = throw $ CastException exp
 
 -- | interpret the "main" value in an ldgv file given over stdin
 interpret :: [Decl] -> IO Value
@@ -95,11 +93,13 @@ interpret' e =
     env <- get
     let f = \arg -> liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env)
     return $ VFun f
-  Cast e t1 t2 -> do
+  cast@(Cast e t1 t2) -> do
     v <- interpret' e
     nft1 <- evalType t1
     nft2 <- evalType t2
-    return $ either id (blame (nft1, nft2)) (reduceCast v nft1 nft2)
+    case reduceCast v nft1 nft2 of
+      Just v' -> return v' -- Cast-Reduce-Left/Cast-Reduce-Right
+      Nothing -> blame cast
   Var s -> pmlookup s
   Let s e1 e2 -> do
     v  <- interpret' e1
@@ -217,17 +217,37 @@ evalType = \case
   TBot -> return NFBot
   TDyn -> return NFDyn
   TUnit -> return NFUnit
-  TInt -> return NFInt
-  TDouble -> return NFDouble
-  TNat -> return NFNat
-  TLab labels -> return $ NFLab labels
-  TName _ s -> pmlookup s >>= (\case
+  TLab labels -> return $ NFLab $ Set.fromList labels
+  TName _ s -> pmlookup s >>= \case
     (VType t) -> evalType t
-    _ -> throw $ LookupException ("Type lookup of '" ++ s ++ "' did not yield a type value"))
+    _ -> throw $ LookupException ("Lookup of '" ++ s ++ "' did not yield a value")
+  TCase exp labels -> do
+    v <- interpret' exp
+    case v of
+      (VLabel l) -> case find (\(l', _) -> l == l') labels of
+        (Just (_,t)) -> evalType t  -- Reduce-Type-Exp/Reduce-Type-Beta
+        Nothing -> return NFBot     -- Reduce-Type-Blame
+      _ -> return NFBot             -- Reduce-Type-Blame
 
-reduceCast :: Value -> NFType -> NFType -> CastResult
-reduceCast VUnit _ _ = Left VUnit
-reduceCast v t1 NFDyn = Left $ VDynCast v t1
-reduceCast v t1 NFBot = Right (t1, NFBot)
-reduceCast (VDynCast v t1) NFDyn t2 = if t1 == t2 then Left v else Right (t1, t2)
-reduceCast v t1 t2 = if t1 == t2 then Left v else Right (t1, t2)
+
+reduceCast :: Value -> NFType -> NFType -> Maybe Value
+reduceCast v t NFDyn = case toGroundType t of -- Factor-Left
+  Just gt -> Just (VDynCast v gt) -- TODO: also check t != gt
+  Nothing -> Nothing
+reduceCast (VDynCast v gt1) NFDyn t2 = case toGroundType t2 of
+  Just gt2 -> if gt1 `isSubtypeOf` gt2 then Just v else Nothing
+  _ -> Nothing
+reduceCast v t NFBot = Nothing -- Cast-Bot
+reduceCast v t1 t2 = case (toGroundType t1, toGroundType t2) of -- Cast-Fail/Cast-Sub
+  (Just gt1, Just gt2) -> if gt1 `isSubtypeOf` gt2 then Just v else Nothing
+  _ -> Nothing
+
+isSubtypeOf :: GType -> GType -> Bool
+isSubtypeOf GUnit GUnit = True
+isSubtypeOf (GLabel ls1) (GLabel ls2) = ls2 `Set.isSubsetOf` ls1
+isSubtypeOf _ _ = False
+
+toGroundType :: NFType -> Maybe GType
+toGroundType NFUnit = Just GUnit
+toGroundType (NFLab ls) = Just $ GLabel ls
+toGroundType _ = Nothing
