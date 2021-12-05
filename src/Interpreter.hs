@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Interpreter (interpret, evalDFun, createPEnv) where
+module Interpreter (interpret, evalDFun, createPEnv, InterpreterException(..)) where
 
 import qualified Config as C
 import Syntax

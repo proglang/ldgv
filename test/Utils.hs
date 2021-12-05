@@ -17,24 +17,19 @@ raiseFailure msg = do
   expectationFailure msg
   return $ error "expectationFailure did not abort"
 
--- type Bool : ~un = {'T, 'F}
-boolTypeDecl :: Decl
-boolTypeDecl = DType "Bool" MMany Kun (TLab ["'T","'F"])
-
--- type MaybeBool : ~un = {'T, 'F, 'N}
-maybeBoolTypeDecl :: Decl
-maybeBoolTypeDecl = DType "MaybeBool" MMany Kun (TLab ["'T","'F","'N"])
-
--- val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
-notFuncDecl :: Decl
-notFuncDecl = DFun
-    "not" [(MMany,"b",TName False "Bool")]
-    (Case (Var "b") [("'T",Lit (LLab "'F")),("'F",Lit (LLab "'T"))])
-    Nothing
-
-shouldInterpretTo :: Decl -> Value -> Expectation
-shouldInterpretTo givenDecl expectedValue = do
-  -- load some functions in the environment
-  let penv = createPEnv [boolTypeDecl, notFuncDecl, maybeBoolTypeDecl]
+shouldInterpretInPEnvTo :: [Decl] -> Decl -> Value -> Expectation
+shouldInterpretInPEnvTo decls givenDecl expectedValue = do
+  let penv = createPEnv decls
   value <- evalStateT (evalDFun givenDecl) penv
   return value `shouldReturn` expectedValue
+
+shouldThrowCastException :: [Decl] -> Decl -> Expectation
+shouldThrowCastException decls givenDecl =
+  let penv = createPEnv decls
+      isCastException :: InterpreterException -> Bool
+      isCastException (CastException _) = True
+      isCastException _ =False in
+    evalStateT (evalDFun givenDecl) penv `shouldThrow` isCastException
+
+shouldInterpretTo :: Decl -> Value -> Expectation
+shouldInterpretTo = shouldInterpretInPEnvTo []
