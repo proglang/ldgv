@@ -25,6 +25,18 @@ f2' = Lam MMany "x" TDyn
   (Lam MMany "y"
     (TCase (Cast (Var "x") TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")])
     (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Math (Add (Lit (LNat 17)) (Var "y"))),("'F",App (Var "not") (Var "y"))]))
+-- type Direction : ~un = {'L, 'R}
+directionTypeDecl :: Decl
+directionTypeDecl = DType "Direction" MMany Kun (TLab ["'L","'R"])
+-- val f3 =
+f3 :: Exp
+f3 = Lam MMany "x" (TName False "Bool")
+  (Lam MMany "y" TDyn
+    (Lam MMany "z"
+      (TCase (Cast (Var "y") TDyn (TCase (Var "x") [("'T",TName False "Direction"),("'F",TName False "Bool")]))
+        [("'T",TName False "Direction"),("'F",TName False "Bool"),("'L",TName False "Bool"),("'R",TName False "Bool")])
+        (Case (Cast (Var "y") TDyn (TCase (Var "x") [("'T",TName False "Direction"),("'F",TName False "Bool")]))
+          [("'T",Var "y"),("'F",App (Var "not") (Var "y")),("'L",Var "z"),("'R",App (Var "not") (Var "z"))])))
 
 spec :: Spec
 spec = do
@@ -69,3 +81,7 @@ spec = do
     it "interprets application of x=('T: OnlyTrue => *), y=6 on section2 example function f2' expecting blame" $
       shouldThrowCastException [boolTypeDecl, notFuncDecl, onlyTrueTypeDecl]
         (DFun "f2'" [] (App (App f2' (Cast (Lit (LLab "'T")) (TName False "OnlyTrue") TDyn)) (Lit (LNat 6))) Nothing)
+    it "interprets application of x='T, y=('L: Direction => *), z='T on example function f3" $
+      shouldInterpretInPEnvTo [boolTypeDecl, notFuncDecl, directionTypeDecl]
+        (DFun "f3" [] (App (App (App f3 (Lit (LLab "'T"))) (Cast (Lit (LLab "'R")) (TName False "Direction") TDyn)) (Lit (LLab "'T"))) Nothing)
+        (VLabel "'F")

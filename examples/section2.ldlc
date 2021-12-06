@@ -1,7 +1,6 @@
 -- These are examples from section 2 of the paper "Label Dependent Lambda Calculus and Gradual Typing.pdf" (2021)
 
 type Bool : ~un = {'T, 'F}
-type MaybeBool : ~un = {'T, 'F, 'N}
 val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
 
 -- This is a LDLC function:
@@ -17,3 +16,11 @@ val f  = 𝜆(x: Bool) 𝜆(y: case x {'T: Int, 'F: Bool}) case x {'T: 17+y, 'F:
 -- This is from the internal CCLDLC representation:
 --  f2' :: Π(x: *).Π(y: case (x: * => Bool) {'T: Int, 'F: Bool}).case (x: * => Bool) {'T: Int, 'F: Bool}
 val f2'  = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}
+
+type Direction : ~un = {'L, 'R}
+val f3  = 𝜆(x: Bool)
+            𝜆(y: *)
+              𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool})
+                     {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+                case (y: * => case x {'T: Direction, 'F: Bool})
+                  {'T: y, 'F: not y, 'L: z, 'R: not z}
