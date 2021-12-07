@@ -240,7 +240,9 @@ reduceCast (VDynCast v gt1) NFDyn t2 = case toGroundType t2 of
 reduceCast v t NFBot = Nothing -- Cast-Bot
 reduceCast v t1 t2 = case (toGroundType t1, toGroundType t2) of -- Cast-Fail/Cast-Sub
   (Just gt1, Just gt2) -> if gt1 `isSubtypeOf` gt2 then Just v else Nothing
-  _ -> Nothing
+  (Nothing, Just gt2) -> Nothing
+  (Just gt1, Nothing) -> Nothing
+  (Nothing, Nothing) -> Nothing
 
 isSubtypeOf :: GType -> GType -> Bool
 isSubtypeOf GUnit GUnit = True

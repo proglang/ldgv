@@ -19,7 +19,13 @@ onlyTrueTypeDecl = DType "OnlyTrue" MMany Kun (TLab ["'T"])
 -- val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
 notFuncDecl :: Decl
 notFuncDecl = DFun "not" [(MMany,"b",TName False "Bool")] (Case (Var "b") [("'T",Lit (LLab "'F")),("'F",Lit (LLab "'T"))]) Nothing
--- val f2'  = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}
+-- val f = 𝜆(x: Bool) 𝜆(y: case x {'T: Int, 'F: Bool}) case x {'T: 17+y, 'F: not y}
+f :: Exp
+f = Lam MMany "x" (TName False "Bool")
+  (Lam MMany "y"
+    (TCase (Var "x") [("'T",TInt),("'F",TName False "Bool")])
+    (Case (Var "x") [("'T",Math (Add (Lit (LNat 17)) (Var "y"))) ,("'F",App (Var "not") (Var "y"))]))
+-- val f2' = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}
 f2' :: Exp
 f2' = Lam MMany "x" TDyn
   (Lam MMany "y"
@@ -28,7 +34,8 @@ f2' = Lam MMany "x" TDyn
 -- type Direction : ~un = {'L, 'R}
 directionTypeDecl :: Decl
 directionTypeDecl = DType "Direction" MMany Kun (TLab ["'L","'R"])
--- val f3 =
+-- val f3 = 𝜆(x: Bool) 𝜆(y: *) 𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+--            case (y: * => case x {'T: Direction, 'F: Bool}) {'T: y, 'F: not y, 'L: z, 'R: not z}
 f3 :: Exp
 f3 = Lam MMany "x" (TName False "Bool")
   (Lam MMany "y" TDyn
@@ -59,9 +66,7 @@ spec = do
   describe "LDLC function interpretation" $ do
     it "interprets application of (x='F, y='F) on section2 example function f" $
       shouldInterpretInPEnvTo [boolTypeDecl, notFuncDecl]
-       (DFun "f" [] (App (App (Lam MMany "x" (TName False "Bool")
-            (Lam MMany "y" (TCase (Var "x") [("'T",TInt),("'F",TName False "Bool")])
-              (Case (Var "x") [("'T",Math (Add (Lit (LNat 17)) (Var "y"))) ,("'F",App (Var "not") (Var "y"))])))
+       (DFun "f" [] (App (App f
           (Lit (LLab "'F"))) (Lit (LLab "'F"))) Nothing)
         (VLabel "'T")
 
@@ -78,6 +83,13 @@ spec = do
       shouldInterpretInPEnvTo [boolTypeDecl, notFuncDecl, maybeBoolTypeDecl]
         (DFun "f2'" [] (App (App f2' (Cast (Lit (LLab "'F")) (TName False "MaybeBool") TDyn)) (Lit (LLab "'F"))) Nothing)
         (VLabel "'T")
+    it "interprets application of x=('F: MaybeBool => Bool), y='F on section2 example function f" $
+      shouldInterpretInPEnvTo [boolTypeDecl, notFuncDecl, maybeBoolTypeDecl]
+        (DFun "f" [] (App (App f (Cast (Lit (LLab "'F")) (TName False "MaybeBool") (TName False "Bool"))) (Lit (LLab "'F"))) Nothing)
+        (VLabel "'T")
+    it "interprets application of x=('T: OnlyTrue => Bool), y='6 on section2 example function f expecting blame" $
+      shouldThrowCastException [boolTypeDecl, notFuncDecl, onlyTrueTypeDecl]
+        (DFun "f" [] (App (App f (Cast (Lit (LLab "'T")) (TName False "OnlyTrue") (TName False "Bool"))) (Lit (LNat 6))) Nothing)
     it "interprets application of x=('T: OnlyTrue => *), y=6 on section2 example function f2' expecting blame" $
       shouldThrowCastException [boolTypeDecl, notFuncDecl, onlyTrueTypeDecl]
         (DFun "f2'" [] (App (App f2' (Cast (Lit (LLab "'T")) (TName False "OnlyTrue") TDyn)) (Lit (LNat 6))) Nothing)
