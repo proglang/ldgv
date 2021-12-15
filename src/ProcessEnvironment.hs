@@ -78,7 +78,6 @@ data Value = VUnit
   | VType S.Type
   | VFun (Value -> InterpretM Value) -- Function Type
   | VDynCast Value GType -- (Value : G => *)
-  | VClosure PEnv String S.Type S.Exp -- Closure (ρ, λ(x: A) M)
 
 instance Show Value where
   show = \case
@@ -92,7 +91,6 @@ instance Show Value where
     VType t -> "VType " ++ show t
     VFun _ -> "VFunction "
     VDynCast v t -> "VDynCast (" ++ show v ++ ":" ++ show t ++ "=> *)"
-    VClosure penv v t e -> "VClosure (" ++ show penv ++ ", λ(" ++ show v ++ ":" ++ show t ++ ") " ++ show e ++ ")"
 
 instance Eq Value where
   VUnit == VUnit = True
@@ -113,6 +111,8 @@ data NFType = NFBot
   | NFLab (Set String)
   | NFSingleton Value NFType          -- S{V:A}
   | NFApply PEnv String S.Type S.Type -- (ρ, Θ(x: A) B)
+  | NFInt
+  | NFDouble
 
 instance Show NFType where
   show = \case
@@ -122,6 +122,8 @@ instance Show NFType where
     NFLab labels -> "NFLab {" ++ foldr (\la lb -> la ++ "," ++ lb) "" labels ++ "}"
     NFSingleton v t -> "NFSingleton {" ++ show v ++ ": " ++ show t ++ "}"
     NFApply penv v tA tB -> "NFApply (" ++ show penv ++ ", Θ(" ++ show v ++ ":" ++ show tA ++ ") " ++ show tB ++ ")"
+    NFInt -> "NFInt"
+    NFDouble -> "NFDouble"
 
 instance Eq NFType where
   NFBot == NFBot = True
@@ -130,4 +132,6 @@ instance Eq NFType where
   NFLab ls1 == NFLab ls2 = ls1 == ls2
   (NFApply penv1 var1 typeA1 typeB1) == (NFApply penv2 var2 typeA2 typeB2) =
     penv1 == penv2 && var1 == var2 && typeA1 == typeA2 && typeB1 == typeB2
+  NFInt == NFInt = True
+  NFDouble == NFDouble = True
   _ == _ = False

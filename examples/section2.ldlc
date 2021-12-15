@@ -17,6 +17,7 @@ val f  = 𝜆(x: Bool) 𝜆(y: case x {'T: Int, 'F: Bool}) case x {'T: 17+y, 'F:
 --  f2' :: Π(x: *).Π(y: case (x: * => Bool) {'T: Int, 'F: Bool}).case (x: * => Bool) {'T: Int, 'F: Bool}
 val f2'  = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}
 
+-- Conversion from * to case type
 type Direction : ~un = {'L, 'R}
 val f3  = 𝜆(x: Bool)
             𝜆(y: *)
@@ -24,3 +25,22 @@ val f3  = 𝜆(x: Bool)
                      {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
                 case (y: * => case x {'T: Direction, 'F: Bool})
                   {'T: y, 'F: not y, 'L: z, 'R: not z}
+
+-- LDLC: Conversion of function types
+val f4  = 𝜆(x: Bool)
+            𝜆(y: case x {
+              'T: (u:Bool) -> (v:Bool) -> Bool,
+              'F: (u:Bool) -> Bool
+            })
+              𝜆(z: Bool)
+                case x {'T: y z z, 'F: y z}
+
+val and = 𝜆(x: Bool) 𝜆(y: Bool) case x {'T: y, 'F: 'F}
+
+-- CCLDLC: Conversion of function types
+val f4' = 𝜆(x: Bool)
+            𝜆(y: *)
+              𝜆(z: Bool)
+                case x {
+                  'T: (y: * => (u:Bool) -> (v:Bool) -> Bool) z z,
+                  'F: (y: * => (u:Bool) -> Bool) z}

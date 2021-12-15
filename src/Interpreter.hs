@@ -25,7 +25,7 @@ data InterpreterException
 instance Show InterpreterException where
   show = \case
     (MathException s) -> "MathException: " ++ s
-    (LookupException s) -> "LookupException: " ++ s
+    (LookupException s) -> "LookupException: Lookup of '" ++ s ++ "' did not yield a value"
     (CastException exp) -> "CastException: (" ++ show exp ++ ") failed"
     (ApplicationException s) -> "ApplicationException: " ++ s
     (NotImplementedException exp) -> "NotImplementedError: " ++ show exp
@@ -47,7 +47,7 @@ interpret decls = do
   case lookup "main" penv of
     Just (VDecl decl) ->
       S.runStateT (evalDFun decl) penv <&> fst
-    _ -> throw $ LookupException "No 'main' value declaration found"
+    _ -> throw $ LookupException "main"
 
 -- | interpret a DFun (Function declaration)
 evalDFun :: Decl -> InterpretM Value
@@ -210,25 +210,22 @@ createEntry = \case
   d@(DFun str args e mt) -> Just (str, VDecl d)
   _ -> Nothing
 
--- TODO: What about built-in types without normal form equivalent?
--- TODO: Make assumptions about subtyping between built-in numeric types?
 evalType :: Type -> InterpretM NFType
 evalType = \case
+  TUnit -> return NFUnit
+  TInt -> return NFInt
+  TDouble -> return NFDouble
   TBot -> return NFBot
   TDyn -> return NFDyn
-  TUnit -> return NFUnit
-  TLab labels -> return $ NFLab $ Set.fromList labels
   TName _ s -> pmlookup s >>= \case
     (VType t) -> evalType t
-    _ -> throw $ LookupException ("Lookup of '" ++ s ++ "' did not yield a value")
-  TCase exp labels -> do
-    v <- interpret' exp
-    case v of
-      (VLabel l) -> case find (\(l', _) -> l == l') labels of
-        (Just (_,t)) -> evalType t  -- Reduce-Type-Exp/Reduce-Type-Beta
-        Nothing -> return NFBot     -- Reduce-Type-Blame
-      _ -> return NFBot             -- Reduce-Type-Blame
-
+    _ -> throw $ LookupException s
+  TLab labels -> return $ NFLab $ Set.fromList labels
+  TCase exp labels -> interpret' exp >>= \case
+    (VLabel l) -> case find (\(l', _) -> l == l') labels of
+      (Just (_,t)) -> evalType t  -- Reduce-Type-Exp/Reduce-Type-Beta
+      Nothing -> return NFBot     -- Reduce-Type-Blame
+    _ -> return NFBot             -- Reduce-Type-Blame
 
 reduceCast :: Value -> NFType -> NFType -> Maybe Value
 reduceCast v t NFDyn = case toGroundType t of -- Factor-Left

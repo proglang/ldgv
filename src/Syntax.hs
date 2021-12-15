@@ -50,23 +50,23 @@ data Literal
   deriving (Show, Eq)
 
 data Type = TUnit
-          | TInt
-          | TDouble
-          | TBot
-          | TDyn
-          | TNat
-          | TNatRec Exp Type TIdent Type
-          | TVar Bool TIdent
-          | TAbs Ident Type Type -- abstract a variable to close a type; only use in caches!
-          | TName Bool TIdent -- the bool indicates whether the type needs to be dualized
-          | TLab [String]
-          | TFun Multiplicity Ident Type Type
-          | TPair Multiplicity Ident Type Type
-          | TSend Ident Type Type
-          | TRecv Ident Type Type
-          | TCase Exp [(String, Type)]
-          | TEqn Exp Exp Type
-          | TSingle Ident       -- same value (and type) as ident
+  | TInt
+  | TDouble
+  | TBot
+  | TDyn
+  | TNat
+  | TNatRec Exp Type TIdent Type
+  | TVar Bool TIdent
+  | TAbs Ident Type Type -- abstract a variable to close a type; only use in caches!
+  | TName Bool TIdent -- the bool indicates whether the type needs to be dualized
+  | TLab [String]
+  | TFun Multiplicity Ident Type Type
+  | TPair Multiplicity Ident Type Type
+  | TSend Ident Type Type
+  | TRecv Ident Type Type
+  | TCase Exp [(String, Type)]
+  | TEqn Exp Exp Type
+  | TSingle Ident       -- same value (and type) as ident
   deriving (Show)
 
 dualof :: Type -> Type

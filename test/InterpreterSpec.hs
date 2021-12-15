@@ -19,6 +19,9 @@ onlyTrueTypeDecl = DType "OnlyTrue" MMany Kun (TLab ["'T"])
 -- val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
 notFuncDecl :: Decl
 notFuncDecl = DFun "not" [(MMany,"b",TName False "Bool")] (Case (Var "b") [("'T",Lit (LLab "'F")),("'F",Lit (LLab "'T"))]) Nothing
+-- val and(a: Bool, b: Bool) = (case a {'T: b, 'F: 'F})
+andFuncDecl :: Decl
+andFuncDecl = DFun "and" [(MMany,"a",TName False "Bool"),(MMany,"b",TName False "Bool")] (Case (Var "a") [("'T",Var "b"),("'F",Lit (LLab "'F"))]) Nothing
 -- val f = 𝜆(x: Bool) 𝜆(y: case x {'T: Int, 'F: Bool}) case x {'T: 17+y, 'F: not y}
 f :: Exp
 f = Lam MMany "x" (TName False "Bool")
@@ -44,6 +47,14 @@ f3 = Lam MMany "x" (TName False "Bool")
         [("'T",TName False "Direction"),("'F",TName False "Bool"),("'L",TName False "Bool"),("'R",TName False "Bool")])
         (Case (Cast (Var "y") TDyn (TCase (Var "x") [("'T",TName False "Direction"),("'F",TName False "Bool")]))
           [("'T",Var "y"),("'F",App (Var "not") (Var "y")),("'L",Var "z"),("'R",App (Var "not") (Var "z"))])))
+-- val f4' = 𝜆(x: Bool) 𝜆(y: *) 𝜆(z: Bool) case x {'T: (y: * => (u:Bool) -> (v:Bool) -> Bool) z z, 'F: (y: * => (u:Bool) -> Bool) z}
+f4' :: Exp
+f4' = (Lam MMany "x" (TName False "Bool")
+  (Lam MMany "y" TDyn
+    (Lam MMany "z" (TName False "Bool")
+      (Case (Var "x")
+        [("'T",App (App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TFun MMany "v" (TName False "Bool") (TName False "Bool")))) (Var "z")) (Var "z"))
+        ,("'F",App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TName False "Bool"))) (Var "z"))]))))
 
 spec :: Spec
 spec = do
@@ -97,3 +108,11 @@ spec = do
       shouldInterpretInPEnvTo [boolTypeDecl, notFuncDecl, directionTypeDecl]
         (DFun "f3" [] (App (App (App f3 (Lit (LLab "'T"))) (Cast (Lit (LLab "'R")) (TName False "Direction") TDyn)) (Lit (LLab "'T"))) Nothing)
         (VLabel "'F")
+    it "interprets application of x='F,y=not,z='T on example function f4'" $
+      shouldInterpretInPEnvTo [boolTypeDecl, notFuncDecl]
+        (DFun "f4'" [] (App (App (App f4' (Lit (LLab "'F"))) (Var "not")) (Lit (LLab "'T"))) Nothing)
+        (VLabel "'F")
+    it "interprets application of x='T,y=and,z='T on example function f4'" $
+      shouldInterpretInPEnvTo [boolTypeDecl, andFuncDecl]
+        (DFun "f4'" [] (App (App (App f4' (Lit (LLab "'T"))) (Var "and")) (Lit (LLab "'T"))) Nothing)
+        (VLabel "'T")

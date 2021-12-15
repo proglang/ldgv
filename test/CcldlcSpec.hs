@@ -32,3 +32,14 @@ spec =
                 (Case (Cast (Var "y") TDyn (TCase (Var "x") [("'T",TName False "Direction"),("'F",TName False "Bool")]))
                   [("'T",Var "y"),("'F",App (Var "not") (Var "y")),("'L",Var "z"),("'R",App (Var "not") (Var "z"))]))))
         Nothing
+    it "f4' example function for conversion from * to function type" $
+      "val f4' = 𝜆(x: Bool) 𝜆(y: *) 𝜆(z: Bool) case x {'T: (y: * => (u:Bool) -> (v:Bool) -> Bool) z z, 'F: (y: * => (u:Bool) -> Bool) z}"
+      `shouldParseDecl`
+      DFun "f4'" []
+        (Lam MMany "x" (TName False "Bool")
+          (Lam MMany "y" TDyn
+            (Lam MMany "z" (TName False "Bool")
+              (Case (Var "x")
+                [("'T",App (App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TFun MMany "v" (TName False "Bool") (TName False "Bool")))) (Var "z")) (Var "z"))
+                ,("'F",App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TName False "Bool"))) (Var "z"))]))))
+        Nothing
