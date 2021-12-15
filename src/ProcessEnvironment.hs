@@ -46,15 +46,7 @@ data GType = GUnit
   | GLabelSingleton Value LabelType -- S{V:L}
   | GSum                            -- Π(x: *)* aka * → *
   | GProd                           -- Σ(x: *)* aka * ⨯ *
-
-instance Show GType where
-  show = \case
-    GUnit -> "GUnit"
-    GLabel ls -> "GLabel " ++ show ls
-    GUnitSingleton -> "GUnitSingleton {():Unit}"
-    GLabelSingleton v ls -> "GLabelSingleton {" ++ show v ++ ": " ++ show ls ++ "}"
-    GSum -> "GSum"
-    GProd -> "GProd"
+  deriving Show
 
 instance Eq GType where
   GUnit == GUnit = True
@@ -110,27 +102,20 @@ data NFType = NFBot
   | NFUnit
   | NFLab (Set String)
   | NFSingleton Value NFType          -- S{V:A}
-  | NFApply PEnv String S.Type S.Type -- (ρ, Θ(x: A) B)
+  | NFFunc PEnv String S.Type S.Type  -- (ρ, Π(x: A) B)
+  | NFPair PEnv String S.Type S.Type  -- (ρ, Σ(x: A) B)
   | NFInt
   | NFDouble
-
-instance Show NFType where
-  show = \case
-    NFBot -> "NFBot"
-    NFDyn -> "NFDyn"
-    NFUnit -> "NFUnit"
-    NFLab labels -> "NFLab {" ++ foldr (\la lb -> la ++ "," ++ lb) "" labels ++ "}"
-    NFSingleton v t -> "NFSingleton {" ++ show v ++ ": " ++ show t ++ "}"
-    NFApply penv v tA tB -> "NFApply (" ++ show penv ++ ", Θ(" ++ show v ++ ":" ++ show tA ++ ") " ++ show tB ++ ")"
-    NFInt -> "NFInt"
-    NFDouble -> "NFDouble"
+  deriving Show
 
 instance Eq NFType where
   NFBot == NFBot = True
   NFDyn == NFDyn = True
   NFUnit == NFUnit = True
   NFLab ls1 == NFLab ls2 = ls1 == ls2
-  (NFApply penv1 var1 typeA1 typeB1) == (NFApply penv2 var2 typeA2 typeB2) =
+  (NFFunc penv1 var1 typeA1 typeB1) == (NFFunc penv2 var2 typeA2 typeB2) =
+    penv1 == penv2 && var1 == var2 && typeA1 == typeA2 && typeB1 == typeB2
+  (NFPair penv1 var1 typeA1 typeB1) == (NFPair penv2 var2 typeA2 typeB2) =
     penv1 == penv2 && var1 == var2 && typeA1 == typeA2 && typeB1 == typeB2
   NFInt == NFInt = True
   NFDouble == NFDouble = True

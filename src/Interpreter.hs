@@ -4,6 +4,7 @@ module Interpreter (interpret, evalDFun, createPEnv, InterpreterException(..)) w
 
 import qualified Config as C
 import Syntax
+import PrettySyntax
 import Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Data.Functor ((<&>))
@@ -26,9 +27,9 @@ instance Show InterpreterException where
   show = \case
     (MathException s) -> "MathException: " ++ s
     (LookupException s) -> "LookupException: Lookup of '" ++ s ++ "' did not yield a value"
-    (CastException exp) -> "CastException: (" ++ show exp ++ ") failed"
+    (CastException exp) -> "CastException: (" ++ pshow exp ++ ") failed"
     (ApplicationException s) -> "ApplicationException: " ++ s
-    (NotImplementedException exp) -> "NotImplementedError: " ++ show exp
+    (NotImplementedException exp) -> "NotImplementedError: " ++ pshow exp
 
 instance Exception InterpreterException
 
@@ -221,6 +222,7 @@ evalType = \case
     (VType t) -> evalType t
     _ -> throw $ LookupException s
   TLab labels -> return $ NFLab $ Set.fromList labels
+  TFun _ s t1 t2 -> get >>= \penv -> return (NFFunc penv s t1 t2)
   TCase exp labels -> interpret' exp >>= \case
     (VLabel l) -> case find (\(l', _) -> l == l') labels of
       (Just (_,t)) -> evalType t  -- Reduce-Type-Exp/Reduce-Type-Beta
