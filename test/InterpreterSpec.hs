@@ -49,12 +49,12 @@ f3 = Lam MMany "x" (TName False "Bool")
           [("'T",Var "y"),("'F",App (Var "not") (Var "y")),("'L",Var "z"),("'R",App (Var "not") (Var "z"))])))
 -- val f4' = 𝜆(x: Bool) 𝜆(y: *) 𝜆(z: Bool) case x {'T: (y: * => (u:Bool) -> (v:Bool) -> Bool) z z, 'F: (y: * => (u:Bool) -> Bool) z}
 f4' :: Exp
-f4' = (Lam MMany "x" (TName False "Bool")
+f4' = Lam MMany "x" (TName False "Bool")
   (Lam MMany "y" TDyn
     (Lam MMany "z" (TName False "Bool")
       (Case (Var "x")
         [("'T",App (App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TFun MMany "v" (TName False "Bool") (TName False "Bool")))) (Var "z")) (Var "z"))
-        ,("'F",App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TName False "Bool"))) (Var "z"))]))))
+        ,("'F",App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TName False "Bool"))) (Var "z"))])))
 
 spec :: Spec
 spec = do
@@ -108,11 +108,21 @@ spec = do
       shouldInterpretInPEnvTo [boolType, notFunc, directionType]
         (DFun "f3" [] (App (App (App f3 (Lit (LLab "'T"))) (Cast (Lit (LLab "'R")) (TName False "Direction") TDyn)) (Lit (LLab "'T"))) Nothing)
         (VLabel "'F")
-    it "interprets application of x='F,y=not,z='T on example function f4'" $
+    it "interprets application of x='F,y=(not: (u:Bool) -> Bool => *),z='T on example function f4'" $
       shouldInterpretInPEnvTo [boolType, notFunc]
-        (DFun "f4'" [] (App (App (App f4' (Lit (LLab "'F"))) (Var "not")) (Lit (LLab "'T"))) Nothing)
+        (DFun "f4'" []
+          (App (App (App f4'
+            (Lit (LLab "'F")))
+              (Cast (Var "not") (TFun MMany "b" (TName False "Bool") (TName False "Bool")) TDyn))
+                (Lit (LLab "'T")))
+          Nothing)
         (VLabel "'F")
     it "interprets application of x='T,y=and,z='T on example function f4'" $
       shouldInterpretInPEnvTo [boolType, andFunc]
-        (DFun "f4'" [] (App (App (App f4' (Lit (LLab "'T"))) (Var "and")) (Lit (LLab "'T"))) Nothing)
+        (DFun "f4'" []
+          (App (App (App f4'
+            (Lit (LLab "'T")))
+              (Cast (Var "and") (TFun MMany "a" (TName False "Bool")  (TFun MMany "b" (TName False "Bool") (TName False "Bool"))) TDyn))
+                (Lit (LLab "'T")))
+          Nothing)
         (VLabel "'T")

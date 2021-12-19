@@ -90,7 +90,7 @@ instance Pretty Exp where
   pretty (Math m) =
     pretty m
   pretty (Lam m id t e) =
-    pretty "fun" <> pretty m <+> ptyped id t <+>
+    pretty "𝜆" <> pretty m <+> ptyped id t <+>
     pretty e
   pretty (Rec f x t1 t2 e) =
     pretty "rec" <+> pretty f <+> ptyped x t1 <>

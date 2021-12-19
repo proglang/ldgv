@@ -22,6 +22,7 @@ data InterpreterException
   | CastException Exp
   | ApplicationException String
   | NotImplementedException Exp
+  | TypeNotImplementedException Type
 
 instance Show InterpreterException where
   show = \case
@@ -29,7 +30,8 @@ instance Show InterpreterException where
     (LookupException s) -> "LookupException: Lookup of '" ++ s ++ "' did not yield a value"
     (CastException exp) -> "CastException: (" ++ pshow exp ++ ") failed"
     (ApplicationException s) -> "ApplicationException: " ++ s
-    (NotImplementedException exp) -> "NotImplementedError: " ++ pshow exp
+    (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
+    (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
 
 instance Exception InterpreterException
 
@@ -65,8 +67,8 @@ evalDFun decl@(DFun name ((_, id, _):binds) e mty) =
 interpret' :: Exp ->  InterpretM Value
 interpret' e =
   M.ap
-  (return $ \val -> C.trace ("Leaving interpretation of " ++ show e ++ " with value " ++ show val) val) $
-  case C.trace ("Invoking interpretation on " ++ show e) e of
+  (return $ \val -> C.trace ("Leaving interpretation of (" ++ pshow e ++ ") with value (" ++ show val ++ ")") val) $
+  case C.trace ("Invoking interpretation on " ++ pshow e) e of
   Succ e -> interpretMath $ Add (Lit (LInt 1)) e
   exp@(NatRec e1 e2 i1 t1 i2 t e3) -> do
   -- returns a function indexed over e1 (should be a variable pointing to a Nat)
@@ -95,12 +97,11 @@ interpret' e =
     let f = \arg -> liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env)
     return $ VFun f
   cast@(Cast e t1 t2) -> do
+    liftIO $ C.traceIO $ "Interpreting " ++ pshow cast
     v <- interpret' e
     nft1 <- evalType t1
     nft2 <- evalType t2
-    case reduceCast v nft1 nft2 of
-      Just v' -> return v' -- Cast-Reduce-Left/Cast-Reduce-Right
-      Nothing -> blame cast
+    maybe (blame cast) return (reduceCast v nft1 nft2)
   Var s -> pmlookup s
   Let s e1 e2 -> do
     v  <- interpret' e1
@@ -109,7 +110,7 @@ interpret' e =
   Math m -> interpretMath m
   Lit l -> return (interpretLit l)
   App e1 e2 -> do
-    _ <- liftIO $ C.traceIO $ "Arguments for " ++ show e1 ++ " are: "  ++ show e2
+    _ <- liftIO $ C.traceIO $ "Arguments for (" ++ pshow e1 ++ ") are: ("  ++ pshow e2 ++ ")"
     -- interpret e1 first, because the innermost application
     -- is the function with its first argument
     v1 <- interpret' e1
@@ -120,7 +121,7 @@ interpret' e =
         res <- evalDFun d
         case res of (VFun f) -> f arg
       VFun f -> f arg
-      _ -> throw $ ApplicationException ("Trying to Apply " ++ show e2 ++ " to " ++ show e1)
+      _ -> throw $ ApplicationException ("Trying to apply (" ++ pshow e2 ++ ") to (" ++ pshow e1 ++ ")")
   Pair mul s e1 e2 -> do
     v1 <- interpret' e1
     v2 <- interpret' e2
@@ -211,6 +212,7 @@ createEntry = \case
   d@(DFun str args e mt) -> Just (str, VDecl d)
   _ -> Nothing
 
+-- TODO: handle Singleton
 evalType :: Type -> InterpretM NFType
 evalType = \case
   TUnit -> return NFUnit
@@ -221,34 +223,49 @@ evalType = \case
   TName _ s -> pmlookup s >>= \case
     (VType t) -> evalType t
     _ -> throw $ LookupException s
-  TLab labels -> return $ NFLab $ Set.fromList labels
-  TFun _ s t1 t2 -> get >>= \penv -> return (NFFunc penv s t1 t2)
+  TLab ls -> return $ NFLabel $ Set.fromList ls
+  TFun _ s t1 t2 -> get >>= \penv -> return $ NFFunc $ FuncType penv s t1 t2
+  TPair _ s t1 t2 -> get >>= \penv -> return $ NFPair $ FuncType penv s t1 t2
   TCase exp labels -> interpret' exp >>= \case
-    (VLabel l) -> case find (\(l', _) -> l == l') labels of
-      (Just (_,t)) -> evalType t  -- Reduce-Type-Exp/Reduce-Type-Beta
-      Nothing -> return NFBot     -- Reduce-Type-Blame
-    _ -> return NFBot             -- Reduce-Type-Blame
+    (VLabel l) -> let entry = find (\(l', _) -> l == l') labels in
+      maybe (return NFBot) (evalType . snd) entry
+  t -> throw $ TypeNotImplementedException t
 
 reduceCast :: Value -> NFType -> NFType -> Maybe Value
-reduceCast v t NFDyn = case toGroundType t of -- Factor-Left
-  Just gt -> Just (VDynCast v gt) -- TODO: also check t != gt
-  Nothing -> Nothing
-reduceCast (VDynCast v gt1) NFDyn t2 = case toGroundType t2 of
-  Just gt2 -> if gt1 `isSubtypeOf` gt2 then Just v else Nothing
-  _ -> Nothing
-reduceCast v t NFBot = Nothing -- Cast-Bot
-reduceCast v t1 t2 = case (toGroundType t1, toGroundType t2) of -- Cast-Fail/Cast-Sub
-  (Just gt1, Just gt2) -> if gt1 `isSubtypeOf` gt2 then Just v else Nothing
-  (Nothing, Just gt2) -> Nothing
-  (Just gt1, Nothing) -> Nothing
-  (Nothing, Nothing) -> Nothing
+reduceCast v t NFDyn = maybe ifSubtype ifNeq (matchType t) where
+    ifNeq gt = if t /= gt
+      then reduceCast v t gt >>= \v' -> Just $ VDynCast v' gt -- Factor-Left
+      else Just $ VDynCast v t -- Cast-Is-Value
+    ifSubtype = if t `isSubtypeOf` NFDyn then Just v else Nothing -- Cast-Dyn-Dyn
+reduceCast (VDynCast v gt1) NFDyn t2 = ifSubtype =<< matchType t2
+  where ifSubtype gt2 = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Collapse/Cast-Collide
+reduceCast _ _ NFBot = Nothing -- Cast-Bot
+reduceCast v NFDyn t = ifNeq =<< matchType t where
+  ifNeq gt = if t /= gt
+    then reduceCast v NFDyn gt >>= \v' -> reduceCast v' gt t -- Factor-Right
+    else Nothing
+reduceCast v t1 t2 = case (matchType t1, matchType t2) of
+  (Just gt1, Just gt2) -> if gt1 `isSubtypeOf` gt2
+    then Just v   -- Cast-Sub
+    else Nothing  -- Cast-Fail
+  _  -> case (t1, t2) of
+          (NFFunc ft1, NFFunc ft2) -> Just $ VFuncCast v ft1 ft2 -- Cast-Is-Value
+          _ -> Nothing
 
-isSubtypeOf :: GType -> GType -> Bool
-isSubtypeOf GUnit GUnit = True
-isSubtypeOf (GLabel ls1) (GLabel ls2) = ls2 `Set.isSubsetOf` ls1
+isSubtypeOf :: NFType -> NFType -> Bool
+isSubtypeOf NFUnit NFUnit = True
+isSubtypeOf _ NFDyn = True
+isSubtypeOf NFBot _ = True
+isSubtypeOf (NFLabel ls1) (NFLabel ls2) = ls2 `Set.isSubsetOf` ls1
+isSubtypeOf (NFFunc _) (NFFunc (FuncType _ _ TDyn TDyn)) = True -- TODO: I don't think this is really correct
 isSubtypeOf _ _ = False
 
-toGroundType :: NFType -> Maybe GType
-toGroundType NFUnit = Just GUnit
-toGroundType (NFLab ls) = Just $ GLabel ls
-toGroundType _ = Nothing
+matchType :: NFType -> Maybe NFType
+matchType = \case
+  t@NFUnit -> Just t
+  t@(NFLabel ls) -> Just t
+  NFFunc (FuncType penv s _ _) -> Just $ NFFunc $ FuncType penv s TDyn TDyn
+  NFPair (FuncType penv s _ _) -> Just $ NFPair $ FuncType penv s TDyn TDyn
+  t@(NFSingleton _ NFUnit) -> Just t
+  t@(NFSingleton _ (NFLabel _)) -> Just t
+  _ -> Nothing

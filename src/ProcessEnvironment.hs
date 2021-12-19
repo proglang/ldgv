@@ -39,23 +39,8 @@ printPEnv = foldr (\entry string -> show entry ++ "\n" ++ string) ""
 type Label = String
 type LabelType = Set Label
 
--- Ground Type
-data GType = GUnit
-  | GLabel LabelType
-  | GUnitSingleton                  -- S{():Unit)
-  | GLabelSingleton Value LabelType -- S{V:L}
-  | GSum                            -- Π(x: *)* aka * → *
-  | GProd                           -- Σ(x: *)* aka * ⨯ *
-  deriving Show
-
-instance Eq GType where
-  GUnit == GUnit = True
-  (GLabel ls1) == (GLabel ls2) = ls1 == ls2
-  GUnitSingleton == GUnitSingleton = True
-  (GLabelSingleton v1 ls1) == (GLabelSingleton v2 ls2) = v1 == v2 && ls1 == ls2
-  GSum == GSum = True
-  GProd == GProd = True
-  _ == _ = False
+data FuncType = FuncType PEnv String S.Type S.Type
+  deriving (Show, Eq)
 
 -- | (Unit, Label, Int, Values of self-declared Data Types), Channels
 data Value = VUnit
@@ -69,7 +54,8 @@ data Value = VUnit
   | VDecl S.Decl -- when an identifier maps to another function we have not yet interpreted
   | VType S.Type
   | VFun (Value -> InterpretM Value) -- Function Type
-  | VDynCast Value GType -- (Value : G => *)
+  | VDynCast Value NFType -- (Value : G => *)
+  | VFuncCast Value FuncType FuncType -- (Value : (ρ,Π(x:A)A') => (ρ,Π(x:B)B'))
 
 instance Show Value where
   show = \case
@@ -81,8 +67,9 @@ instance Show Value where
     VPair a b -> "(" ++ show a ++ "," ++ show b ++ ")"
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
-    VFun _ -> "VFunction "
-    VDynCast v t -> "VDynCast (" ++ show v ++ ":" ++ show t ++ "=> *)"
+    VFun _ -> "VFunction"
+    VDynCast v t -> "VDynCast (" ++ show v ++ " : " ++ show t ++ "=> *)"
+    VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ " : " ++ show ft1 ++ " => " ++ show ft2
 
 instance Eq Value where
   VUnit == VUnit = True
@@ -100,10 +87,10 @@ instance Eq Value where
 data NFType = NFBot
   | NFDyn
   | NFUnit
-  | NFLab (Set String)
+  | NFLabel (Set String)
   | NFSingleton Value NFType          -- S{V:A}
-  | NFFunc PEnv String S.Type S.Type  -- (ρ, Π(x: A) B)
-  | NFPair PEnv String S.Type S.Type  -- (ρ, Σ(x: A) B)
+  | NFFunc FuncType  -- (ρ, Π(x: A) B)
+  | NFPair FuncType  -- (ρ, Σ(x: A) B)
   | NFInt
   | NFDouble
   deriving Show
@@ -112,11 +99,9 @@ instance Eq NFType where
   NFBot == NFBot = True
   NFDyn == NFDyn = True
   NFUnit == NFUnit = True
-  NFLab ls1 == NFLab ls2 = ls1 == ls2
-  (NFFunc penv1 var1 typeA1 typeB1) == (NFFunc penv2 var2 typeA2 typeB2) =
-    penv1 == penv2 && var1 == var2 && typeA1 == typeA2 && typeB1 == typeB2
-  (NFPair penv1 var1 typeA1 typeB1) == (NFPair penv2 var2 typeA2 typeB2) =
-    penv1 == penv2 && var1 == var2 && typeA1 == typeA2 && typeB1 == typeB2
+  NFLabel ls1 == NFLabel ls2 = ls1 == ls2
+  (NFFunc ft1) == (NFFunc ft2) = ft1 == ft2
+  (NFPair ft1) == (NFPair ft2) = ft1 == ft2
   NFInt == NFInt = True
   NFDouble == NFDouble = True
   _ == _ = False
