@@ -108,7 +108,7 @@ spec = do
       shouldInterpretInPEnvTo [boolType, notFunc, directionType]
         (DFun "f3" [] (App (App (App f3 (Lit (LLab "'T"))) (Cast (Lit (LLab "'R")) (TName False "Direction") TDyn)) (Lit (LLab "'T"))) Nothing)
         (VLabel "'F")
-    it "interprets application of x='F,y=(not: (u:Bool) -> Bool => *),z='T on example function f4'" $
+    it "interprets application of x='F,y=(not: (b:Bool) -> Bool => *),z='T on example function f4'" $
       shouldInterpretInPEnvTo [boolType, notFunc]
         (DFun "f4'" []
           (App (App (App f4'
@@ -117,7 +117,7 @@ spec = do
                 (Lit (LLab "'T")))
           Nothing)
         (VLabel "'F")
-    it "interprets application of x='T,y=and,z='T on example function f4'" $
+    it "interprets application of x='T,y=(and: (a:Bool) -> (b:Bool) -> Bool),z='T on example function f4'" $
       shouldInterpretInPEnvTo [boolType, andFunc]
         (DFun "f4'" []
           (App (App (App f4'
