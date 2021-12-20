@@ -126,3 +126,10 @@ spec = do
                 (Lit (LLab "'T")))
           Nothing)
         (VLabel "'T")
+    it "lol" $
+      shouldInterpretInPEnvTo [boolType, notFunc]
+        (DFun "f5" []
+          (App (Cast (Var "not") (TFun MMany "b" (TName False "Bool") (TName False "Bool")) (TFun MMany "b" TDyn TDyn))
+            (Lit (LLab "'F")))
+          Nothing)
+        (VLabel "'T")

@@ -232,18 +232,24 @@ evalType = \case
   t -> throw $ TypeNotImplementedException t
 
 reduceCast :: Value -> NFType -> NFType -> Maybe Value
-reduceCast v t NFDyn = maybe ifSubtype ifNeq (matchType t) where
+-- V : A => *
+reduceCast v t NFDyn = maybe ifSubtype ifNeq (matchType t)
+  where
     ifNeq gt = if t /= gt
       then reduceCast v t gt >>= \v' -> Just $ VDynCast v' gt -- Factor-Left
       else Just $ VDynCast v t -- Cast-Is-Value
     ifSubtype = if t `isSubtypeOf` NFDyn then Just v else Nothing -- Cast-Dyn-Dyn
+-- (V : G => *) : * => B
 reduceCast (VDynCast v gt1) NFDyn t2 = ifSubtype =<< matchType t2
   where ifSubtype gt2 = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Collapse/Cast-Collide
+-- V : A => ⊥
 reduceCast _ _ NFBot = Nothing -- Cast-Bot
+-- V : * => B
 reduceCast v NFDyn t = ifNeq =<< matchType t where
   ifNeq gt = if t /= gt
     then reduceCast v NFDyn gt >>= \v' -> reduceCast v' gt t -- Factor-Right
     else Nothing
+-- V : A => B
 reduceCast v t1 t2 = case (matchType t1, matchType t2) of
   (Just gt1, Just gt2) -> if gt1 `isSubtypeOf` gt2
     then Just v   -- Cast-Sub
