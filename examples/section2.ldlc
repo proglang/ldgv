@@ -42,5 +42,8 @@ val f4' = 𝜆(x: Bool)
             𝜆(y: *)
               𝜆(z: Bool)
                 case x {
-                  'T: (y: * => (u:Bool) -> (v:Bool) -> Bool) z z,
-                  'F: (y: * => (u:Bool) -> Bool) z}
+                  'T: (y: * => (a:Bool) -> (b:Bool) -> Bool) z z,
+                  'F: (y: * => (b:Bool) -> Bool) z}
+
+-- CCLDLC: Simple pair cast
+val paircast = (< x = 'T, case (x: * => Bool) {'T: 'T, 'F: 'F} > : [x : Bool, Bool] -> [x : *, *])
