@@ -7,12 +7,9 @@ import Syntax
 import PrettySyntax
 import Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
-import Control.Exception
+import Control.Exception (throw)
 import Data.Functor ((<&>))
-import Data.Maybe (mapMaybe)
 import Data.Foldable (find)
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State.Strict as S
@@ -29,7 +26,7 @@ interpret decls = do
       isInterestingDecl DType {} = True
       isInterestingDecl _ = False
   -- find the main DFun
-  case Map.lookup "main" penv of
+  case penvlookup "main" penv of
     Just (VDecl decl) ->
       S.runStateT (evalDFun decl) penv <&> fst
     _ -> throw $ LookupException "main"
@@ -67,15 +64,15 @@ eval = \case
       VInt 1 -> do
         env <- get
         zero <- interpret' e2
-        put $ Map.insert i1 (VInt 0) (Map.insert i2 zero env)
+        put $ extendEnv i1 (VInt 0) (extendEnv i2 zero env)
         interpret' e3
       VInt n -> do
         -- interpret the n-1 case i2 and add it to the env
         -- together with n before interpreting the body e3
         env <- get
-        put $ Map.insert i1 (VInt (n-1)) env
+        put $ extendEnv i1 (VInt (n-1)) env
         lower <- interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3
-        put $ Map.insert i1 (VInt (n-1)) (Map.insert i2 lower env)
+        put $ extendEnv i1 (VInt (n-1)) (extendEnv i2 lower env)
         interpret' e3
   Lam m i t e -> do
     env <- get
@@ -188,15 +185,6 @@ interpretMath = \case
     VDouble x -> VDouble (negate x)
     _ -> throw $ MathException ("negate " ++ show v ++ ": did not yield a value"))
 
-createPEnv :: [Decl] -> PEnv
-createPEnv = Map.fromList . mapMaybe createEntry
-
-createEntry :: Decl -> Maybe (String, Value)
-createEntry = \case
-  d@(DType str mult kind typ) -> Just (str, VType typ)
-  d@(DFun str args e mt) -> Just (str, VDecl d)
-  _ -> Nothing
-
 evalType :: Type -> InterpretM NFType
 evalType = \case
   TUnit -> return NFUnit
@@ -207,7 +195,7 @@ evalType = \case
   TName _ s -> pmlookup s >>= \case
     (VType t) -> evalType t
     _ -> throw $ LookupException s
-  TLab ls -> return $ NFLabel $ Set.fromList ls
+  TLab ls -> return $ NFLabel $ labelsFromList ls
   TFun _ s t1 t2 -> get >>= \penv -> return $ NFFunc $ FuncType penv s t1 t2
   TPair _ s t1 t2 -> get >>= \penv -> return $ NFPair $ FuncType penv s t1 t2
   TCase exp labels -> interpret' exp >>= \case

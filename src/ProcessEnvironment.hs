@@ -7,6 +7,7 @@ import qualified Config as D
 import Control.Concurrent.Chan as C
 import Control.Monad.State.Strict as T
 import Control.Exception
+import Data.Maybe (mapMaybe)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -34,6 +35,15 @@ instance Exception InterpreterException
 -- | the interpretation monad
 type InterpretM a = T.StateT PEnv IO a
 
+createEntry :: Decl -> Maybe (String, Value)
+createEntry = \case
+  d@(DType str mult kind typ) -> Just (str, VType typ)
+  d@(DFun str args e mt) -> Just (str, VDecl d)
+  _ -> Nothing
+
+createPEnv :: [Decl] -> PEnv
+createPEnv = Map.fromList . mapMaybe createEntry
+
 -- | create a new entry (requires identifier to be unique)
 createPMEntry :: String -> Value -> T.StateT PEnv IO ()
 createPMEntry key value = do
@@ -43,10 +53,13 @@ createPMEntry key value = do
 extendEnv :: String -> Value -> PEnv -> PEnv
 extendEnv = Map.insert
 
+penvlookup :: String -> PEnv -> Maybe Value
+penvlookup = Map.lookup
+
 pmlookup :: String -> InterpretM Value
 pmlookup id = do
   penv <- get
-  case Map.lookup id penv of
+  case penvlookup id penv of
     Just v -> liftIO $ pure v
     Nothing -> throw $ LookupException id
 
@@ -55,6 +68,9 @@ type PEnv = Map String Value
 
 type Label = String
 type LabelType = Set Label
+
+labelsFromList :: [Label] -> LabelType
+labelsFromList = Set.fromList
 
 data FuncType = FuncType PEnv String S.Type S.Type
   deriving (Show, Eq)
