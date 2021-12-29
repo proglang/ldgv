@@ -54,7 +54,7 @@ data Value = VUnit
   | VDecl S.Decl -- when an identifier maps to another function we have not yet interpreted
   | VType S.Type
   | VFun (Value -> InterpretM Value) -- Function Type
-  | VDynCast Value NFType -- (Value : G => *)
+  | VDynCast Value GType -- (Value : G => *)
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,Π(x:A)A') => (ρ,Π(x:B)B'))
 
 instance Show Value where
@@ -83,25 +83,34 @@ instance Eq Value where
   (VDynCast v1 t1) == (VDynCast v2 t2) = v1 == v2 && t1 == t2
   _ == _ = False
 
+class Subtypeable t where
+  isSubtypeOf :: t -> t -> Bool
+
 -- Types in Head Normal Form
 data NFType = NFBot
   | NFDyn
   | NFUnit
-  | NFLabel (Set String)
-  | NFSingleton Value NFType          -- S{V:A}
+  | NFLabel LabelType
   | NFFunc FuncType  -- (ρ, Π(x: A) B)
   | NFPair FuncType  -- (ρ, Σ(x: A) B)
   | NFInt
   | NFDouble
-  deriving Show
+  deriving (Show, Eq)
 
-instance Eq NFType where
-  NFBot == NFBot = True
-  NFDyn == NFDyn = True
-  NFUnit == NFUnit = True
-  NFLabel ls1 == NFLabel ls2 = ls1 == ls2
-  (NFFunc ft1) == (NFFunc ft2) = ft1 == ft2
-  (NFPair ft1) == (NFPair ft2) = ft1 == ft2
-  NFInt == NFInt = True
-  NFDouble == NFDouble = True
-  _ == _ = False
+instance Subtypeable NFType where
+  isSubtypeOf NFUnit NFUnit = True
+  isSubtypeOf _ NFDyn = True
+  isSubtypeOf NFBot _ = True
+  isSubtypeOf (NFLabel ls1) (NFLabel ls2) = ls2 `Set.isSubsetOf` ls1
+  isSubtypeOf _ _ = False
+
+data GType = GUnit
+  | GLabel LabelType
+  | GFunc PEnv String   -- (ρ, Π(x: *) *)
+  | GPair PEnv String   -- (ρ, Σ(x: *) *)
+  deriving (Show, Eq)
+
+instance Subtypeable GType where
+  isSubtypeOf GUnit GUnit = True
+  isSubtypeOf (GLabel ls1) (GLabel ls2) = ls2 `Set.isSubsetOf` ls1
+  isSubtypeOf _ _ = False

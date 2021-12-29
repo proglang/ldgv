@@ -68,7 +68,10 @@ interpret' :: Exp ->  InterpretM Value
 interpret' e =
   M.ap
   (return $ \val -> C.trace ("Leaving interpretation of (" ++ pshow e ++ ") with value (" ++ show val ++ ")") val) $
-  case C.trace ("Invoking interpretation on " ++ pshow e) e of
+  (C.trace ("Invoking interpretation on " ++ pshow e) . eval) e
+
+eval :: Exp -> InterpretM Value
+eval = \case
   Succ e -> interpretMath $ Add (Lit (LInt 1)) e
   exp@(NatRec e1 e2 i1 t1 i2 t e3) -> do
   -- returns a function indexed over e1 (should be a variable pointing to a Nat)
@@ -212,7 +215,6 @@ createEntry = \case
   d@(DFun str args e mt) -> Just (str, VDecl d)
   _ -> Nothing
 
--- TODO: handle Singleton
 evalType :: Type -> InterpretM NFType
 evalType = \case
   TUnit -> return NFUnit
@@ -232,46 +234,48 @@ evalType = \case
   t -> throw $ TypeNotImplementedException t
 
 reduceCast :: Value -> NFType -> NFType -> Maybe Value
--- V : A => *
-reduceCast v t NFDyn = maybe ifSubtype ifNeq (matchType t)
-  where
-    ifNeq gt = if t /= gt
-      then reduceCast v t gt >>= \v' -> Just $ VDynCast v' gt -- Factor-Left
-      else Just $ VDynCast v t -- Cast-Is-Value
-    ifSubtype = if t `isSubtypeOf` NFDyn then Just v else Nothing -- Cast-Dyn-Dyn
--- (V : G => *) : * => B
-reduceCast (VDynCast v gt1) NFDyn t2 = ifSubtype =<< matchType t2
-  where ifSubtype gt2 = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Collapse/Cast-Collide
--- V : A => ⊥
-reduceCast _ _ NFBot = Nothing -- Cast-Bot
--- V : * => B
-reduceCast v NFDyn t = ifNeq =<< matchType t where
-  ifNeq gt = if t /= gt
-    then reduceCast v NFDyn gt >>= \v' -> reduceCast v' gt t -- Factor-Right
+-- Cast-Is-Value: just return if arguments already form a value
+reduceCast v t NFDyn = maybe (reduceCast' v t NFDyn) (return . VDynCast v) (matchType t)
+reduceCast v (NFFunc t1) (NFFunc t2) = return $ VFuncCast v t1 t2
+reduceCast v t1 t2 = reduceCast' v t1 t2
+
+reduceCast' :: Value -> NFType -> NFType -> Maybe Value
+reduceCast' v t NFDyn = maybe checkSubtype checkTypeNeq (matchType t) where
+  checkSubtype = if t `isSubtypeOf` NFDyn then Just v else Nothing -- Cast-Dyn-Dyn
+  checkTypeNeq gt = if not (t `equalsType` gt)
+    then reduceCast v t (matchBackType gt) >>= \v' -> return $ VDynCast v' gt -- Factor-Left
+    else checkSubtype
+reduceCast' v _ NFBot = Nothing -- Cast-Bot
+reduceCast' (VDynCast v gt1) NFDyn t2 = matchType t2 >>= checkSubtype
+  where checkSubtype gt2 = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Collapse/Cast-Collide
+reduceCast' v NFDyn t = matchType t >>= checkTypeNeq where
+  checkTypeNeq gt = let gt' = matchBackType gt in
+    if not (t `equalsType` gt)
+    then reduceCast v NFDyn gt' >>= \v' -> reduceCast v' gt' t  -- Factor-Right
     else Nothing
--- V : A => B
-reduceCast v t1 t2 = case (matchType t1, matchType t2) of
-  (Just gt1, Just gt2) -> if gt1 `isSubtypeOf` gt2
-    then Just v   -- Cast-Sub
-    else Nothing  -- Cast-Fail
-  _  -> case (t1, t2) of
-          (NFFunc ft1, NFFunc ft2) -> Just $ VFuncCast v ft1 ft2 -- Cast-Is-Value
-          _ -> Nothing
+reduceCast' v t1 t2 = do
+  gt1 <- matchType t1
+  gt2 <- matchType t2
+  if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub/Cast-Fail
 
-isSubtypeOf :: NFType -> NFType -> Bool
-isSubtypeOf NFUnit NFUnit = True
-isSubtypeOf _ NFDyn = True
-isSubtypeOf NFBot _ = True
-isSubtypeOf (NFLabel ls1) (NFLabel ls2) = ls2 `Set.isSubsetOf` ls1
-isSubtypeOf (NFFunc _) (NFFunc (FuncType _ _ TDyn TDyn)) = True -- TODO: I don't think this is really correct
-isSubtypeOf _ _ = False
+equalsType :: NFType -> GType -> Bool
+equalsType NFUnit GUnit = True
+equalsType (NFLabel ls1) (GLabel ls2) = ls1 == ls2
+equalsType (NFFunc (FuncType penv s TDyn TDyn)) (GFunc gpenv gs) = penv == gpenv && s == gs
+equalsType (NFPair (FuncType penv s TDyn TDyn)) (GPair gpenv gs) = penv == gpenv && s == gs
+equalsType _ _ = False
 
-matchType :: NFType -> Maybe NFType
+matchType :: NFType -> Maybe GType
 matchType = \case
-  t@NFUnit -> Just t
-  t@(NFLabel ls) -> Just t
-  NFFunc (FuncType penv s _ _) -> Just $ NFFunc $ FuncType penv s TDyn TDyn
-  NFPair (FuncType penv s _ _) -> Just $ NFPair $ FuncType penv s TDyn TDyn
-  t@(NFSingleton _ NFUnit) -> Just t
-  t@(NFSingleton _ (NFLabel _)) -> Just t
+  NFUnit -> return GUnit
+  NFLabel ls -> return $ GLabel ls
+  NFFunc (FuncType penv s _ _) -> return $ GFunc penv s
+  NFPair (FuncType penv s _ _) -> return $ GPair penv s
   _ -> Nothing
+
+matchBackType :: GType -> NFType
+matchBackType = \case
+  GUnit -> NFUnit
+  GLabel ls -> NFLabel ls
+  GFunc penv s -> NFFunc $ FuncType penv s TDyn TDyn
+  GPair penv s -> NFPair $ FuncType penv s TDyn TDyn
