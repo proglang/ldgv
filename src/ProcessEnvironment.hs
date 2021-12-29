@@ -1,40 +1,57 @@
 {-# LANGUAGE LambdaCase #-}
 
 module ProcessEnvironment where
+import PrettySyntax
 import Syntax as S
 import qualified Config as D
 import Control.Concurrent.Chan as C
 import Control.Monad.State.Strict as T
+import Control.Exception
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+
+data InterpreterException
+  = MathException String
+  | LookupException String
+  | CastException Exp
+  | ApplicationException String
+  | NotImplementedException Exp
+  | TypeNotImplementedException Type
+
+instance Show InterpreterException where
+  show = \case
+    (MathException s) -> "MathException: " ++ s
+    (LookupException s) -> "LookupException: Lookup of '" ++ s ++ "' did not yield a value"
+    (CastException exp) -> "CastException: (" ++ pshow exp ++ ") failed"
+    (ApplicationException s) -> "ApplicationException: " ++ s
+    (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
+    (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
+
+instance Exception InterpreterException
 
 -- | the interpretation monad
 type InterpretM a = T.StateT PEnv IO a
 
 -- | create a new entry (requires identifier to be unique)
-createPMEntry :: PEnvEntry -> T.StateT PEnv IO ()
-createPMEntry entry = do
-  liftIO $ D.traceIO $ "Creating Environment entry " ++ show entry
-  modify (entry :)
+createPMEntry :: String -> Value -> T.StateT PEnv IO ()
+createPMEntry key value = do
+  liftIO $ D.traceIO $ "Creating Environment entry " ++ show (key, value)
+  modify (Map.insert key value)
 
-extendEnv :: PEnvEntry -> PEnv -> PEnv
-extendEnv e env = e:env
+extendEnv :: String -> Value -> PEnv -> PEnv
+extendEnv = Map.insert
 
 pmlookup :: String -> InterpretM Value
 pmlookup id = do
-  identifiers <- get
-  case lookup id identifiers of
-    Nothing -> fail ("No Value for identifier " ++ id ++ " in ProcessEnvironment")
-    Just val -> do
-      liftIO $ D.traceIO $ "Looked up " ++ id ++ " and found " ++ show val
-      >> pure val
+  penv <- get
+  case Map.lookup id penv of
+    Just v -> liftIO $ pure v
+    Nothing -> throw $ LookupException id
 
 -- | a Process Envronment maps identifiers to Values of expressions and stores
-type PEnv = [PEnvEntry]
-type PEnvEntry = (String, Value)
-
-printPEnv :: PEnv -> String
-printPEnv = foldr (\entry string -> show entry ++ "\n" ++ string) ""
+type PEnv = Map String Value
 
 type Label = String
 type LabelType = Set Label

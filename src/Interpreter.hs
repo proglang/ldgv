@@ -1,39 +1,21 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Interpreter (interpret, evalDFun, createPEnv, InterpreterException(..)) where
+module Interpreter (interpret, evalDFun, createPEnv) where
 
 import qualified Config as C
 import Syntax
 import PrettySyntax
 import Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
+import Control.Exception
 import Data.Functor ((<&>))
 import Data.Maybe (mapMaybe)
 import Data.Foldable (find)
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State.Strict as S
-import Control.Exception
-
-data InterpreterException
-  = MathException String
-  | LookupException String
-  | CastException Exp
-  | ApplicationException String
-  | NotImplementedException Exp
-  | TypeNotImplementedException Type
-
-instance Show InterpreterException where
-  show = \case
-    (MathException s) -> "MathException: " ++ s
-    (LookupException s) -> "LookupException: Lookup of '" ++ s ++ "' did not yield a value"
-    (CastException exp) -> "CastException: (" ++ pshow exp ++ ") failed"
-    (ApplicationException s) -> "ApplicationException: " ++ s
-    (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
-    (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
-
-instance Exception InterpreterException
 
 blame :: Exp -> a
 blame exp = throw $ CastException exp
@@ -47,7 +29,7 @@ interpret decls = do
       isInterestingDecl DType {} = True
       isInterestingDecl _ = False
   -- find the main DFun
-  case lookup "main" penv of
+  case Map.lookup "main" penv of
     Just (VDecl decl) ->
       S.runStateT (evalDFun decl) penv <&> fst
     _ -> throw $ LookupException "main"
@@ -59,7 +41,7 @@ evalDFun decl@(DFun name ((_, id, _):binds) e mty) =
   let decl' = DFun name binds e mty
   in return $ VFun (\arg -> do
     -- bind the identifier to the given value at application
-    createPMEntry (id, arg)
+    createPMEntry id arg
     -- and evaluate the rest of the declaration
     evalDFun decl')
 
@@ -85,19 +67,19 @@ eval = \case
       VInt 1 -> do
         env <- get
         zero <- interpret' e2
-        put $ (i1, VInt 0):(i2, zero):env
+        put $ Map.insert i1 (VInt 0) (Map.insert i2 zero env)
         interpret' e3
       VInt n -> do
         -- interpret the n-1 case i2 and add it to the env
         -- together with n before interpreting the body e3
         env <- get
-        put $ (i1, VInt (n-1)):env
+        put $ Map.insert i1 (VInt (n-1)) env
         lower <- interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3
-        put $ (i1, VInt (n-1)):(i2, lower):env
+        put $ Map.insert i1 (VInt (n-1)) (Map.insert i2 lower env)
         interpret' e3
   Lam m i t e -> do
     env <- get
-    let f = \arg -> liftIO $ S.evalStateT (interpret' e) (extendEnv (i, arg) env)
+    let f = \arg -> liftIO $ S.evalStateT (interpret' e) (extendEnv i arg env)
     return $ VFun f
   cast@(Cast e t1 t2) -> do
     liftIO $ C.traceIO $ "Interpreting " ++ pshow cast
@@ -108,7 +90,7 @@ eval = \case
   Var s -> pmlookup s
   Let s e1 e2 -> do
     v  <- interpret' e1
-    createPMEntry (s, v)
+    createPMEntry s v
     interpret' e2
   Math m -> interpretMath m
   Lit l -> return (interpretLit l)
@@ -129,14 +111,14 @@ eval = \case
     v1 <- interpret' e1
     v2 <- interpret' e2
     let val = VPair v1 v2
-    createPMEntry (s , val)
+    createPMEntry s val
     return val
   LetPair s1 s2 e1 e2 -> do
     v <- interpret' e1
     case v of
       (VPair v1 v2) -> do
-        createPMEntry (s1, v1)
-        createPMEntry (s2, v2)
+        createPMEntry s1 v1
+        createPMEntry s2 v2
     interpret' e2
   Fst e -> do
     v <- interpret' e
@@ -207,9 +189,9 @@ interpretMath = \case
     _ -> throw $ MathException ("negate " ++ show v ++ ": did not yield a value"))
 
 createPEnv :: [Decl] -> PEnv
-createPEnv = mapMaybe createEntry
+createPEnv = Map.fromList . mapMaybe createEntry
 
-createEntry :: Decl -> Maybe PEnvEntry
+createEntry :: Decl -> Maybe (String, Value)
 createEntry = \case
   d@(DType str mult kind typ) -> Just (str, VType typ)
   d@(DFun str args e mt) -> Just (str, VDecl d)
