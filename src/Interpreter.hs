@@ -10,6 +10,7 @@ import Control.Concurrent (forkIO)
 import Control.Exception (throw)
 import Data.Functor ((<&>))
 import Data.Foldable (find)
+import Data.Maybe (fromMaybe, fromJust)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State.Strict as S
@@ -83,7 +84,10 @@ eval = \case
     v <- interpret' e
     nft1 <- evalType t1
     nft2 <- evalType t2
-    maybe (blame cast) return (reduceCast v nft1 nft2)
+    case (v, nft1, nft2) of
+      (pair@VPair {}, from@NFPair {}, to@NFPair {}) ->
+        maybe (blame cast) lift (reducePairCast pair from to)
+      _ -> maybe (blame cast) return (reduceCast v nft1 nft2)
   Var s -> pmlookup s
   Let s e1 e2 -> do
     v  <- interpret' e1
@@ -227,6 +231,20 @@ reduceCast' v t1 t2 = do
   gt1 <- matchType t1
   gt2 <- matchType t2
   if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub/Cast-Fail
+
+reducePairCast :: Value -> NFType -> NFType -> Maybe (IO Value)
+reducePairCast (VPair v w) (NFPair ft1@(FuncType penv s t1 t2)) (NFPair ft'@(FuncType penv' s' t1' t2')) = do
+  v' <- reduceComponent v (penv, t1) (penv', t1')
+  w' <- reduceComponent w (penv, t2) (penv', t2')
+  return $ liftM2 VPair v' w'
+  where
+    reduceComponent :: Value -> (PEnv, Type) -> (PEnv, Type) -> Maybe (IO Value)
+    reduceComponent v (penv, t) (penv', t') = do
+      let nft  = S.evalStateT (evalType t)  penv
+      let nft' = S.evalStateT (evalType t') penv'
+      let v' = liftM2 (\x1 x2 -> fromJust $ reduceCast v x1 x2) nft nft'
+      return v'
+reducePairCast _ _ _ = Nothing
 
 equalsType :: NFType -> GType -> Bool
 equalsType NFUnit GUnit = True
