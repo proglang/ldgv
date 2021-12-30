@@ -85,8 +85,8 @@ eval = \case
     nft1 <- evalType t1
     nft2 <- evalType t2
     case (v, nft1, nft2) of
-      (pair@VPair {}, from@NFPair {}, to@NFPair {}) ->
-        maybe (blame cast) lift (reducePairCast pair from to)
+      (pair@VPair {}, from@NFPair {}, to@NFPair {}) -> do
+        lift $ reducePairCast pair from to >>= maybe (blame cast) return
       _ -> maybe (blame cast) return (reduceCast v nft1 nft2)
   Var s -> pmlookup s
   Let s e1 e2 -> do
@@ -231,19 +231,18 @@ reduceCast' v t1 t2 = do
   gt2 <- matchType t2
   if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub/Cast-Fail
 
-reducePairCast :: Value -> NFType -> NFType -> Maybe (IO Value)
+reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
 reducePairCast (VPair v w) (NFPair ft1@(FuncType penv s t1 t2)) (NFPair ft'@(FuncType penv' s' t1' t2')) = do
   v' <- reduceComponent v (penv, t1) (penv', t1')
   w' <- reduceComponent w (penv, t2) (penv', t2')
   return $ liftM2 VPair v' w'
   where
-    reduceComponent :: Value -> (PEnv, Type) -> (PEnv, Type) -> Maybe (IO Value)
+    reduceComponent :: Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)
     reduceComponent v (penv, t) (penv', t') = do
-      let nft  = S.evalStateT (evalType t)  penv
-      let nft' = S.evalStateT (evalType t') penv'
-      let v' = liftM2 (\x1 x2 -> fromJust $ reduceCast v x1 x2) nft nft'
-      return v'
-reducePairCast _ _ _ = Nothing
+      nft  <- S.evalStateT (evalType t)  penv
+      nft' <- S.evalStateT (evalType t') penv'
+      return $ reduceCast v nft nft'
+reducePairCast _ _ _ = return Nothing
 
 equalsType :: NFType -> GType -> Bool
 equalsType NFUnit GUnit = True
