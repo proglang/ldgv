@@ -110,10 +110,9 @@ eval = \case
       _ -> throw $ ApplicationException ("Trying to apply (" ++ pshow e2 ++ ") to (" ++ pshow e1 ++ ")")
   Pair mul s e1 e2 -> do
     v1 <- interpret' e1
+    createPMEntry s v1
     v2 <- interpret' e2
-    let val = VPair v1 v2
-    createPMEntry s val
-    return val
+    return $ VPair v1 v2
   LetPair s1 s2 e1 e2 -> do
     v <- interpret' e1
     case v of

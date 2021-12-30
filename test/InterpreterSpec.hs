@@ -81,6 +81,16 @@ spec = do
           (Lit (LLab "'F"))) (Lit (LLab "'F"))) Nothing)
         (VLabel "'T")
 
+  describe "LDLC pair interpretation" $ do
+    it "interprets function returning a <Bool, Int> pair: <x='T, 1>" $
+      shouldInterpretInPEnvTo [boolType]
+        (DFun "f" [] (Pair MMany "x" (Lit (LLab "'T")) (Lit $ LNat 1)) Nothing)
+        (VPair (VLabel "'T") (VInt 1))
+    it "interprets function returning a <Bool, Int> pair, where snd depends on evaluation of fst: <x='T, case x {'T: 1, 'F: 0}>" $
+      shouldInterpretInPEnvTo [boolType]
+        (DFun "f" [] (Pair MMany "x" (Lit $ LLab "'T") (Case (Var "x") [("'T",Lit $ LNat 1), ("'F",Lit $ LNat 0)])) Nothing)
+        (VPair (VLabel "'T") (VInt 1))
+
   describe "CCLDLC function interpretation" $ do
     it "interprets application of x=('F: Bool => *), y='F on section2 example function f2'" $
       shouldInterpretInPEnvTo [boolType, notFunc]
@@ -133,12 +143,36 @@ spec = do
             (Lit (LLab "'F")))
           Nothing)
         (VLabel "'T")
-    it "interprets cast of boolean pair" $
+    it "interprets cast of boolean pair from Bool to OnlyTrue" $
+      shouldInterpretInPEnvTo [boolType, onlyTrueType]
+      (DFun "paircast" []
+        (Cast
+          (Pair MMany "x"
+            (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)
+            (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
+          (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
+          (TPair MMany "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
+        Nothing)
+      (VPair (VDynCast (VLabel "'T") (GLabel (labelsFromList ["'T", "'F"]))) (VLabel "'T"))
+    it "interprets cast of boolean pair from Bool to *" $
       shouldInterpretInPEnvTo [boolType]
       (DFun "paircast" []
         (Cast
-          (Pair MMany "x" (Lit (LLab "'T")) (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
-            (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
-              (TPair MMany "x" TDyn TDyn))
+          (Pair MMany "x"
+            (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)
+            (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
+          (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
+          (TPair MMany "x" TDyn TDyn))
         Nothing)
-      (VPair (VLabel "'T") (VLabel "'T"))
+      (VPair (VDynCast (VLabel "'T") (GLabel (labelsFromList ["'T", "'F"]))) (VLabel "'T"))
+    it "interprets cast of boolean pair from Bool to MaybeBool" $
+      shouldInterpretInPEnvTo [boolType, maybeBoolType]
+      (DFun "paircast" []
+        (Cast
+          (Pair MMany "x"
+            (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)
+            (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
+          (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
+          (TPair MMany "x" (TName False "MaybeBool") (TName False "MaybeBool")))
+        Nothing)
+      (VPair (VDynCast (VLabel "'T") (GLabel (labelsFromList ["'T", "'F"]))) (VLabel "'T"))

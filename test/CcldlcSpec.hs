@@ -48,11 +48,13 @@ spec =
       `shouldParseDecl`
       DFun "f5" [] (Cast (Var "not") (TFun MMany "b" (TName False "Bool") (TName False "Bool")) (TFun MMany "b" TDyn TDyn)) Nothing
     it "f6 example for pair cast and evaluation" $
-      "val paircast = (< x = 'T, case (x: * => Bool) {'T: 'T, 'F: 'F} > : [x : Bool, Bool] => [x : *, *])"
+      "val paircast = (<x=('T: Bool => *), case (x: * => Bool) {'T: 'T, 'F: 'F}> : [x : Bool, Bool] => [x : OnlyTrue, OnlyTrue])"
       `shouldParseDecl`
       DFun "paircast" []
         (Cast
-          (Pair MMany "x" (Lit (LLab "'T")) (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
-            (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
-              (TPair MMany "x" TDyn TDyn))
+          (Pair MMany "x"
+            (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)
+            (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
+          (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
+          (TPair MMany "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
         Nothing
