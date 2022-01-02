@@ -47,7 +47,7 @@ evalDFun decl@(DFun name ((_, id, _):binds) e mty) =
 interpret' :: Exp ->  InterpretM Value
 interpret' e =
   M.ap
-  (return $ \val -> C.trace ("Leaving interpretation of (" ++ pshow e ++ ") with value (" ++ show val ++ ")") val) $
+  (return $ \val -> C.trace ("Leaving interpretation of " ++ pshow e ++ " with value " ++ show val) val) $
   (C.trace ("Invoking interpretation on " ++ pshow e) . eval) e
 
 eval :: Exp -> InterpretM Value
@@ -80,12 +80,13 @@ eval = \case
     let f = \arg -> liftIO $ S.evalStateT (interpret' e) (extendEnv i arg env)
     return $ VFun f
   cast@(Cast e t1 t2) -> do
-    liftIO $ C.traceIO $ "Interpreting " ++ pshow cast
+    liftIO $ C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
     nft1 <- evalType t1
     nft2 <- evalType t2
     case (v, nft1, nft2) of
       (pair@VPair {}, from@NFPair {}, to@NFPair {}) -> do
+        C.traceIO $ "Interpreting pair cast expression: Value(" ++ show pair ++ ") NFType(" ++ show from ++ ") NFType(" ++ show to ++ ")"
         lift $ reducePairCast pair from to >>= maybe (blame cast) return
       _ -> maybe (blame cast) return (reduceCast v nft1 nft2)
   Var s -> pmlookup s
@@ -234,7 +235,9 @@ reduceCast' v t1 t2 = do
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
 reducePairCast (VPair v w) (NFPair ft1@(FuncType penv s t1 t2)) (NFPair ft'@(FuncType penv' s' t1' t2')) = do
   v' <- reduceComponent v (penv, t1) (penv', t1')
+  C.traceIO $ "Reduce cast of left Value(" ++ show v ++ ") from NFType(" ++ show t1 ++ ") to NFType(" ++ show t1' ++ ") returning: " ++ show v'
   w' <- reduceComponent w (penv, t2) (penv', t2')
+  C.traceIO $ "Reduce cast of right Value(" ++ show w ++ ") from NFType(" ++ show t2 ++ ") to NFType(" ++ show t2' ++ ") returning: " ++ show w'
   return $ liftM2 VPair v' w'
   where
     reduceComponent :: Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)

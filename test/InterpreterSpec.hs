@@ -154,19 +154,8 @@ spec = do
           (TPair MMany "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
         Nothing)
       (VPair (VDynCast (VLabel "'T") (GLabel (labelsFromList ["'T", "'F"]))) (VLabel "'T"))
-    it "interprets cast of boolean pair from Bool to *" $
-      shouldInterpretInPEnvTo [boolType]
-      (DFun "paircast" []
-        (Cast
-          (Pair MMany "x"
-            (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)
-            (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
-          (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
-          (TPair MMany "x" TDyn TDyn))
-        Nothing)
-      (VPair (VDynCast (VLabel "'T") (GLabel (labelsFromList ["'T", "'F"]))) (VLabel "'T"))
     it "interprets cast of boolean pair from Bool to MaybeBool" $
-      shouldInterpretInPEnvTo [boolType, maybeBoolType]
+      shouldThrowCastException [boolType, maybeBoolType]
       (DFun "paircast" []
         (Cast
           (Pair MMany "x"
@@ -175,4 +164,3 @@ spec = do
           (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
           (TPair MMany "x" (TName False "MaybeBool") (TName False "MaybeBool")))
         Nothing)
-      (VPair (VDynCast (VLabel "'T") (GLabel (labelsFromList ["'T", "'F"]))) (VLabel "'T"))

@@ -97,12 +97,12 @@ instance Show Value where
     VInt i -> "VInt " ++ show i
     VDouble d -> "VDouble " ++ show d
     VChan _ _ -> "VChan"
-    VPair a b -> "(" ++ show a ++ "," ++ show b ++ ")"
+    VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
     VFun _ -> "VFunction"
-    VDynCast v t -> "VDynCast (" ++ show v ++ " : " ++ show t ++ "=> *)"
-    VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ " : " ++ show ft1 ++ " => " ++ show ft2
+    VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
+    VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
 
 instance Eq Value where
   VUnit == VUnit = True
