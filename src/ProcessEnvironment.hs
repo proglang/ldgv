@@ -17,7 +17,7 @@ data InterpreterException
   = MathException String
   | LookupException String
   | CastException Exp
-  | ApplicationException String
+  | ApplicationException Exp
   | NotImplementedException Exp
   | TypeNotImplementedException Type
 
@@ -26,7 +26,7 @@ instance Show InterpreterException where
     (MathException s) -> "MathException: " ++ s
     (LookupException s) -> "LookupException: Lookup of '" ++ s ++ "' did not yield a value"
     (CastException exp) -> "CastException: (" ++ pshow exp ++ ") failed"
-    (ApplicationException s) -> "ApplicationException: " ++ s
+    (ApplicationException exp) -> "ApplicationException: expression '" ++ pshow exp ++ "' not allowed"
     (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
     (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
 

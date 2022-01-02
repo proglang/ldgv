@@ -96,19 +96,27 @@ eval = \case
     interpret' e2
   Math m -> interpretMath m
   Lit l -> return (interpretLit l)
-  App e1 e2 -> do
-    _ <- liftIO $ C.traceIO $ "Arguments for (" ++ pshow e1 ++ ") are: ("  ++ pshow e2 ++ ")"
+  e@(App e1 e2) -> do
+    liftIO $ C.traceIO $ "Arguments for (" ++ pshow e1 ++ ") are: ("  ++ pshow e2 ++ ")"
     -- interpret e1 first, because the innermost application
     -- is the function with its first argument
-    v1 <- interpret' e1
+    val <- interpret' e1
     arg <- interpret' e2
-    -- check if the variable refers to a function declaration
-    case v1 of
-      VDecl d -> do
-        res <- evalDFun d
-        case res of (VFun f) -> f arg
-      VFun f -> f arg
-      _ -> throw $ ApplicationException ("Trying to apply (" ++ pshow e2 ++ ") to (" ++ pshow e1 ++ ")")
+    let interpretApp :: Value -> Value -> InterpretM Value
+        interpretApp (VDecl d) w = evalDFun d >>= \(VFun f) -> f w
+        interpretApp (VFun f) w = f w
+        interpretApp (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
+          penv0 <- get
+          let nft1  = S.evalStateT (evalType t1)  penv
+              nft1' = S.evalStateT (evalType t1') penv'
+              w = liftM2 (reduceCast w') nft1 nft1' >>= maybe (blame e) return
+              nft2' = S.evalStateT (evalType t2') (extendEnv s' w' penv')
+              nft2  = w >>= \w'' -> S.evalStateT (evalType t2) (extendEnv s w'' penv)
+              u = w >>= \w'' -> S.evalStateT (interpretApp v w'') penv0
+              u' = u >>= \u'' -> nft2 >>= \nft22 -> nft2' >>= \nft22' -> maybe (blame e) return (reduceCast u'' nft22 nft22')
+          lift u'
+        interpretApp _ _ = throw $ ApplicationException e
+    interpretApp val arg
   Pair mul s e1 e2 -> do
     v1 <- interpret' e1
     createPMEntry s v1
@@ -121,14 +129,16 @@ eval = \case
         createPMEntry s1 v1
         createPMEntry s2 v2
     interpret' e2
-  Fst e -> do
+  fst@(Fst e) -> do
     v <- interpret' e
     case v of
       (VPair s1 s2) -> return s1
-  Snd e -> do
+      _ -> throw $ ApplicationException fst
+  snd@(Snd e) -> do
     v <- interpret' e
     case v of
       (VPair s1 s2) -> return s2
+      _ -> throw $ ApplicationException snd
   Fork e -> do
     penv <- get
     liftIO $ forkIO (do
