@@ -5,7 +5,7 @@ module Interpreter (interpret, evalDFun, createPEnv) where
 import qualified Config as C
 import Syntax
 import PrettySyntax
-import Control.Concurrent.Chan as Chan
+import qualified Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Control.Exception (throw)
 import Data.Functor ((<&>))
@@ -75,10 +75,7 @@ eval = \case
         lower <- interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3
         put $ extendEnv i1 (VInt (n-1)) (extendEnv i2 lower env)
         interpret' e3
-  Lam m i t e -> do
-    env <- get
-    let f = \arg -> liftIO $ S.evalStateT (interpret' e) (extendEnv i arg env)
-    return $ VFun f
+  Lam m i t e -> get >>= \env -> return $ VFun (\arg -> liftIO $ S.evalStateT (interpret' e) (extendEnv i arg env))
   cast@(Cast e t1 t2) -> do
     liftIO $ C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
@@ -91,7 +88,7 @@ eval = \case
       _ -> maybe (blame cast) return (reduceCast v nft1 nft2)
   Var s -> pmlookup s
   Let s e1 e2 -> do
-    v  <- interpret' e1
+    v <- interpret' e1
     createPMEntry s v
     interpret' e2
   Math m -> interpretMath m
@@ -124,22 +121,12 @@ eval = \case
     v2 <- interpret' e2
     return $ VPair v1 v2
   LetPair s1 s2 e1 e2 -> do
-    v <- interpret' e1
-    case v of
-      (VPair v1 v2) -> do
-        createPMEntry s1 v1
-        createPMEntry s2 v2
+    interpret' e1 >>= \(VPair v1 v2) -> do
+      createPMEntry s1 v1
+      createPMEntry s2 v2
     interpret' e2
-  fst@(Fst e) -> do
-    v <- interpret' e
-    case v of
-      (VPair s1 s2) -> return s1
-      _ -> throw $ ApplicationException fst
-  snd@(Snd e) -> do
-    v <- interpret' e
-    case v of
-      (VPair s1 s2) -> return s2
-      _ -> throw $ ApplicationException snd
+  fst@(Fst e) -> interpret' e >>= \(VPair s1 s2) -> return s1
+  snd@(Snd e) -> interpret' e >>= \(VPair s1 s2) -> return s2
   Fork e -> do
     penv <- get
     liftIO $ forkIO (do
@@ -189,6 +176,7 @@ interpretMathOp a b opInt opDouble = do
     (VInt x, VInt y) -> VInt (opInt x y)
     (VDouble x, VDouble y) -> VDouble (opDouble x y)
     (_, _) -> throw $ MathException (show v ++ " -> " ++ show w ++ " -> a: did not yield a value")
+
 interpretMath :: MathOp Exp -> InterpretM Value
 interpretMath = \case
   Add a b -> interpretMathOp a b (+) (+)
@@ -213,9 +201,9 @@ evalType = \case
   TLab ls -> return $ NFLabel $ labelsFromList ls
   TFun _ s t1 t2 -> get >>= \penv -> return $ NFFunc $ FuncType penv s t1 t2
   TPair _ s t1 t2 -> get >>= \penv -> return $ NFPair $ FuncType penv s t1 t2
-  TCase exp labels -> interpret' exp >>= \case
-    (VLabel l) -> let entry = find (\(l', _) -> l == l') labels in
-      maybe (return NFBot) (evalType . snd) entry
+  TCase exp labels -> interpret' exp >>= \(VLabel l) ->
+    let entry = find (\(l', _) -> l == l') labels
+    in maybe (return NFBot) (evalType . snd) entry
   t -> throw $ TypeNotImplementedException t
 
 reduceCast :: Value -> NFType -> NFType -> Maybe Value
