@@ -98,8 +98,7 @@ eval = \case
   Lit l -> return (interpretLit l)
   e@(App e1 e2) -> do
     liftIO $ C.traceIO $ "Arguments for (" ++ pshow e1 ++ ") are: ("  ++ pshow e2 ++ ")"
-    -- interpret e1 first, because the innermost application
-    -- is the function with its first argument
+    -- interpret e1 first, because the innermost application is the function with its first argument
     val <- interpret' e1
     arg <- interpret' e2
     let interpretApp :: Value -> Value -> InterpretM Value
@@ -107,14 +106,16 @@ eval = \case
         interpretApp (VFun f) w = f w
         interpretApp (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
           penv0 <- get
-          let nft1  = S.evalStateT (evalType t1)  penv
-              nft1' = S.evalStateT (evalType t1') penv'
-              w = liftM2 (reduceCast w') nft1 nft1' >>= maybe (blame e) return
-              nft2' = S.evalStateT (evalType t2') (extendEnv s' w' penv')
-              nft2  = w >>= \w'' -> S.evalStateT (evalType t2) (extendEnv s w'' penv)
-              u = w >>= \w'' -> S.evalStateT (interpretApp v w'') penv0
-              u' = u >>= \u'' -> nft2 >>= \nft22 -> nft2' >>= \nft22' -> maybe (blame e) return (reduceCast u'' nft22 nft22')
-          lift u'
+          let interpretAppCast :: IO Value
+              interpretAppCast = do
+                nft1  <- S.evalStateT (evalType t1)  penv
+                nft1' <- S.evalStateT (evalType t1') penv'
+                w <- maybe (blame e) return (reduceCast w' nft1 nft1')
+                nft2' <- S.evalStateT (evalType t2') (extendEnv s' w' penv')
+                nft2  <- S.evalStateT (evalType t2) (extendEnv s w penv)
+                u  <- S.evalStateT (interpretApp v w) penv0
+                maybe (blame e) return (reduceCast u nft2 nft2')
+          lift interpretAppCast
         interpretApp _ _ = throw $ ApplicationException e
     interpretApp val arg
   Pair mul s e1 e2 -> do
