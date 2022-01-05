@@ -12,6 +12,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
 import qualified Data.Set as Set
+import qualified TCSubtyping as TS
 
 data InterpreterException
   = MathException String
@@ -128,22 +129,18 @@ data NFType = NFBot
   | NFPair FuncType  -- (ρ, Σ(x: A) B)
   | NFInt
   | NFDouble
+  | NFGType GType -- every ground type is also a type in normal form
   deriving (Show, Eq)
-
-instance Subtypeable NFType where
-  isSubtypeOf NFUnit NFUnit = True
-  isSubtypeOf _ NFDyn = True
-  isSubtypeOf NFBot _ = True
-  isSubtypeOf (NFLabel ls1) (NFLabel ls2) = ls2 `Set.isSubsetOf` ls1
-  isSubtypeOf _ _ = False
 
 data GType = GUnit
   | GLabel LabelType
-  | GFunc PEnv String   -- (ρ, Π(x: *) *)
-  | GPair PEnv String   -- (ρ, Σ(x: *) *)
+  | GFunc -- Π(x: *) *
+  | GPair -- Σ(x: *) *
   deriving (Show, Eq)
 
 instance Subtypeable GType where
   isSubtypeOf GUnit GUnit = True
-  isSubtypeOf (GLabel ls1) (GLabel ls2) = ls2 `Set.isSubsetOf` ls1
+  isSubtypeOf (GLabel ls1) (GLabel ls2) = ls1 `Set.isSubsetOf` ls2
+  isSubtypeOf GFunc GFunc = True
+  isSubtypeOf GPair GPair = True
   isSubtypeOf _ _ = False
