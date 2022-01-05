@@ -43,10 +43,6 @@ spec =
                 [("'T",App (App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TFun MMany "v" (TName False "Bool") (TName False "Bool")))) (Var "z")) (Var "z"))
                 ,("'F",App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TName False "Bool"))) (Var "z"))]))))
         Nothing
-    it "f5 example function for application on function cast value" $
-      "val f5 = not : (b: Bool) -> Bool => (b: *) -> *"
-      `shouldParseDecl`
-      DFun "f5" [] (Cast (Var "not") (TFun MMany "b" (TName False "Bool") (TName False "Bool")) (TFun MMany "b" TDyn TDyn)) Nothing
     it "f6 example for pair cast and evaluation" $
       "val paircast = (<x=('T: Bool => *), case (x: * => Bool) {'T: 'T, 'F: 'F}> : [x : Bool, Bool] => [x : OnlyTrue, OnlyTrue])"
       `shouldParseDecl`

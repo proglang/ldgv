@@ -80,6 +80,7 @@ eval = \case
   cast@(Cast e t1 t2) -> do
     C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
+    C.traceIO ("Evaluating expression " ++ show e ++ " to value " ++ show v)
     nft1 <- evalType t1
     C.traceIO $ "Evaluating type " ++ show t1 ++ " to normal form " ++ show nft1
     nft2 <- evalType t2
@@ -219,25 +220,28 @@ reduceCast v t1 t2 = castIsValue v t1 t2 <|> reduceCast' v t1' t2'
 
 -- Cast-Is-Value: return correct value if arguments already form a value
 castIsValue :: Value -> NFType -> NFType -> Maybe Value
-castIsValue v t NFDyn = matchType t <&> VDynCast v
+castIsValue v t NFDyn = do
+  gt <- matchType t
+  if t `equalsType` gt then Just $VDynCast v gt else Nothing
 castIsValue v (NFFunc ft1) (NFFunc ft2) = Just $ VFuncCast v ft1 ft2
 castIsValue _ _ _ = Nothing
 
 reduceCast' :: Value -> NFType -> NFType -> Maybe Value
-reduceCast' v t NFDyn = maybe checkSubtype checkTypeNeq (matchType t)
+reduceCast' v t NFDyn = maybe castDynDyn factorLeft (matchType t)
   where
-    tIsSubtypeOfNFDyn = True
-    checkSubtype = if tIsSubtypeOfNFDyn then Just v else Nothing  -- Cast-Dyn-Dyn
-    checkTypeNeq gt = if not (t `equalsType` gt)
+    tIsSubtypeOfNFDyn = True -- TODO: This can not be right
+    castDynDyn = if tIsSubtypeOfNFDyn then Just v else Nothing  -- Cast-Dyn-Dyn
+    factorLeft gt = if let typeq = t `equalsType` gt in C.trace (show t ++ " == " ++ show gt ++ " = " ++ show typeq) (not typeq)
       then reduceCast v t (NFGType gt) >>= \v' -> Just $ VDynCast v' gt -- Factor-Left
-      else checkSubtype
+      else castDynDyn
 reduceCast' v _ NFBot = Nothing -- Cast-Bot
 reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub
 reduceCast' (VDynCast v gt1) NFDyn (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Collapse/Cast-Collide
 reduceCast' v NFDyn t = do
   gt <- matchType t
   let nfgt = NFGType gt
-  if not (t `equalsType` gt) then do
+  let typeq = t `equalsType` gt
+  if C.trace (show t ++ " == " ++ show gt ++ " = " ++ show typeq) (not typeq) then do
     v'  <- reduceCast v NFDyn nfgt
     v'' <- reduceCast v' nfgt t
     Just v''  -- Factor-Right
@@ -247,7 +251,7 @@ reduceCast' v t1 t2 = do
   gt1 <- matchType t1
   gt2 <- matchType t2
   -- TODO: What do with gt1 and gt2?
-  if gt1 `isSubtypeOf` gt2 then Nothing else Nothing -- Cast-Sub/Cast-Fail
+  if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub/Cast-Fail
 
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
 reducePairCast (VPair v w) (NFPair ft1@(FuncType penv s t1 t2)) (NFPair ft'@(FuncType penv' s' t1' t2')) = do
