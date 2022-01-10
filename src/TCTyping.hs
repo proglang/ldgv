@@ -27,6 +27,7 @@ kiSynth te TInt  = return (Kun, MMany)
 kiSynth te TDouble = return (Kun, MMany)
 kiSynth te TNat  = return (Kun, MMany)
 kiSynth te TBot  = return (Kunit, MMany) -- this kind is compatible with everything
+kiSynth te TDyn  = return (Kidx, MMany)
 kiSynth te (TLab labs) = do
   case labs of
     (_ : _) -> return (Kidx, MMany)
@@ -136,6 +137,9 @@ tySynth te e =
         let tyout = subst x e2 ty2
         _ <- kiSynth (demoteTE te) tyout
         return (tyout, te2)
+      TDyn -> do
+        te2 <- tyCheck te1 e2 TDyn
+        return (TDyn, te2)
       _ ->
         TC.mfail ("Function expected, but got " ++ pshow tf ++ " (" ++ pshow tfu ++ ")")
 
@@ -183,6 +187,11 @@ tySynth te e =
         D.trace ("LetPair/kiSynth " ++ pshow (te2, ty3)) $ return ()
         (ki3, mu3) <- kiSynth (demoteTE te2) ty3
         strengthen e (ty3, te2) >>= strengthen e
+      TDyn -> do                -- matching happens here!
+        (ty3, te2) <- tySynth ((y, (Many, TDyn)) : (x, (Many, TDyn)) : te1) e2
+        (ki3, mu3) <- kiSynth (demoteTE te2) ty3
+        let ty3_without_xy = subst x (Fst e1) (subst y (Snd e1) ty3) -- FISHY
+        strengthen e (ty3_without_xy, te2) >>= strengthen e
       _ ->
         TC.mfail ("Pair expected, but got " ++ pshow tp ++ " (" ++ pshow tpu ++ ")")
   Fst e1 -> do                  -- only if second component can be discarded
@@ -195,6 +204,8 @@ tySynth te e =
         case mu2 of
           MMany -> return (ty1, te1)
           _ -> TC.mfail "Fst: MMany expected"
+      TDyn -> do
+        return (TDyn, te1)
       _ ->
         TC.mfail ("Fst: pair expected")
   Snd e1 -> do                  -- only if first component can be discarded
@@ -208,6 +219,8 @@ tySynth te e =
         case mu1 of
           MMany -> return (ty2', te1)
           _ -> TC.mfail "Snd: MMany expected"
+      TDyn -> do
+        return (TDyn, te1)
       _ ->
         TC.mfail ("Snd: pair expected")
   Fork e1 -> do
@@ -222,6 +235,8 @@ tySynth te e =
     case tsu of
       TSend x ty1 ty2 ->
         return (TFun MOne x ty1 ty2, te1)
+      TDyn ->
+        return (TFun MOne "d" TDyn TDyn, te1)
       _ ->
         TC.mfail ("Send expected, but got " ++ pshow ts ++ " (" ++ pshow tsu ++ ")")
   Recv e1 -> do
@@ -230,6 +245,8 @@ tySynth te e =
     case tru of
       TRecv x ty1 ty2 ->
         return (TPair MOne x ty1 ty2, te1)
+      TDyn ->
+        return (TPair MOne "d" TDyn TDyn, te1)
       _ ->
         TC.mfail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
   Case e1 cases

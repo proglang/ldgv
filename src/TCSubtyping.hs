@@ -118,6 +118,43 @@ unfold tenv (TCase val@(Var x) cases) = do
   (_, tyx) <- varlookup x tenv
   tcaseM tenv val tyx (zip labs results)
   -- return $ tcase val (zip labs results)
+unfold tenv t0@(TCase val@(Var x) cases) = do
+  let caselabels = map fst cases
+  tyx <- varlookupUnfolding x tenv
+  results <- case tyx of
+    TLab labs ->
+      mapM (\lll -> lablookup lll cases >>=
+                    unfold (("*unfold*", (Many, TEqn val (Lit $ LLab lll) tyx)) : tenv))
+            labs
+    TDyn ->
+      mapM (\(lll, tyl) -> unfold (("*unfold*", (Many, TEqn val (Lit $ LLab lll) tyx)) : tenv) tyl) cases
+    _ ->
+      TC.mfail ("unfold: header was neither dynamic nor label type - " ++ pshow tyx)
+
+  case commonGrounds results of
+    Just (GFun m) -> do
+      let xarg = freshvar x (fv t0) -- fill this
+          farg (TFun _ z targ tres) = targ
+          farg TDyn = TDyn
+          fres (TFun _ z targ tres) = subst z (Var xarg) tres
+          fres TDyn = TDyn
+          targcases = zip caselabels $ map farg results
+          trescases = zip caselabels $ map fres results
+      return $ TFun m xarg (TCase val targcases) (TCase val trescases)
+    Just (GPair m) -> do
+      let xarg = freshvar x (fv t0) -- fill this
+          farg (TPair _ z targ tres) = targ
+          farg TDyn = TDyn
+          fres (TPair _ z targ tres) = subst z (Var xarg) tres
+          fres TDyn = TDyn
+          targcases = zip caselabels $ map farg results
+          trescases = zip caselabels $ map fres results
+      return $ TPair m xarg (TCase val targcases) (TCase val trescases)
+    Just GDyn -> do
+      return TDyn           -- all cases dynamic - eta reduce the case
+    _ ->
+      TC.mfail ("unfold dynamic: type mismatch")
+
 unfold tenv (TNatRec e1 tz1 tv1 ts1)
   | Just (v, TNat) <- valueEquiv tenv e1 =
       case v of
@@ -131,6 +168,42 @@ unfold tenv (TNatRec e1 tz1 tv1 ts1)
           TC.mfail ("eqvtype: type mismatch")
 unfold tenv ty =
   return ty
+
+data GHead = GDyn | GLab | GUnit | GInt | GNat | GDouble | GString | GFun Multiplicity | GPair Multiplicity | GSend | GRecv
+  deriving (Eq)
+
+commonGround :: Type -> Maybe GHead
+commonGround TUnit = Just GUnit
+commonGround TInt = Just GInt
+commonGround TDouble = Just GDouble
+commonGround TBot = Nothing
+commonGround TDyn = Just GDyn
+commonGround TNat = Just GNat
+commonGround (TNatRec  _ _ _ _) = Nothing
+commonGround (TVar _ _ ) = Nothing
+commonGround (TAbs _ _ _) = Nothing
+commonGround (TName _ _) = Nothing
+commonGround (TLab _) = Just GLab
+commonGround (TFun m _ _ _) = Just (GFun m)
+commonGround (TPair m _ _ _) = Just (GPair m)
+commonGround (TSend _ _ _) = Just GSend
+commonGround (TRecv _ _ _) = Just GRecv
+commonGround (TCase _ _ ) = Nothing
+commonGround (TEqn _ _ _) = Nothing
+commonGround (TSingle _) = Nothing
+
+commonGrounds :: [Type] -> Maybe GHead
+commonGrounds [t] = commonGround t
+commonGrounds (t:ts) = lubGround (commonGround t) (commonGrounds ts)
+
+combineGround :: GHead -> GHead -> Maybe GHead
+combineGround GDyn g2 = Just g2
+combineGround g1 GDyn = Just g1
+combineGround g1 g2 = if g1 == g2 then Just g1 else Nothing
+
+lubGround :: Maybe GHead -> Maybe GHead -> Maybe GHead
+lubGround (Just g1) (Just g2) = combineGround g1 g2
+lubGround _ _ = Nothing
 
 -- TODO: need two caches, one for subtyping and one for equivalence
 -- type equivalence
@@ -149,6 +222,8 @@ eqvtype' tenv (TName b tn) ty2 = do
   kentry <- mlookup tn
   let ty1 = cdualof b $ keType kentry
   eqvtype tenv ty1 ty2
+eqvtype' tenv TDyn _ = return Kunit
+eqvtype' tenv _ TDyn = return Kunit
 eqvtype' tenv TUnit TUnit = return Kunit
 eqvtype' tenv TInt TInt = return Kunit
 eqvtype' tenv TDouble TDouble = return Kunit
@@ -294,6 +369,8 @@ subtype' tenv ty1@(TVar b tv) ty2 = do
   D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
+subtype' tenv TDyn _ = return Kunit
+subtype' tenv _ TDyn = return Kunit
 subtype' tenv TUnit TUnit = return Kunit
 subtype' tenv TInt TInt = return Kunit
 subtype' tenv TDouble TDouble = return Kunit
@@ -338,6 +415,7 @@ subtype' tenv (TCase val@(Var x) cases) ty2 =
                               subtype (("*lft*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
                      labs
      return $ foldr1 klub results
+
 subtype' tenv ty1 (TCase val cases)
   | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
   do ty2 <- lablookup lll cases

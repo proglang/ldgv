@@ -19,6 +19,7 @@ data Seen = SeenSig G.Type | SeenDef
   deriving (Eq)
 
 -- | Typecheck a list of declarations.
+--                      Left -> Error  Ok <- Right
 typecheck :: [G.Decl] -> Either String ()
 typecheck decls = do
   C.traceM "-------- Running Typecheck Request --------"
