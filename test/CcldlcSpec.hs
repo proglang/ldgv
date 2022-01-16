@@ -11,6 +11,15 @@ import Kinds
 spec :: Spec
 spec =
   describe "CCLDGV parser for section2 examples" $ do
+    it "f1' example function" $
+      "val f1' = 𝜆(x: Bool) 𝜆(y: *) case x {'T: 17 + (y: * => Int), 'F: not (y: * => Bool)}"
+      `shouldParseDecl`
+      DFun "f1'" []
+        (Lam MMany "x" (TName False "Bool")
+          (Lam MMany "y" TDyn (Case (Var "x")
+            [("'T",Math (Add (Lit (LNat 17)) (Cast (Var "y") TDyn TInt)))
+            ,("'F",App (Var "not") (Cast (Var "y") TDyn (TName False "Bool")))])))
+        Nothing
     it "f2' example function" $
       "val f2' = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}"
       `shouldParseDecl`

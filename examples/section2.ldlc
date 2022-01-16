@@ -9,6 +9,11 @@ val f  = 𝜆(x: Bool) 𝜆(y: case x {'T: Int, 'F: Bool}) case x {'T: 17+y, 'F:
 
 -- This is the first GLDLC function:
 -- f1 :: Π(x: Bool).Π(y: *).case x {'T: Int, 'F: Bool}
+-- f1  = 𝜆(x: Bool) 𝜆(y: *) case x {'T: 17+y, 'F: not y}
+
+-- And the corresponding CCLDLC function
+--  f1' :: Π(x: Bool).Π(y: *).case x {'T: Int, 'F: Bool}
+val f1'  = 𝜆(x: Bool) 𝜆(y: *) case x {'T: 17 + (y: * => Int), 'F: not (y: * => Bool)}
 
 -- This is the second GLDLC function:
 -- f2 :: Π(x: *).Π(y: case x {'T: Int, 'F: Bool}).case x {'T: Int, 'F: Bool}

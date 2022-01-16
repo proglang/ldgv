@@ -28,6 +28,12 @@ f = Lam MMany "x" (TName False "Bool")
   (Lam MMany "y"
     (TCase (Var "x") [("'T",TInt),("'F",TName False "Bool")])
     (Case (Var "x") [("'T",Math (Add (Lit (LNat 17)) (Var "y"))) ,("'F",App (Var "not") (Var "y"))]))
+-- val f1' = 𝜆(x: Bool) 𝜆(y: *) case x {'T: 17 + (y: * => Int), 'F: not (y: * => Bool)}
+f1' :: Exp
+f1' = Lam MMany "x" (TName False "Bool")
+  (Lam MMany "y" TDyn (Case (Var "x")
+    [("'T",Math (Add (Lit (LNat 17)) (Cast (Var "y") TDyn TInt)))
+    ,("'F",App (Var "not") (Cast (Var "y") TDyn (TName False "Bool")))]))
 -- val f2' = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}
 f2' :: Exp
 f2' = Lam MMany "x" TDyn
@@ -92,6 +98,10 @@ spec = do
         (VPair (VLabel "'T") (VInt 1))
 
   describe "CCLDLC function interpretation" $ do
+    it "interprets application of x='F, y=('F: Bool => *) on section2 example function f1'" $
+      shouldInterpretInPEnvTo [boolType, notFunc]
+        (DFun "f1'" [] (App (App f1' (Lit $ LLab "'F")) (Cast (Lit $ LLab "'F") (TName False "Bool") TDyn)) Nothing)
+        (VLabel "'T")
     it "interprets application of x=('F: Bool => *), y='F on section2 example function f2'" $
       shouldInterpretInPEnvTo [boolType, notFunc]
         (DFun "f2'" [] (App (App f2' (Cast (Lit (LLab "'F")) (TName False "Bool") TDyn)) (Lit (LLab "'F"))) Nothing)
