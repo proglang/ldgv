@@ -60,7 +60,9 @@ tests:
     - FunctionSignaturesSpec
     - InterpreterSpec
     - LdlcSpec
+    - TypecheckerSpec
     - Utils
+    - UtilsFuncCcldlc
     ghc-options:
     - -threaded
     - -rtsopts

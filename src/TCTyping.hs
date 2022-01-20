@@ -304,8 +304,11 @@ tySynth te e =
           nonvar tl _ = tl
       D.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
-  _ ->
-    TC.mfail ("Unhandled expression: " ++ pshow e)
+  Cast e t1 t2 -> do
+    te1 <- tyCheck te e t1
+    ki <- subtype te1 t1 t2
+    tySynth te1 e
+  _ -> TC.mfail ("Unhandled expression: " ++ pshow e)
 
 tySynthLit :: Literal -> Type
 tySynthLit = \case

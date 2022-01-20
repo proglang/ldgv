@@ -118,7 +118,9 @@ test-suite ldgv-test
       FunctionSignaturesSpec
       InterpreterSpec
       LdlcSpec
+      TypecheckerSpec
       Utils
+      UtilsFuncCcldlc
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
