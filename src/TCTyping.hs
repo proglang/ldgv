@@ -265,21 +265,9 @@ tySynth te e =
     -- let ty' = tcase e1 (map fst ty_te_s)
     te' <- tenvJoinN (map snd ty_te_s)
     return (ty', te')
-{- -- previous implementation using lub
-  Case e1@(Var x) cases -> do
-    let labels = map fst cases
-        tlabels = TLab labels
-    tyCheck (demoteTE te) e1 tlabels
-    let flab (lab, elab) = do
-          (tylab, telab) <- tySynth (("*lab-e2*", (Many, TEqn e1 (Lab lab) tlabels)) : te) elab
-          telab' <- strengthenTop e telab -- drop the equation
-          return (TCase e1 ((lab, tylab) : [(lab', TBot) | lab' <- labels, lab' /= lab]),
-                  telab')
-    ty_te_s <- mapM flab cases
-    ty' <- lubn (demoteTE te) (map fst ty_te_s)
-    te' <- tenvJoinN (map snd ty_te_s)
-    return (ty', te')
--}
+  Case e1@(Cast e t1 t2) cases -> do
+    (t1', te') <- tySynthCast te e t1 t2
+    tySynth te' e
   Case _ _ ->
     TC.mfail "illegal case expression"
   NatRec e1 ez n1 tv y tyy es -> do
@@ -304,11 +292,14 @@ tySynth te e =
           nonvar tl _ = tl
       D.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
-  Cast e t1 t2 -> do
-    te1 <- tyCheck te e t1
-    ki <- subtype te1 t1 t2
-    tySynth te1 e
+  Cast e t1 t2 -> tySynthCast te e t1 t2
   _ -> TC.mfail ("Unhandled expression: " ++ pshow e)
+
+tySynthCast :: TEnv -> Exp -> Type -> Type -> TCM (Type, TEnv)
+tySynthCast te e t1 t2 = do
+  te1 <- tyCheck te e t1
+  ki <- subtype te1 t1 t2
+  tySynth te1 e
 
 tySynthLit :: Literal -> Type
 tySynthLit = \case

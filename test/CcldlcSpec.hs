@@ -63,3 +63,7 @@ spec =
           (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
           (TPair MMany "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
         Nothing
+    it "example term (2) from section 5.1 does fail when typechecking subtyping" $
+      "(x: Unit) -> Int <: (x: *) -> case (x: * => Bool) {'T: Int, 'F: Bool}"
+      `shouldParseDecl`
+      DSub (TFun MMany "x" TUnit TInt) (TFun MMany "x" TDyn (TCase (Cast (Var "x") TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")]))
