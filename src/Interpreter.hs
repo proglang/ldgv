@@ -8,7 +8,6 @@ import PrettySyntax
 import qualified Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Control.Exception (throw)
-import Data.Functor ((<&>))
 import Data.Foldable (find)
 import Data.Maybe (fromMaybe, fromJust)
 import ProcessEnvironment
@@ -29,8 +28,7 @@ interpret decls = do
       isInterestingDecl _ = False
   -- find the main DFun
   case penvlookup "main" penv of
-    Just (VDecl decl) ->
-      S.runStateT (evalDFun decl) penv <&> fst
+    Just (VDecl decl) -> fst <$> S.runStateT (evalDFun decl) penv
     _ -> throw $ LookupException "main"
 
 -- | interpret a DFun (Function declaration)

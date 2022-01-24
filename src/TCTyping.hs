@@ -296,10 +296,7 @@ tySynth te e =
   _ -> TC.mfail ("Unhandled expression: " ++ pshow e)
 
 tySynthCast :: TEnv -> Exp -> Type -> Type -> TCM (Type, TEnv)
-tySynthCast te e t1 t2 = do
-  te1 <- tyCheck te e t1
-  ki <- subtype te1 t1 t2
-  tySynth te1 e
+tySynthCast te e t1 t2 = (,) t2 <$> tyCheck te e t1
 
 tySynthLit :: Literal -> Type
 tySynthLit = \case
