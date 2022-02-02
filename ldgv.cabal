@@ -67,6 +67,7 @@ library
       Paths_ldgv
   hs-source-dirs:
       src
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-unused-do-bind -Wno-unused-matches
   build-tools:
       alex
     , happy
@@ -92,7 +93,7 @@ executable ldgv-exe
       Output
   hs-source-dirs:
       exe
-  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -rtsopts
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-unused-do-bind -Wno-unused-matches -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -Wredundant-constraints -rtsopts
   build-depends:
       base >=4.12 && <5
     , bytestring
@@ -123,7 +124,7 @@ test-suite ldgv-test
       UtilsFuncCcldlc
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -Wno-name-shadowing -Wno-unused-do-bind -Wno-unused-matches -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:

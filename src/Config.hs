@@ -8,6 +8,7 @@ import Control.Monad.IO.Class
 data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)
 
+debugLevel :: DebugLevel
 --debugLevel = DebugAll
 debugLevel = DebugNone
 

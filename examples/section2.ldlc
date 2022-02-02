@@ -5,6 +5,7 @@ val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
 
 -- This is a LDLC function:
 --  f :: Π(x: Bool).Π(y: case x {'T: Int, 'F: Bool}).case x {'T: Int,  'F: Bool}
+val f  :  (x: Bool) -> (y: case x {'T: Int, 'F: Bool}) -> case x {'T: Int,  'F: Bool}
 val f  = 𝜆(x: Bool) 𝜆(y: case x {'T: Int, 'F: Bool}) case x {'T: 17+y, 'F: not y}
 
 -- This is the first GLDLC function:

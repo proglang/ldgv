@@ -1,6 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
-{-# OPTIONS_GHC -Wall #-}
-
 module Parsing where
 
 import Parsing.Grammar as G

@@ -1,4 +1,6 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE LambdaCase #-}
+
 module PrettySyntax (Pretty(), pretty, pshow) where
 
 import Kinds
@@ -6,6 +8,7 @@ import Syntax
 
 import Data.Text.Prettyprint.Doc
 
+pshow :: Pretty a => a -> String
 pshow x = show (pretty x)
 
 instance Pretty Constraint where
@@ -30,9 +33,11 @@ instance Pretty TypeSegment where
   pretty (Seg (SegPair m) x t) = pretty "Sg" <> pretty m <> ptyped x t
 
 
+plab :: String -> Doc ann
 plab = pretty
   -- pretty "'" <> -- seem built into the lab string
 
+ptyped :: Ident -> Type -> Doc ann
 ptyped ('#':_) t1 =
   pretty t1 <> dot
 ptyped id t1 =
@@ -73,6 +78,7 @@ instance Pretty Type where
   pretty (TAbs id t1 t2) =
     ptyped id t1 <+> pretty t2
 
+pcase :: Pretty a => Exp -> [(String, a)] -> Doc ann
 pcase e (st : sts) =
   pretty "case" <+> pretty e <+>
   braces (g st <> foldr f mempty sts)

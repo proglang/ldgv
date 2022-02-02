@@ -9,7 +9,7 @@ import qualified Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Control.Exception (throw)
 import Data.Foldable (find)
-import Data.Maybe (fromMaybe, fromJust)
+import Data.Maybe (fromMaybe)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.State.Strict as S
@@ -232,7 +232,7 @@ reduceCast' v t NFDyn = maybe castDynDyn factorLeft (matchType t)
     factorLeft gt = if let typeq = t `equalsType` gt in C.trace (show t ++ " == " ++ show gt ++ " = " ++ show typeq) (not typeq)
       then reduceCast v t (NFGType gt) >>= \v' -> Just $ VDynCast v' gt -- Factor-Left
       else castDynDyn
-reduceCast' v _ NFBot = Nothing -- Cast-Bot
+reduceCast' _ _ NFBot = Nothing -- Cast-Bot
 reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub
 reduceCast' (VDynCast v gt1) NFDyn (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Collapse/Cast-Collide
 reduceCast' v NFDyn t = do
@@ -252,7 +252,7 @@ reduceCast' v t1 t2 = do
   if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub/Cast-Fail
 
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
-reducePairCast (VPair v w) (NFPair ft1@(FuncType penv s t1 t2)) (NFPair ft'@(FuncType penv' s' t1' t2')) = do
+reducePairCast (VPair v w) (NFPair (FuncType penv _ t1 t2)) (NFPair (FuncType penv' _ t1' t2')) = do
   v' <- reduceComponent v (penv, t1) (penv', t1')
   C.traceIO $ "Reduce cast of left Value(" ++ show v ++ ") from NFType(" ++ show t1 ++ ") to NFType(" ++ show t1' ++ ") returning: " ++ show v'
   w' <- reduceComponent w (penv, t2) (penv', t2')

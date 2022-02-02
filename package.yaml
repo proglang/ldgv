@@ -14,6 +14,16 @@ copyright:           "2019-2021 Chair of Programming Languages, Uni Freiburg"
 extra-source-files:
 - examples/*.ldgv
 
+ghc-options:
+- -Wall
+- -Wcompat
+- -Wincomplete-record-updates
+- -Wincomplete-uni-patterns
+- -Wredundant-constraints
+- -Wno-name-shadowing
+- -Wno-unused-do-bind
+- -Wno-unused-matches
+
 data-files:
 - c-support/runtime/*.h
 - c-support/runtime/*.c

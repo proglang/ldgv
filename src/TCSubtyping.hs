@@ -1,7 +1,9 @@
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+
 module TCSubtyping where
 
 import Control.Applicative
-import Control.Monad (when, ap)
+import Control.Monad (ap)
 import Data.List (nub, sort)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -29,12 +31,15 @@ mlookup tname = do
     Just tb ->
       pure tb
 
+initCaches :: Caches
 initCaches = Caches [] []
 
+eqvCacheLookup :: Monoid w => (Type, Type) -> TC.M r Caches w Bool
 eqvCacheLookup centry = do
   caches <- TC.mupdate (\cs -> cs { eqvCache = centry : eqvCache cs })
   return (centry `elem` eqvCache caches)
 
+subCacheLookup :: Monoid w => (Type, Type) -> TC.M r Caches w Bool
 subCacheLookup centry = do
   caches <- TC.mupdate (\cs -> cs { subCache = centry : subCache cs })
   return (centry `elem` subCache caches)
@@ -61,10 +66,12 @@ valueEquiv' tenv (Var name) =
 valueEquiv' tenv _ =
   Nothing
 
+valueEquiv :: TEnv -> Exp -> Maybe (Exp, Type)
 valueEquiv tenv exp =
   let r = valueEquiv' tenv exp in
     D.trace ("valueEquiv " ++ pshow tenv ++ " " ++ pshow exp ++ " = " ++ pshow r) r
 
+lablookup :: Monoid w => String -> [(String, Type)] -> TC.M r s w Type
 lablookup lll cases =
   maybe (TC.mfail ("No case for label " ++ show lll)) return $
   lookup lll cases
@@ -110,14 +117,6 @@ unfold tenv (TCase val cases)
   | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = do
       ty <- lablookup lll cases
       unfold tenv ty
-unfold tenv (TCase val@(Var x) cases) = do
-  (lty, labs) <- varlookupLabel x tenv
-  results <- mapM (\lll -> lablookup lll cases >>=
-                    unfold (("*unfold*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv))
-             labs
-  (_, tyx) <- varlookup x tenv
-  tcaseM tenv val tyx (zip labs results)
-  -- return $ tcase val (zip labs results)
 unfold tenv t0@(TCase val@(Var x) cases) = do
   let caselabels = map fst cases
   tyx <- varlookupUnfolding x tenv
@@ -153,7 +152,7 @@ unfold tenv t0@(TCase val@(Var x) cases) = do
     Just GDyn -> do
       return TDyn           -- all cases dynamic - eta reduce the case
     _ ->
-      TC.mfail ("unfold dynamic: type mismatch")
+      TC.mfail "unfold dynamic: type mismatch"
 
 unfold tenv (TNatRec e1 tz1 tv1 ts1)
   | Just (v, TNat) <- valueEquiv tenv e1 =
@@ -165,7 +164,7 @@ unfold tenv (TNatRec e1 tz1 tv1 ts1)
         Succ var ->
           unfold tenv (tsubst tv1 (TNatRec var tz1 tv1 ts1) ts1)
         _ ->
-          TC.mfail ("eqvtype: type mismatch")
+          TC.mfail "eqvtype: type mismatch"
 unfold tenv ty =
   return ty
 
