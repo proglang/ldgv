@@ -67,3 +67,11 @@ spec =
       "(x: Unit) -> Int <: (x: *) -> case (x: * => Bool) {'T: Int, 'F: Bool}"
       `shouldParseDecl`
       DSub (TFun MMany "x" TUnit TInt) (TFun MMany "x" TDyn (TCase (Cast (Var "x") TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")]))
+    it "simple dynamic cast involving Int" $ do
+      "val plus = 𝜆(x: *) 𝜆(y: Int) (x+y)"
+      `shouldParseDecl`
+      DFun "plus" []
+        (Lam MMany "x" TDyn
+          (Lam MMany "y" TInt
+            (Math (Add (Var "x") (Var "y")))))
+        Nothing

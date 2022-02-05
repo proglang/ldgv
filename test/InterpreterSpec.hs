@@ -113,3 +113,9 @@ spec = do
           (TPair MMany "x" (TName False "MaybeBool") (TName False "MaybeBool")))
         Nothing)
       (VPair (VDynCast (VLabel "'T") (GLabel (labelsFromList ["'T", "'F"]))) (VLabel "'T"))
+    it "interprets dynamic plus function with x=(5:Int->*),y=(8:Int->*)" $
+      DFun "plus" [] (App (App (Lam MMany "x" TDyn (Lam MMany "y" TDyn (Math (Add (Var "x") (Var "y")))))
+          (Cast (Lit $ LInt 5) TInt TDyn)) (Cast (Lit $ LInt 8) TInt TDyn))
+        Nothing
+      `shouldInterpretTo`
+      VInt 13
