@@ -112,7 +112,7 @@ instance Pretty Exp where
     pretty id
   pretty Unit =
     pretty "()"
-  pretty (Lab s) = pretty "`" <> plab s
+  pretty (Lab s) = plab s
   pretty (Lam m id t e) =
     pretty "fun" <> pretty m <+> ptyped id t <+>
     pretty e
