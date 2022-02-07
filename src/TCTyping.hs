@@ -293,6 +293,28 @@ tySynth te e =
       D.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
   Cast e t1 t2 -> tySynthCast te e t1 t2
+  NewNatRec f n tv tyy ez n1 es -> do
+    -- _ <- tyCheck (demoteTE te) e1 TNat
+    TC.censor (const []) $ TC.mlocal tv (TVar False tv, Kunit) $ do
+      (tyz, tez) <- tySynth te ez
+      D.traceM ("NewNatRec: tyz = " ++ pshow tyz)
+      (kiy, muy) <- kiSynth (demoteTE te) tyy
+      D.traceM ("NewNatRec: kiy = " ++ pshow (kiy, muy))
+      (_, ccz) <- TC.listen (tyCheck te ez tyy)
+      let tes_in = (f, (Many, TFun MMany n TNat tyy)) : (n1, (Many, TNat)) : te
+      D.traceM ("NewNatRec: tes_in = " ++ pshow tes_in)
+      (tys, tes) <- tySynth tes_in es
+      D.traceM ("NewNatRec: tys = " ++ pshow tys)
+      (_, ccs) <- TC.listen (tyCheck tes_in es tyy)
+      D.traceM ("NewNatRec found constraints " ++ pshow ccz ++ ", " ++ pshow ccs)
+      -- hack alert
+      let rty = tsubst tv (TNatRec (Var n) (nonvar tzl tzr) tv (nonvar tsl tsr)) tyy
+          tzl :<: tzr = head ccz
+          tsl :<: tsr = head ccs
+          nonvar (TVar _ _) tr = tr
+          nonvar tl _ = tl
+      D.traceM ("NewNatRec returns body " ++ pshow rty)
+      return (TFun MMany n TNat rty, tez)
   _ -> TC.mfail ("Unhandled expression: " ++ pshow e)
 
 tySynthCast :: TEnv -> Exp -> Type -> Type -> TCM (Type, TEnv)

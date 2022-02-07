@@ -17,6 +17,7 @@ data Exp = Let Ident Exp Exp
          | Lit Literal
          | Succ Exp
          | NatRec Exp Exp Ident TIdent Ident Type Exp
+         | NewNatRec Ident Ident TIdent Type Exp Ident Exp
          | Var Ident
          | Lam Multiplicity Ident Type Exp
          | Rec Ident Ident Type Type Exp

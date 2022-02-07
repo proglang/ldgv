@@ -2,7 +2,6 @@ module Utils where
 
 import Parsing
 import Syntax
-import Kinds
 import Interpreter
 import ProcessEnvironment
 import Control.Monad.State.Strict (evalStateT)

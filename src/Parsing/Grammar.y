@@ -52,6 +52,7 @@ import qualified Parsing.Tokens as T
     Nat     { T _ T.TNat }
     Double  { T _ T.TDouble }
     natrec  { T _ T.NatRec }
+    new_natrec { T _ T.NewNatRec }
     '()'    { T _ T.Unit }
     '->'    { T _ T.Arrow }
     '=>'    { T _ T.DoubleArrow }
@@ -147,6 +148,8 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | case Exp Of '{' ExpCases '}'  { Case $2 $5 }
     | natrec Exp '{' Exp ',' var '.' tid '.' '(' var ':' Typ ')' '.' Exp '}'
                             { NatRec $2 $4 $6 $8 $11 $13 $16 }
+    | new_natrec var ':' var '.' tid '.' Typ '{' Exp ',' var '.' Exp '}'
+                            { NewNatRec $2 $4 $6 $8 $10 $12 $14 }
     | '()'                  { Lit LUnit }
     | lam Mul '(' var ':' Typ ')' Exp                   { Lam $2 $4 $6 $8 }
     | rec var '(' var ':' Typ ')' ':' Typ '=' Exp       { Rec $2 $4 $6 $9 $11 }

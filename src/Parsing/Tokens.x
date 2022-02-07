@@ -56,6 +56,7 @@ tokens :-
   Unit                                  { tok $ const TUnit }
   Int                                   { tok $ const TInt }
   natrec                                { tok $ const NatRec }
+  new_natrec                            { tok $ const NewNatRec }
   Nat                                   { tok $ const TNat }
   Double                                { tok $ const TDouble }
   dualof                                { tok $ const DualOf }
@@ -114,6 +115,7 @@ data Token =
         TNat            |
         TDouble         |
         NatRec          |
+        NewNatRec       |
         Subtype         |
         Equiv           |
         OpenEqn         |

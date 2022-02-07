@@ -124,6 +124,11 @@ instance Pretty Exp where
     braces (pretty ez <> comma <+>
            pretty x <> dot <+>
            pretty t <> dot <+> ptyped y tyy <> dot <+> pretty es)
+  pretty (NewNatRec f n a ty ezero n1 esucc) =
+    pretty "new_natrec" <+>
+    parens (pretty f <> colon <> pretty n <> dot <> pretty a <> pretty ty) <+>
+    braces (pretty ezero <> comma <+>
+           pretty n1 <> dot <+> pretty esucc)
 
 instance Pretty Literal where
   pretty = \case
