@@ -42,6 +42,7 @@ import Syntax
     String { T.TString }
     Nat { T.TNat }
     natrec { T.NatRec }
+    new_natrec { T.NewNatRec }
     '()' { T.Unit }
     '->' { T.Arrow }
     '{{' { T.OpenEqn }
@@ -146,6 +147,8 @@ Exp : let var MType '=' Exp in Exp %prec LET { Let $2 $5 $7 } -- MType = $3
     | case Exp Of '{' ExpCases '}'  { Case $2 $5 }
     | natrec Exp '{' Exp ',' var '.' tid '.' '(' var ':' Typ ')' '.' Exp '}'
                              { NatRec $2 $4 $6 $8 $11 $13 $16 }
+    | new_natrec var ':' var '.' tid '.' Typ '{' Exp ',' var '.' Exp '}'
+                             { NewNatRec $2 $4 $6 $8 $10 $12 $14 }
     | '()'                   { Unit }
     | lam Mul '(' var ':' Typ ')' Exp        { Lam $2 $4 $6 $8 }
     | rec var '(' var ':' Typ ')' ':' Typ '=' Exp        { Rec $2 $4 $6 $9 $11 }

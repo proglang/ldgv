@@ -331,6 +331,28 @@ tySynth te e =
           nonvar tl _ = tl
       DT.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
+  NewNatRec f n tv tyy ez n1 es -> do
+    -- _ <- tyCheck (demoteTE te) e1 TNat
+    TC.censor (const []) $ TC.mlocal tv (TVar False tv, Kunit) $ do
+      (tyz, tez) <- tySynth te ez
+      DT.traceM ("NewNatRec: tyz = " ++ pshow tyz)
+      (kiy, muy) <- kiSynth (demoteTE te) tyy
+      DT.traceM ("NewNatRec: kiy = " ++ pshow (kiy, muy))
+      (_, ccz) <- TC.listen (tyCheck te ez tyy)
+      let tes_in = (f, (Many, TFun MMany n TNat tyy)) : (n1, (Many, TNat)) : te
+      DT.traceM ("NewNatRec: tes_in = " ++ pshow tes_in)
+      (tys, tes) <- tySynth tes_in es
+      DT.traceM ("NewNatRec: tys = " ++ pshow tys)
+      (_, ccs) <- TC.listen (tyCheck tes_in es tyy)
+      DT.traceM ("NewNatRec found constraints " ++ pshow ccz ++ ", " ++ pshow ccs)
+      -- hack alert
+      let rty = tsubst tv (TNatRec (Var n) (nonvar tzl tzr) tv (nonvar tsl tsr)) tyy
+          tzl :<: tzr = head ccz
+          tsl :<: tsr = head ccs
+          nonvar (TVar _ _) tr = tr
+          nonvar tl _ = tl
+      DT.traceM ("NewNatRec returns body " ++ pshow rty)
+      return (TFun MMany n TNat rty, tez)
   Typed e1 ty -> do
     te1 <- tyCheck te e1 ty
     return (ty, te1)
