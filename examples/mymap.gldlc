@@ -1,0 +1,44 @@
+type Bool = {'True, 'False}
+
+type A = Unit
+type B = Unit
+type ListA = Int
+type ListB = Double
+type ArrayA = String
+type ArrayB = Unit
+
+val arraymap : (f : (x:A) -> B) -> ((xs:ArrayA) -> ArrayB)
+val listmap : (f : (x:A) -> B) -> (xs:ListA) -> ListB
+val arraytolist : (xs:ArrayB) -> ListB
+val arrayoflist : (xs:ListB) -> ArrayB
+
+val mymap = fn (b : Bool) fn (f : (z:A) -> B) fn (x : *)
+    case b {'True: arraymap f x, 'False: listmap f x}
+
+val typedmap = fn (b : Bool) fn (f : (z:A) -> B) fn (x : case b {'True: ArrayA, 'False: ListA})
+    case b {'True: arraymap f x, 'False: listmap f x}
+
+val dynmap = fn (b : *) fn (f : (z:A) -> B) fn (x : case b {'True: ArrayA, 'False: ListA})
+    case b {'True: arraymap f x, 'False: listmap f x}
+
+val dyn2map = fn (b : *) fn (f : *) fn (x : case b {'True: ArrayA, 'False: ListA})
+    case b {'True: arraymap f x, 'False: listmap f x}
+
+val dyn3map = fn (b : *) fn (f : *) fn (x : *)
+    case b {'True: arraymap f x, 'False: listmap f x}
+
+val mymap2 = fn (b : Bool) fn (f : (z:A) -> B) fn (x : *)
+    case b {'True: arraytolist (arraymap f x), 'False: arrayoflist (listmap f x)}
+
+val typedmap2 = fn (b : Bool) fn (f : (z:A) -> B) fn (x : case b {'True: ArrayA, `False: ListA})
+    case b {'True: arraytolist (arraymap f x), 'False: arrayoflist (listmap f x)}
+
+val checkedmap2 :
+    		(b : Bool) ->
+		(f : (z:A) -> B) ->
+		(x : case b {'True: ArrayA, `False: ListA}) ->
+		=
+    fn (b : Bool) fn (f : (z:A) -> B) fn (x : case b {'True: ArrayA, `False: ListA})
+    case b {'True: arraytolist (arraymap f x), 'False: arrayoflist (listmap f x)}
+
+
