@@ -135,7 +135,7 @@ instance Pretty Literal where
     LInt i -> pretty i
     LNat n -> pretty n
     LDouble d -> pretty d
-    LLab l -> plab l
+    LLab s -> pretty "`" <> plab s
     LUnit  -> pretty "()"
 
 instance Pretty e => Pretty (MathOp e) where
