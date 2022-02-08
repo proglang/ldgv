@@ -8,8 +8,7 @@ import Control.Concurrent.Chan as C
 import Control.Monad.State.Strict as T
 import Control.Exception
 import Data.Maybe (mapMaybe)
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import Data.List (find)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -42,19 +41,20 @@ createEntry = \case
   _ -> Nothing
 
 createPEnv :: [Decl] -> PEnv
-createPEnv = Map.fromList . mapMaybe createEntry
+createPEnv = mapMaybe createEntry
 
 -- | create a new entry (requires identifier to be unique)
 createPMEntry :: String -> Value -> T.StateT PEnv IO ()
 createPMEntry key value = do
-  liftIO $ D.traceIO $ "Creating Environment entry " ++ show (key, value)
-  modify (Map.insert key value)
+  let entry = (key, value)
+  liftIO $ D.traceIO $ "Creating Environment entry " ++ show entry
+  modify (entry :)
 
 extendEnv :: String -> Value -> PEnv -> PEnv
-extendEnv = Map.insert
+extendEnv = curry (:)
 
 penvlookup :: String -> PEnv -> Maybe Value
-penvlookup = Map.lookup
+penvlookup = lookup
 
 pmlookup :: String -> InterpretM Value
 pmlookup id = do
@@ -64,7 +64,8 @@ pmlookup id = do
     Nothing -> throw $ LookupException id
 
 -- | a Process Envronment maps identifiers to Values of expressions and stores
-type PEnv = Map String Value
+type PEnv = [PEnvEntry]
+type PEnvEntry = (String, Value)
 
 type Label = String
 type LabelType = Set Label
