@@ -20,6 +20,7 @@ data Exp = Let Ident Exp Exp
          | Nat Nat
          | Succ Exp
          | NatRec Exp Exp Ident TIdent Ident Type Exp
+         | NewNatRec Ident Ident TIdent Type Exp Ident Exp
          | Var Ident
          | Unit
          | Lab String

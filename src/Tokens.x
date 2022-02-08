@@ -49,6 +49,7 @@ tokens :-
   String                                { const TString }
   Int                                   { const TInt }
   natrec                                { const NatRec } 
+  new_natrec                            { const NewNatRec }
   Nat                                   { const TNat }
   dualof                                { const DualOf }
   "_|_"                                 { const TBot }
@@ -120,6 +121,7 @@ data Token =
         TDouble         |
         TString         |
         NatRec          |
+        NewNatRec       |
         Subtype         |
         Equiv           |
         OpenEqn         |
