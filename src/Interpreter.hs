@@ -12,7 +12,7 @@ import Data.Foldable (find)
 import Data.Maybe (fromMaybe)
 import ProcessEnvironment
 import qualified Control.Monad as M
-import Control.Monad.State.Strict as S
+import Control.Monad.Reader as R
 import Control.Applicative ((<|>))
 
 blame :: Exp -> a
@@ -28,26 +28,22 @@ interpret decls = do
       isInterestingDecl _ = False
   -- find the main DFun
   case penvlookup "main" penv of
-    Just (VDecl decl) -> fst <$> S.runStateT (evalDFun decl) penv
+    Just (VDecl decl) -> R.runReaderT (evalDFun decl) penv
     _ -> throw $ LookupException "main"
 
 -- | interpret a DFun (Function declaration)
 evalDFun :: Decl -> InterpretM Value
 evalDFun decl@(DFun name [] e _) = interpret' e  -- a Declaration without free variables can be just interpreted
-evalDFun decl@(DFun name ((_, id, _):binds) e mty) =
+evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
   let decl' = DFun name binds e mty
-  in return $ VFun (\arg -> do
-    -- bind the identifier to the given value at application
-    createPMEntry id arg
-    -- and evaluate the rest of the declaration
-    evalDFun decl')
+  return $ VFun (\arg -> R.local (extendEnv id arg) (evalDFun decl'))
 
 -- | interpret a single Expression
 interpret' :: Exp ->  InterpretM Value
-interpret' e =
+interpret' e = ask >>= \penv ->
   M.ap
   (return $ \val -> C.trace ("Leaving interpretation of " ++ pshow e ++ " with value " ++ show val) val) $
-  (C.trace ("Invoking interpretation on " ++ pshow e) . eval) e
+  (C.trace ("Invoking interpretation on " ++ pshow e ++ "\nEnvironment: " ++ show penv) . eval) e
 
 eval :: Exp -> InterpretM Value
 eval = \case
@@ -62,19 +58,15 @@ eval = \case
     case i of
       VInt 0 -> interpret' e2
       VInt 1 -> do
-        env <- get
         zero <- interpret' e2
-        put $ extendEnv i1 (VInt 0) (extendEnv i2 zero env)
-        interpret' e3
+        R.local (extendEnv i1 (VInt 0) . extendEnv i2 zero) (interpret' e3)
       VInt n -> do
         -- interpret the n-1 case i2 and add it to the env
         -- together with n before interpreting the body e3
-        env <- get
-        put $ extendEnv i1 (VInt (n-1)) env
-        lower <- interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3
-        put $ extendEnv i1 (VInt (n-1)) (extendEnv i2 lower env)
-        interpret' e3
-  Lam m i t e -> get >>= \env -> return $ VFun (\arg -> liftIO $ S.evalStateT (interpret' e) (extendEnv i arg env))
+        let lowerEnv = extendEnv i1 (VInt $ n-1)
+        lower <- R.local lowerEnv (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
+        R.local (extendEnv i2 lower . lowerEnv) (interpret' e3)
+  Lam _ i _ e -> ask >>= \env -> return $ VFun (\arg -> liftIO $ R.runReaderT (interpret' e) (extendEnv i arg env))
   cast@(Cast e t1 t2) -> do
     C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
@@ -89,10 +81,7 @@ eval = \case
         lift $ reducePairCast pair from to >>= maybe (blame cast) return
       _ -> maybe (blame cast) return (reduceCast v nft1 nft2)
   Var s -> pmlookup s
-  Let s e1 e2 -> do
-    v <- interpret' e1
-    createPMEntry s v
-    interpret' e2
+  Let s e1 e2 -> interpret' e1 >>= \v -> R.local (extendEnv s v) (interpret' e2)
   Math m -> interpretMath m
   Lit l -> return (interpretLit l)
   e@(App e1 e2) -> do
@@ -104,16 +93,16 @@ eval = \case
         interpretApp (VDecl d) w = evalDFun d >>= \(VFun f) -> f w
         interpretApp (VFun f) w = f w
         interpretApp (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
-          penv0 <- get
+          penv0 <- ask
           let interpretAppCast :: IO Value
               interpretAppCast = do
                 C.traceIO ("Attempting function cast in application (" ++ show v ++ ") with (" ++ show w' ++ ")")
-                nft1  <- S.evalStateT (evalType t1)  penv
-                nft1' <- S.evalStateT (evalType t1') penv'
+                nft1  <- R.runReaderT (evalType t1)  penv
+                nft1' <- R.runReaderT (evalType t1') penv'
                 w <- maybe (blame e) return (reduceCast w' nft1 nft1')
-                nft2' <- S.evalStateT (evalType t2') (extendEnv s' w' penv')
-                nft2  <- S.evalStateT (evalType t2) (extendEnv s w penv)
-                u  <- S.evalStateT (interpretApp v w) penv0
+                nft2' <- R.runReaderT (evalType t2') (extendEnv s' w' penv')
+                nft2  <- R.runReaderT (evalType t2) (extendEnv s w penv)
+                u  <- R.runReaderT (interpretApp v w) penv0
                 u' <- maybe (blame e) return (reduceCast u nft2 nft2')
                 C.traceIO ("Function cast in application results in: " ++ show u')
                 return u'
@@ -122,20 +111,16 @@ eval = \case
     interpretApp val arg
   Pair mul s e1 e2 -> do
     v1 <- interpret' e1
-    createPMEntry s v1
-    v2 <- interpret' e2
+    v2 <- R.local (extendEnv s v1) (interpret' e2)
     return $ VPair v1 v2
   LetPair s1 s2 e1 e2 -> do
-    interpret' e1 >>= \(VPair v1 v2) -> do
-      createPMEntry s1 v1
-      createPMEntry s2 v2
-    interpret' e2
+    interpret' e1 >>= \(VPair v1 v2) -> R.local (extendEnv s2 v2 . extendEnv s1 v1) (interpret' e2)
   fst@(Fst e) -> interpret' e >>= \(VPair s1 s2) -> return s1
   snd@(Snd e) -> interpret' e >>= \(VPair s1 s2) -> return s2
   Fork e -> do
-    penv <- get
+    penv <- ask
     liftIO $ forkIO (do
-      res <- S.runStateT (interpret' e) penv
+      res <- R.runReaderT (interpret' e) penv
       C.traceIO "Ran a forked operation")
     return VUnit
   New t -> do
@@ -204,8 +189,8 @@ evalType = \case
     (VType t) -> evalType t
     _ -> throw $ LookupException s
   TLab ls -> return $ NFLabel $ labelsFromList ls
-  TFun _ s t1 t2 -> get >>= \penv -> return $ NFFunc $ FuncType penv s t1 t2
-  TPair _ s t1 t2 -> get >>= \penv -> return $ NFPair $ FuncType penv s t1 t2
+  TFun _ s t1 t2 -> ask >>= \penv -> return $ NFFunc $ FuncType penv s t1 t2
+  TPair _ s t1 t2 -> ask >>= \penv -> return $ NFPair $ FuncType penv s t1 t2
   TCase exp labels -> interpret' exp >>= \(VLabel l) ->
     let entry = find (\(l', _) -> l == l') labels
     in maybe (return NFBot) (evalType . snd) entry
@@ -261,8 +246,8 @@ reducePairCast (VPair v w) (NFPair (FuncType penv _ t1 t2)) (NFPair (FuncType pe
   where
     reduceComponent :: Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)
     reduceComponent v (penv, t) (penv', t') = do
-      nft  <- S.evalStateT (evalType t)  penv
-      nft' <- S.evalStateT (evalType t') penv'
+      nft  <- R.runReaderT (evalType t)  penv
+      nft' <- R.runReaderT (evalType t') penv'
       return $ reduceCast v nft nft'
 reducePairCast _ _ _ = return Nothing
 

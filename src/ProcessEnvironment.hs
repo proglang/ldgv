@@ -3,12 +3,10 @@
 module ProcessEnvironment where
 import PrettySyntax
 import Syntax as S
-import qualified Config as D
 import Control.Concurrent.Chan as C
-import Control.Monad.State.Strict as T
+import Control.Monad.Reader as T
 import Control.Exception
 import Data.Maybe (mapMaybe)
-import Data.List (find)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
@@ -32,7 +30,7 @@ instance Show InterpreterException where
 instance Exception InterpreterException
 
 -- | the interpretation monad
-type InterpretM a = T.StateT PEnv IO a
+type InterpretM a = T.ReaderT PEnv IO a
 
 createEntry :: Decl -> Maybe (String, Value)
 createEntry = \case
@@ -43,13 +41,6 @@ createEntry = \case
 createPEnv :: [Decl] -> PEnv
 createPEnv = mapMaybe createEntry
 
--- | create a new entry (requires identifier to be unique)
-createPMEntry :: String -> Value -> T.StateT PEnv IO ()
-createPMEntry key value = do
-  let entry = (key, value)
-  liftIO $ D.traceIO $ "Creating Environment entry " ++ show entry
-  modify (entry :)
-
 extendEnv :: String -> Value -> PEnv -> PEnv
 extendEnv = curry (:)
 
@@ -57,11 +48,7 @@ penvlookup :: String -> PEnv -> Maybe Value
 penvlookup = lookup
 
 pmlookup :: String -> InterpretM Value
-pmlookup id = do
-  penv <- get
-  case penvlookup id penv of
-    Just v -> liftIO $ pure v
-    Nothing -> throw $ LookupException id
+pmlookup id = (maybe (throw $ LookupException id) (liftIO . pure) . penvlookup id) =<< ask
 
 -- | a Process Envronment maps identifiers to Values of expressions and stores
 type PEnv = [PEnvEntry]

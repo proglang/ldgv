@@ -4,7 +4,7 @@ import Parsing
 import Syntax
 import Interpreter
 import ProcessEnvironment
-import Control.Monad.State.Strict (evalStateT)
+import Control.Monad.Reader (runReaderT)
 import Test.Hspec
 
 shouldParseDecl :: HasCallStack => String -> Decl -> Expectation
@@ -19,7 +19,7 @@ raiseFailure msg = do
 shouldInterpretInPEnvTo :: [Decl] -> Decl -> Value -> Expectation
 shouldInterpretInPEnvTo decls givenDecl expectedValue = do
   let penv = createPEnv decls
-  value <- evalStateT (evalDFun givenDecl) penv
+  value <- runReaderT (evalDFun givenDecl) penv
   return value `shouldReturn` expectedValue
 
 shouldThrowCastException :: [Decl] -> Decl -> Expectation
@@ -28,7 +28,7 @@ shouldThrowCastException decls givenDecl =
       isCastException :: InterpreterException -> Bool
       isCastException (CastException _) = True
       isCastException _ =False in
-    evalStateT (evalDFun givenDecl) penv `shouldThrow` isCastException
+    runReaderT (evalDFun givenDecl) penv `shouldThrow` isCastException
 
 shouldInterpretTo :: Decl -> Value -> Expectation
 shouldInterpretTo = shouldInterpretInPEnvTo []
