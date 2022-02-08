@@ -13,6 +13,10 @@ copyright:           "2019-2021 Chair of Programming Languages, Uni Freiburg"
 
 extra-source-files:
 - examples/*.ldgv
+- examples/*.gldlc
+- examples/*.ccldlc
+- examples/*.out
+- examples/*.txt
 
 ghc-options:
 - -Wall

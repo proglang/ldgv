@@ -1,0 +1,9 @@
+val f1 : (x : Int) -> Int
+val f1 = fn(x: Int) x
+
+type Bool : ~un = {'T, 'F}
+val not : (b: Bool) -> Bool
+val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
+
+val test = 𝜆 (x : *) (x : * => Int)
+val main = rec x(y: Int) : Int = 5

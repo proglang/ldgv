@@ -23,13 +23,23 @@ extra-source-files:
     examples/casetest.ldgv
     examples/depsum.ldgv
     examples/natsum.ldgv
+    examples/natsum2-new.ldgv
     examples/natsum2.ldgv
     examples/node.ldgv
     examples/noderec.ldgv
     examples/simple.ldgv
     examples/simple_recursion.ldgv
+    examples/tcfailure.ldgv
     examples/tclient.ldgv
     examples/tserver.ldgv
+    examples/mymap.gldlc
+    examples/person.gldlc
+    examples/minimal.ccldlc
+    examples/node.out
+    examples/tclient.out
+    examples/tserver.out
+    examples/example-inputs.txt
+    examples/type-equivalence.txt
 data-files:
     c-support/runtime/LDST.h
     c-support/runtime/LDST_debug.h
