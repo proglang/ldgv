@@ -35,7 +35,7 @@ interpret decls = do
 evalDFun :: Decl -> InterpretM Value
 evalDFun decl@(DFun name [] e _) = interpret' e  -- a Declaration without free variables can be just interpreted
 evalDFun decl@(DFun name binds e _) =
-  let lambda = foldr (\(mul, id, ty) e -> Lam mul id ty e) e binds
+  let lambda = foldr (\(mul, id, ty) -> Lam mul id ty) e binds
   in interpret' lambda
 
 -- | interpret a single Expression
