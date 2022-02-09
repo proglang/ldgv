@@ -43,7 +43,7 @@ interpret' :: Exp ->  InterpretM Value
 interpret' e = ask >>= \penv ->
   M.ap
   (return $ \val -> C.trace ("Leaving interpretation of " ++ pshow e ++ " with value " ++ show val) val) $
-  (C.trace ("Invoking interpretation on " ++ pshow e ++ "\nEnvironment: " ++ show penv) . eval) e
+  (C.trace ("Invoking interpretation on " ++ pshow e ++ "\n...in Environment: " ++ show (map fst penv)) . eval) e
 
 eval :: Exp -> InterpretM Value
 eval = \case
