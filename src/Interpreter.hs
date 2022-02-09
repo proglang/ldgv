@@ -34,16 +34,16 @@ interpret decls = do
 -- | interpret a DFun (Function declaration)
 evalDFun :: Decl -> InterpretM Value
 evalDFun decl@(DFun name [] e _) = interpret' e  -- a Declaration without free variables can be just interpreted
-evalDFun decl@(DFun name ((_, id, _):binds) e mty) = do
-  let decl' = DFun name binds e mty
-  return $ VFun (\arg -> R.local (extendEnv id arg) (evalDFun decl'))
+evalDFun decl@(DFun name binds e _) =
+  let lambda = foldr (\(mul, id, ty) e -> Lam mul id ty e) e binds
+  in interpret' lambda
 
 -- | interpret a single Expression
 interpret' :: Exp ->  InterpretM Value
 interpret' e = ask >>= \penv ->
   M.ap
   (return $ \val -> C.trace ("Leaving interpretation of " ++ pshow e ++ " with value " ++ show val) val) $
-  (C.trace ("Invoking interpretation on " ++ pshow e ++ "\n...in Environment: " ++ show (map fst penv)) . eval) e
+  (C.trace ("Invoking interpretation on " ++ pshow e) . eval) e
 
 eval :: Exp -> InterpretM Value
 eval = \case
