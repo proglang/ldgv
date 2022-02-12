@@ -1,3 +1,5 @@
+
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 module TCTyping where

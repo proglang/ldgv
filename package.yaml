@@ -21,8 +21,6 @@ extra-source-files:
 ghc-options:
 - -Wall
 - -Wcompat
-- -Wincomplete-record-updates
-- -Wincomplete-uni-patterns
 - -Wredundant-constraints
 - -Wno-name-shadowing
 - -Wno-unused-do-bind
@@ -104,9 +102,6 @@ executables:
     - terminal-size
     - unliftio
     ghc-options:
-    - -Wall
-    - -Wincomplete-uni-patterns
-    - -Wincomplete-record-updates
-    - -Wpartial-fields
-    - -Wredundant-constraints
+    - -threaded
     - -rtsopts
+    - -with-rtsopts=-N
