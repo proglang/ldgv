@@ -119,6 +119,17 @@ data NFType = NFBot
   | NFGType GType -- every ground type is also a type in normal form
   deriving (Show, Eq)
 
+instance Subtypeable NFType where
+  -- TODO: NFFunc and NFPair default to false, but should be handled explicitly
+  isSubtypeOf NFBot _ = True
+  isSubtypeOf NFDyn NFDyn = True
+  isSubtypeOf NFUnit NFUnit = True
+  isSubtypeOf (NFLabel ls1) (NFLabel ls2) = ls1 `Set.isSubsetOf` ls2
+  isSubtypeOf NFInt NFInt = True
+  isSubtypeOf NFDouble NFDouble = True
+  isSubtypeOf (NFGType gt1) (NFGType gt2) = gt1 `isSubtypeOf` gt2
+  isSubtypeOf _ _ = False
+
 data GType = GUnit
   | GLabel LabelType
   | GFunc -- Π(x: *) *

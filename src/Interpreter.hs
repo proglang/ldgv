@@ -212,8 +212,7 @@ castIsValue _ _ _ = Nothing
 reduceCast' :: Value -> NFType -> NFType -> Maybe Value
 reduceCast' v t NFDyn = maybe castDynDyn factorLeft (matchType t)
   where
-    tIsSubtypeOfNFDyn = True -- TODO: This can not be right
-    castDynDyn = if tIsSubtypeOfNFDyn then Just v else Nothing  -- Cast-Dyn-Dyn
+    castDynDyn = if t `isSubtypeOf` NFDyn then Just v else Nothing  -- Cast-Dyn-Dyn
     factorLeft gt = if let typeq = t `equalsType` gt in C.trace (show t ++ " == " ++ show gt ++ " = " ++ show typeq) (not typeq)
       then reduceCast v t (NFGType gt) >>= \v' -> Just $ VDynCast v' gt -- Factor-Left
       else castDynDyn
