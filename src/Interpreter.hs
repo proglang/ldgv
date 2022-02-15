@@ -78,7 +78,8 @@ eval = \case
     case (v, nft1, nft2) of
       (pair@VPair {}, from@NFPair {}, to@NFPair {}) -> do
         C.traceIO $ "Interpreting pair cast expression: Value(" ++ show pair ++ ") NFType(" ++ show from ++ ") NFType(" ++ show to ++ ")"
-        lift $ reducePairCast pair from to >>= maybe (blame cast) return
+        v' <- lift $ reducePairCast pair from to
+        maybe (blame cast) return v'
       _ -> maybe (blame cast) return (reduceCast v nft1 nft2)
   Var s -> pmlookup s
   Let s e1 e2 -> interpret' e1 >>= \v -> R.local (extendEnv s v) (interpret' e2)
