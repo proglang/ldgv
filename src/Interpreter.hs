@@ -66,7 +66,7 @@ eval = \case
         let lowerEnv = extendEnv i1 (VInt $ n-1)
         lower <- R.local lowerEnv (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
         R.local (extendEnv i2 lower . lowerEnv) (interpret' e3)
-  Lam _ i _ e -> ask >>= \env -> return $ VFun (\arg -> liftIO $ R.runReaderT (interpret' e) (extendEnv i arg env))
+  Lam _ i _ e -> ask >>= \env -> return $ VFunc env i e
   cast@(Cast e t1 t2) -> do
     C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
@@ -91,8 +91,9 @@ eval = \case
     val <- interpret' e1
     arg <- interpret' e2
     let interpretApp :: Value -> Value -> InterpretM Value
-        interpretApp (VDecl d) w = evalDFun d >>= \(VFun f) -> f w
+        interpretApp (VDecl d) w = evalDFun d >>= \vfunc -> interpretApp vfunc w
         interpretApp (VFun f) w = f w
+        interpretApp (VFunc env s exp) w = R.local (extendEnv s w . (++) env) (interpret' exp)
         interpretApp (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
           penv0 <- ask
           let interpretAppCast :: IO Value

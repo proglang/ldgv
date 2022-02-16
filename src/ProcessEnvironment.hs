@@ -75,6 +75,7 @@ data Value = VUnit
   | VDecl S.Decl -- when an identifier maps to another function we have not yet interpreted
   | VType S.Type
   | VFun (Value -> InterpretM Value) -- Function Type
+  | VFunc PEnv String Exp
   | VDynCast Value GType -- (Value : G => *)
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,Π(x:A)A') => (ρ,Π(x:B)B'))
 
@@ -89,6 +90,7 @@ instance Show Value where
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
     VFun _ -> "VFunction"
+    VFunc env s exp -> "VFunc" ++ show env ++ " " ++ show s ++ " " ++ show exp
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
 
