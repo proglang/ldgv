@@ -199,9 +199,10 @@ evalType = \case
   t -> throw $ TypeNotImplementedException t
 
 reduceCast :: Value -> NFType -> NFType -> Maybe Value
-reduceCast v t1 t2 = castIsValue v t1 t2 <|> reduceCast' v t1' t2'
-  where t1' = fromMaybe t1 (toNFGType t1)
-        t2' = fromMaybe t2 (toNFGType t2)
+reduceCast v t1 t2 = castIsValue v t1 t2
+                 <|> reduceCast' v t1' t2'
+  where t1' = packGType t1
+        t2' = packGType t2
 
 -- Cast-Is-Value: return correct value if arguments already form a value
 castIsValue :: Value -> NFType -> NFType -> Maybe Value
@@ -269,11 +270,11 @@ matchType = \case
   NFGType gt -> Just gt
   _ -> Nothing
 
-toNFGType :: NFType -> Maybe NFType
-toNFGType = \case
-  NFUnit -> Just $ NFGType GUnit
-  NFLabel ls -> Just $ NFGType $ GLabel ls
-  NFFunc (FuncType _ _ TDyn TDyn) -> Just $ NFGType GFunc
-  NFPair (FuncType _ _ TDyn TDyn) -> Just $ NFGType GPair
-  nfgt@(NFGType _) -> Just nfgt
-  _ -> Nothing
+packGType :: NFType -> NFType
+packGType = \case
+  NFUnit -> NFGType GUnit
+  NFLabel ls -> NFGType $ GLabel ls
+  NFFunc (FuncType _ _ TDyn TDyn) -> NFGType GFunc
+  NFPair (FuncType _ _ TDyn TDyn) -> NFGType GPair
+  nfgt@(NFGType _) -> nfgt  -- avoid recursion
+  t -> t
