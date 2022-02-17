@@ -138,8 +138,6 @@ fromExpC = \case
     v1 <- fromExpC e1
     (x', e2') <- renaming x e2
     ContT $ fmap (Let x' v1) . bound x' . fromExp e2'
-  S.Rec f x xt rt e -> lift $
-    Rec f x xt rt <$> bound2 f x (fromExp' e)
   S.Pair _ x e1 e2 -> do
     v1 <- fromExpC e1
     (x', e2') <- renaming x e2
@@ -206,7 +204,6 @@ fromExp' = \case
   e@S.Fst{}  -> trivial e
   e@S.Snd{}  -> trivial e
   e@S.Lam{}  -> trivial e
-  e@S.Rec{}  -> trivial e
   e@S.Pair{} -> trivial e
   e@S.Fork{} -> trivial e
   e@S.New{}  -> trivial e

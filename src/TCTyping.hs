@@ -126,10 +126,6 @@ tySynth te e =
     (kix, mx) <- kiSynth (demoteTE te) tyx
     (ty, te1) <- tySynth ((x, (inject mx, tyx)) : te) e1
     strengthen e (TFun mm x tyx ty, te1)
-  Rec f x tyx tyr e1 -> do -- return type is declared
-    (kix, mx) <- kiSynth (demoteTE te) tyx
-    te1 <- tyCheck ((f, (Many, TFun MMany x tyx tyr)) : (x, (inject mx, tyx)) : te) e1 tyr
-    strengthen e (TFun MMany x tyx tyr, te1) >>= strengthen e
   App e1 e2 -> do
     (tf, te1) <- tySynth te e1
     tfu <- unfold te1 tf

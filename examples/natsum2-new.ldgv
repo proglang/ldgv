@@ -22,15 +22,19 @@ val newsumf ( n : Nat ) =
 	    fn (acc: Int) acc,				-- zero: Int -> Int
         n1. fn (acc : Int) fn (x : Int) f n1 (acc + x)	-- succ: Int -> Int -> A
     })
-    -- : (n: Nat) -> (acc: Int) -> natrec n { Int, A. (x: Int) -> A } 
+    -- : (n: Nat) -> (acc: Int) -> natrec n { Int, A. (x: Int) -> A }
     n
     0
 
 val r0 = sumf 0
-
 val r1 = sumf 1 42
-
 val r2 = sumf 2 17 4
+
+val newr0 = newsumf 0
+val newr1 = newsumf 1 42
+val newr2 = newsumf 2 17 4
+
+val main = newsumf 2 17 4
 
 -- example reductions (new)
 

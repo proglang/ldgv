@@ -152,7 +152,7 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
                             { NewNatRec $2 $4 $6 $8 $10 $12 $14 }
     | '()'                  { Lit LUnit }
     | lam Mul '(' var ':' Typ ')' Exp                   { Lam $2 $4 $6 $8 }
-    | rec var '(' var ':' Typ ')' ':' Typ '=' Exp       { Rec $2 $4 $6 $9 $11 }
+    | rec var '(' var '.' Exp ')' Exp                   { Rec $2 $4 $6 $8 }
     | '<' Mul var '=' Exp ',' Exp '>'                   { Pair $2 $3 $5 $7 }
     | let '<' var ',' var '>' '=' Exp in Exp %prec LET  { LetPair $3 $5 $8 $10 }
     | fst Exp               { Fst $2 }

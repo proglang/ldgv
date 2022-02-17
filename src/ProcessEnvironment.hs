@@ -78,6 +78,7 @@ data Value = VUnit
   | VFunc PEnv String Exp
   | VDynCast Value GType -- (Value : G => *)
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,Π(x:A)A') => (ρ,Π(x:B)B'))
+  | VRec PEnv String String Exp Exp
 
 instance Show Value where
   show = \case
@@ -90,9 +91,10 @@ instance Show Value where
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
     VFun _ -> "VFunction"
-    VFunc env s exp -> "VFunc" ++ show env ++ " " ++ show s ++ " " ++ show exp
+    VFunc env s exp -> "VFunc " ++ show env ++ " " ++ show s ++ " " ++ show exp
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
+    VRec env s1 s2 e1 e2 -> "VRec " ++ show env ++ " " ++ show s1 ++ " " ++ show s2 ++ " " ++ show e1 ++ " " ++ show e2
 
 instance Eq Value where
   VUnit == VUnit = True
@@ -110,9 +112,12 @@ class Subtypeable t where
   isSubtypeOf :: t -> t -> Bool
 
 -- Types in Head Normal Form
-data NFType = NFBot
+data NFType
+  = NFBot
   | NFDyn
   | NFUnit
+  | NFNat
+  | NFNatLeq Integer
   | NFLabel LabelType
   | NFFunc FuncType  -- (ρ, Π(x: A) B)
   | NFPair FuncType  -- (ρ, Σ(x: A) B)
@@ -126,6 +131,9 @@ instance Subtypeable NFType where
   isSubtypeOf NFBot _ = True
   isSubtypeOf NFDyn NFDyn = True
   isSubtypeOf NFUnit NFUnit = True
+  isSubtypeOf NFNat NFNat = True
+  isSubtypeOf (NFNatLeq _) NFNat = True
+  isSubtypeOf (NFNatLeq n1) (NFNatLeq n2) = n1 <= n2
   isSubtypeOf (NFLabel ls1) (NFLabel ls2) = ls1 `Set.isSubsetOf` ls2
   isSubtypeOf NFInt NFInt = True
   isSubtypeOf NFDouble NFDouble = True
@@ -136,6 +144,8 @@ data GType = GUnit
   | GLabel LabelType
   | GFunc -- Π(x: *) *
   | GPair -- Σ(x: *) *
+  | GNat
+  | GNatLeq Integer
   deriving (Show, Eq)
 
 instance Subtypeable GType where
@@ -143,4 +153,7 @@ instance Subtypeable GType where
   isSubtypeOf (GLabel ls1) (GLabel ls2) = ls1 `Set.isSubsetOf` ls2
   isSubtypeOf GFunc GFunc = True
   isSubtypeOf GPair GPair = True
+  isSubtypeOf GNat GNat = True
+  isSubtypeOf (GNatLeq _) GNat = True
+  isSubtypeOf (GNatLeq n1) (GNatLeq n2) = n1 <= n2
   isSubtypeOf _ _ = False

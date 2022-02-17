@@ -20,7 +20,7 @@ data Exp = Let Ident Exp Exp
          | NewNatRec Ident Ident TIdent Type Exp Ident Exp
          | Var Ident
          | Lam Multiplicity Ident Type Exp
-         | Rec Ident Ident Type Type Exp
+         | Rec Ident Ident Exp Exp
          | App Exp Exp
          | Pair Multiplicity Ident Exp Exp
          | LetPair Ident Ident Exp Exp
@@ -50,12 +50,14 @@ data Literal
   | LUnit
   deriving (Show, Eq)
 
-data Type = TUnit
+data Type
+  = TUnit
   | TInt
   | TDouble
   | TBot
   | TDyn
   | TNat
+  | TNatLeq Integer
   | TNatRec Exp Type TIdent Type
   | TVar Bool TIdent
   | TAbs Ident Type Type -- abstract a variable to close a type; only use in caches!
@@ -151,7 +153,7 @@ instance Freevars Exp where
   fv (Lit _) = Set.empty
   fv (Var x) = Set.singleton x
   fv (Lam m x t e) = fv t <> Set.delete x (fv e)
-  fv (Rec f x t1 t2 e) = fv t1 <> fv t2 <> Set.delete f (Set.delete x (fv e))
+  fv (Rec f x e1 e0) = fv e0 <> Set.delete f (Set.delete x (fv e1))
   fv (App e1 e2) = fv e1 <> fv e2
   fv (Pair m x e1 e2) = fv e1 <> Set.delete x (fv e2)
   fv (LetPair x y e1 e2) = fv e1 <> Set.delete x (Set.delete y (fv e2))
@@ -212,9 +214,7 @@ instance Substitution Exp where
     sb (Lam m y ty e1)
       | x /= y = Lam m y (subst x exp ty) (sb e1)
       | otherwise = Lam m y (subst x exp ty) e1
-    sb (Rec f y tyx ty e1) = Rec f y (subst x exp tyx)
-                                     (if x /= y then subst x exp ty else ty)
-                                     (if x /= f && x /= y then sb e1 else e1)
+    sb (Rec f y e1 e0) = Rec f y (if x /= y then subst x exp e1 else e1) (subst x exp e0)
     sb (Case e1 cases) = Case (sb e1) [(lll, sb e) | (lll, e) <- cases]
     sb orig@(Cast e t1 t2) = Cast (sb e) t1 t2
     sb (App e1 e2) = App (sb e1) (sb e2)

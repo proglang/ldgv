@@ -98,9 +98,9 @@ instance Pretty Exp where
   pretty (Lam m id t e) =
     pretty "𝜆" <> pretty m <+> ptyped id t <+>
     pretty e
-  pretty (Rec f x t1 t2 e) =
-    pretty "rec" <+> pretty f <+> ptyped x t1 <>
-    colon <> pretty t2 <+> equals <+> pretty e
+  pretty (Rec f x e1 e0) =
+    pretty "rec" <+> pretty f <+> pretty x <>
+    colon <> pretty e1 <+> pretty e0
   pretty (App e1 e2) =
     pretty e1 <+> pretty e2
   pretty (Pair m id e1 e2) =

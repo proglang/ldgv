@@ -9,7 +9,6 @@ import qualified Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Control.Exception (throw)
 import Data.Foldable (find)
-import Data.Maybe (fromMaybe)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.Reader as R
@@ -48,7 +47,8 @@ interpret' e = ask >>= \penv ->
 eval :: Exp -> InterpretM Value
 eval = \case
   Succ e -> interpretMath $ Add (Lit (LInt 1)) e
-  exp@(NatRec e1 e2 i1 t1 i2 t e3) -> do
+  Rec f x e1 e0 -> ask >>= \env -> return $ VRec env f x e1 e0
+  NatRec e1 e2 i1 t1 i2 t e3 -> do
   -- returns a function indexed over e1 (should be a variable pointing to a Nat)
   -- e1 should be the recursive variable which gets decreased each time the
   -- non-zero case is evaluated
@@ -187,6 +187,8 @@ evalType = \case
   TDouble -> return NFDouble
   TBot -> return NFBot
   TDyn -> return NFDyn
+  TNat -> return NFNat
+  TNatLeq n -> return $ NFNatLeq n
   TName _ s -> pmlookup s >>= \case
     (VType t) -> evalType t
     _ -> throw $ LookupException s
@@ -259,6 +261,8 @@ equalsType (NFLabel ls1) (GLabel ls2) = ls1 == ls2
 equalsType (NFFunc (FuncType _ _ TDyn TDyn)) GFunc = True
 equalsType (NFPair (FuncType _ _ TDyn TDyn)) GPair = True
 equalsType (NFGType gt1) gt2 = gt1 == gt2
+equalsType NFNat GNat = True
+equalsType (NFNatLeq n1) (GNatLeq n2) = n1 == n2
 equalsType _ _ = False
 
 matchType :: NFType -> Maybe GType
@@ -268,6 +272,8 @@ matchType = \case
   NFFunc FuncType {} -> Just GFunc
   NFPair FuncType {} -> Just GPair
   NFGType gt -> Just gt
+  NFNat -> Just GNat
+  NFNatLeq n -> Just $ GNatLeq n
   _ -> Nothing
 
 packGType :: NFType -> NFType
@@ -276,5 +282,7 @@ packGType = \case
   NFLabel ls -> NFGType $ GLabel ls
   NFFunc (FuncType _ _ TDyn TDyn) -> NFGType GFunc
   NFPair (FuncType _ _ TDyn TDyn) -> NFGType GPair
+  NFNat -> NFGType GNat
+  NFNatLeq n -> NFGType $ GNatLeq n
   nfgt@(NFGType _) -> nfgt  -- avoid recursion
   t -> t
