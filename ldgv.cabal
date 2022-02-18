@@ -24,6 +24,7 @@ extra-source-files:
     examples/depsum.ldgv
     examples/natsum.ldgv
     examples/natsum2-new.ldgv
+    examples/natsum2-rec.ldgv
     examples/natsum2.ldgv
     examples/node.ldgv
     examples/noderec.ldgv

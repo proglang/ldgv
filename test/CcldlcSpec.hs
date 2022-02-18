@@ -1,57 +1,31 @@
-{-# OPTIONS_GHC -Wall #-}
-
 module CcldlcSpec (spec) where
 
 import Test.Hspec
 import Utils
+import UtilsFuncCcldlc
 
 import Syntax
 import Kinds
 
 spec :: Spec
-spec =
+spec = do
   describe "CCLDGV parser for section2 examples" $ do
     it "f1' example function" $
       "val f1' = 𝜆(x: Bool) 𝜆(y: *) case x {'T: 17 + (y: * => Int), 'F: not (y: * => Bool)}"
       `shouldParseDecl`
-      DFun "f1'" []
-        (Lam MMany "x" (TName False "Bool")
-          (Lam MMany "y" TDyn (Case (Var "x")
-            [("'T",Math (Add (Lit (LNat 17)) (Cast (Var "y") TDyn TInt)))
-            ,("'F",App (Var "not") (Cast (Var "y") TDyn (TName False "Bool")))])))
-        Nothing
+      DFun "f1'" [] f1' Nothing
     it "f2' example function" $
       "val f2' = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}"
       `shouldParseDecl`
-      DFun "f2'" []
-        (Lam MMany "x" TDyn
-          (Lam MMany "y"
-            (TCase (Cast (Var "x") TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")])
-            (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Math (Add (Lit (LNat 17)) (Var "y"))),("'F",App (Var "not") (Var "y"))])))
-        Nothing
+      DFun "f2'" [] f2' Nothing
     it "f3 example function for (* => case ...)" $
       "val f3 = 𝜆(x: Bool) 𝜆(y: *) 𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool}) case (y: * => case x {'T: Direction, 'F: Bool}) {'T: y, 'F: not y, 'L: z, 'R: not z}"
       `shouldParseDecl`
-      DFun "f3" []
-        (Lam MMany "x" (TName False "Bool")
-          (Lam MMany "y" TDyn
-            (Lam MMany "z"
-              (TCase (Cast (Var "y") TDyn (TCase (Var "x") [("'T",TName False "Direction"),("'F",TName False "Bool")]))
-                [("'T",TName False "Direction"),("'F",TName False "Bool"),("'L",TName False "Bool"),("'R",TName False "Bool")])
-                (Case (Cast (Var "y") TDyn (TCase (Var "x") [("'T",TName False "Direction"),("'F",TName False "Bool")]))
-                  [("'T",Var "y"),("'F",App (Var "not") (Var "y")),("'L",Var "z"),("'R",App (Var "not") (Var "z"))]))))
-        Nothing
+      DFun "f3" [] f3 Nothing
     it "f4' example function for conversion from * to function type" $
       "val f4' = 𝜆(x: Bool) 𝜆(y: *) 𝜆(z: Bool) case x {'T: (y: * => (u:Bool) -> (v:Bool) -> Bool) z z, 'F: (y: * => (u:Bool) -> Bool) z}"
       `shouldParseDecl`
-      DFun "f4'" []
-        (Lam MMany "x" (TName False "Bool")
-          (Lam MMany "y" TDyn
-            (Lam MMany "z" (TName False "Bool")
-              (Case (Var "x")
-                [("'T",App (App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TFun MMany "v" (TName False "Bool") (TName False "Bool")))) (Var "z")) (Var "z"))
-                ,("'F",App (Cast (Var "y") TDyn (TFun MMany "u" (TName False "Bool") (TName False "Bool"))) (Var "z"))]))))
-        Nothing
+      DFun "f4'" [] f4' Nothing
     it "f6 example for pair cast and evaluation" $
       "val paircast = (<x=('T: Bool => *), case (x: * => Bool) {'T: 'T, 'F: 'F}> : [x : Bool, Bool] => [x : OnlyTrue, OnlyTrue])"
       `shouldParseDecl`
@@ -77,3 +51,8 @@ spec =
               (Cast (Var "x") TDyn TInt)
               (Cast (Var "y") TDyn TInt)))))
         Nothing
+  describe "recursor expressions (natrec, new_natrec, rec)" $ do
+    it "sumf function using rec" $
+      "val sumf = rec f ( x . (fn (acc : Int) fn (x : Int) f (acc + x)) ) (fn (acc : Int) acc)"
+      `shouldParseDecl`
+      DFun "sumf" [] sumfRec Nothing

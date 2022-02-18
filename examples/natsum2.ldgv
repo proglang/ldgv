@@ -16,9 +16,5 @@ val sumf ( n : Nat) =
     }) 0
 
 val r0 = sumf 0
-
 val r1 = sumf 1 42
-
 val r2 = sumf 2 17 4
-
-val main = sumf 5 1 2 3 4 5

@@ -94,7 +94,7 @@ instance Show Value where
     VFunc env s exp -> "VFunc " ++ show env ++ " " ++ show s ++ " " ++ show exp
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
-    VRec env s1 s2 e1 e2 -> "VRec " ++ show env ++ " " ++ show s1 ++ " " ++ show s2 ++ " " ++ show e1 ++ " " ++ show e2
+    VRec env f x e1 e0 -> "VRec " ++ show env ++ " " ++ show f ++ " " ++ show x ++ " " ++ show e1 ++ " " ++ show e0
 
 instance Eq Value where
   VUnit == VUnit = True
@@ -106,6 +106,7 @@ instance Eq Value where
   (VDecl d1) == (VDecl d2) = d1 == d2
   (VType t1) == (VType t2) = t1 == t2
   (VDynCast v1 t1) == (VDynCast v2 t2) = v1 == v2 && t1 == t2
+  (VRec env f x e1 e0) == (VRec env' f' x' e1' e0') = env == env' && f == f' && x == x' && e1 == e1' && e0 == e0'
   _ == _ = False
 
 class Subtypeable t where

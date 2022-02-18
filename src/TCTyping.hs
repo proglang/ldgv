@@ -1,7 +1,7 @@
-
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
+
 module TCTyping where
 
 import Control.Monad (foldM, zipWithM, ap)
@@ -313,6 +313,7 @@ tySynth te e =
           nonvar tl _ = tl
       D.traceM ("NewNatRec returns body " ++ pshow rty)
       return (TFun MMany n TNat rty, tez)
+  Rec f x e1 e0 -> return (TDyn, te)
   _ -> TC.mfail ("Unhandled expression: " ++ pshow e)
 
 tySynthCast :: TEnv -> Exp -> Type -> Type -> TCM (Type, TEnv)

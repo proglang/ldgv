@@ -1,0 +1,3 @@
+val sumf_rec = rec f ( x . (fn (acc : Int) fn (x : Int) f (acc + x)) ) (fn (acc : Int) acc)
+
+val main = sumf_rec

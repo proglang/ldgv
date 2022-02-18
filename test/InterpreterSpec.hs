@@ -127,3 +127,12 @@ spec = do
         Nothing
       `shouldInterpretTo`
       VInt 13
+  describe "CCLDLC recursor expressions (rec, natrec, new_natrec)" $ do
+    it "interprets sumf rec expression" $
+      DFun "sumf" [] sumfRec Nothing
+      `shouldInterpretTo`
+      VRec [] "f" "x"
+        (Lam MMany "acc" TInt
+          (Lam MMany "x" TInt (App (Var "f") (Math (Add (Var "acc") (Var "x"))))))
+        (Lam MMany "acc" TInt
+          (Var "acc"))
