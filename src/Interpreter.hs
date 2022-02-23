@@ -66,7 +66,11 @@ eval = \case
         let lowerEnv = extendEnv i1 (VInt $ n-1)
         lower <- R.local lowerEnv (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
         R.local (extendEnv i2 lower . lowerEnv) (interpret' e3)
-  Lam _ i _ e -> ask >>= \env -> return $ VFunc env i e
+  Lam _ i _ e -> do
+    env <- ask
+    case penvlookup i env of
+      Just v -> R.local (extendEnv i v) (interpret' e)
+      Nothing -> return $ VFunc env i e
   cast@(Cast e t1 t2) -> do
     C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
@@ -87,30 +91,9 @@ eval = \case
   Lit l -> return (interpretLit l)
   e@(App e1 e2) -> do
     liftIO $ C.traceIO $ "Arguments for (" ++ pshow e1 ++ ") are ("  ++ pshow e2 ++ ")"
-    -- interpret e1 first, because the innermost application is the function with its first argument
     val <- interpret' e1
     arg <- interpret' e2
-    let interpretApp :: Value -> Value -> InterpretM Value
-        interpretApp (VDecl d) w = evalDFun d >>= \vfunc -> interpretApp vfunc w
-        interpretApp (VFun f) w = f w
-        interpretApp (VFunc env s exp) w = R.local (extendEnv s w . (++) env) (interpret' exp)
-        interpretApp (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
-          penv0 <- ask
-          let interpretAppCast :: IO Value
-              interpretAppCast = do
-                C.traceIO ("Attempting function cast in application (" ++ show v ++ ") with (" ++ show w' ++ ")")
-                nft1  <- R.runReaderT (evalType t1)  penv
-                nft1' <- R.runReaderT (evalType t1') penv'
-                w <- maybe (blame e) return (reduceCast w' nft1 nft1')
-                nft2' <- R.runReaderT (evalType t2') (extendEnv s' w' penv')
-                nft2  <- R.runReaderT (evalType t2) (extendEnv s w penv)
-                u  <- R.runReaderT (interpretApp v w) penv0
-                u' <- maybe (blame e) return (reduceCast u nft2 nft2')
-                C.traceIO ("Function cast in application results in: " ++ show u')
-                return u'
-          lift interpretAppCast
-        interpretApp _ _ = throw $ ApplicationException e
-    interpretApp val arg
+    interpretApp e val arg
   Pair mul s e1 e2 -> do
     v1 <- interpret' e1
     v2 <- R.local (extendEnv s v1) (interpret' e2)
@@ -151,6 +134,34 @@ eval = \case
         case e1 of
           Just e' -> interpret' e'
   e -> throw $ NotImplementedException e
+
+-- Exp is only used for blame
+interpretApp :: Exp -> Value -> Value -> InterpretM Value
+interpretApp e (VDecl d) w = evalDFun d >>= \vfunc -> interpretApp e vfunc w
+interpretApp _ (VFun f) w = f w
+interpretApp _ (VFunc env s exp) w = R.local (\_ -> extendEnv s w env) (interpret' exp)
+interpretApp e (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
+  penv0 <- ask
+  let
+    interpretAppCast :: IO Value
+    interpretAppCast = do
+      C.traceIO ("Attempting function cast in application (" ++ show v ++ ") with (" ++ show w' ++ ")")
+      nft1  <- R.runReaderT (evalType t1)  penv
+      nft1' <- R.runReaderT (evalType t1') penv'
+      w <- maybe (blame e) return (reduceCast w' nft1 nft1')
+      nft2' <- R.runReaderT (evalType t2') (extendEnv s' w' penv')
+      nft2  <- R.runReaderT (evalType t2) (extendEnv s w penv)
+      u  <- R.runReaderT (interpretApp e v w) penv0
+      u' <- maybe (blame e) return (reduceCast u nft2 nft2')
+      C.traceIO ("Function cast in application results in: " ++ show u')
+      return u'
+  lift interpretAppCast
+interpretApp e rec@(VRec env f x e1 e0) (VInt n)
+  | n  < 0 = throw $ ApplicationException e
+  | n == 0 = interpret' e0
+  | n  > 0 = let env' = extendEnv f rec (extendEnv x (VInt (n-1)) env)
+             in R.local (\_ -> env') (interpret' e1)
+interpretApp e _ _ = throw $ ApplicationException e
 
 interpretLit :: Literal -> Value
 interpretLit = \case

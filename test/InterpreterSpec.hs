@@ -128,7 +128,7 @@ spec = do
       `shouldInterpretTo`
       VInt 13
   describe "CCLDLC recursor expressions (rec, natrec, new_natrec)" $ do
-    it "interprets sumf rec expression" $
+    it "interprets sumf rec expression to itself" $
       DFun "sumf" [] sumfRec Nothing
       `shouldInterpretTo`
       VRec [] "f" "x"
@@ -136,3 +136,15 @@ spec = do
           (Lam MMany "x" TInt (App (Var "f") (Math (Add (Var "acc") (Var "x"))))))
         (Lam MMany "acc" TInt
           (Var "acc"))
+    it "interprets application sumf 0 to M term" $
+      DFun "sumf" []
+        (App (App sumfRec (Lit $ LInt 0)) (Lit $ LInt 0))
+        Nothing
+      `shouldInterpretTo`
+      VInt 0
+    it "interprets application sumf 1" $
+      DFun "sumf" []
+        (App (App (App (App sumfRec (Lit $ LInt 1)) (Lit $ LInt 13)) (Lit $ LInt 0)) (Lit $ LInt 0))
+        Nothing
+      `shouldInterpretTo`
+      VInt 34
