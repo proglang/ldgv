@@ -15,6 +15,8 @@ data InterpreterException
   | LookupException String
   | CastException Exp
   | ApplicationException Exp
+  | RecursorException String
+  | RecursorNotNatException Integer
   | NotImplementedException Exp
   | TypeNotImplementedException Type
 
@@ -24,6 +26,8 @@ instance Show InterpreterException where
     (LookupException s) -> "LookupException: Lookup of '" ++ s ++ "' did not yield a value"
     (CastException exp) -> "CastException: (" ++ pshow exp ++ ") failed"
     (ApplicationException exp) -> "ApplicationException: expression '" ++ pshow exp ++ "' not allowed"
+    (RecursorException s) -> "RecursorException: " ++ s
+    (RecursorNotNatException n) -> "Recursor only works on natural numbers, but got: " ++ show n
     (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
     (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
 
@@ -54,17 +58,23 @@ pmlookup id = (maybe (throw $ LookupException id) (liftIO . pure) . penvlookup i
 type PEnv = [PEnvEntry]
 type PEnvEntry = (String, Value)
 
+-- | environment for bindings of recursive natrec types
+type NREnv = [NREntry]
+data NREntry = NREntry PEnv Value String Type Type () -- (ρ, natrec V (a.A) B)
+  deriving (Show, Eq)
+
 type Label = String
 type LabelType = Set Label
 
 labelsFromList :: [Label] -> LabelType
 labelsFromList = Set.fromList
 
-data FuncType = FuncType PEnv String S.Type S.Type
+data FuncType = FuncType PEnv NREnv String S.Type S.Type
   deriving (Show, Eq)
 
 -- | (Unit, Label, Int, Values of self-declared Data Types), Channels
-data Value = VUnit
+data Value
+  = VUnit
   | VLabel String
   | VInt Int
   | VDouble Double
@@ -77,7 +87,7 @@ data Value = VUnit
   | VFun (Value -> InterpretM Value) -- Function Type
   | VFunc PEnv String Exp
   | VDynCast Value GType -- (Value : G => *)
-  | VFuncCast Value FuncType FuncType -- (Value : (ρ,Π(x:A)A') => (ρ,Π(x:B)B'))
+  | VFuncCast Value FuncType FuncType -- (Value : (ρ,α,Π(x:A)A') => (ρ,α,Π(x:B)B'))
   | VRec PEnv String String Exp Exp
 
 instance Show Value where
@@ -120,8 +130,8 @@ data NFType
   | NFNat
   | NFNatLeq Integer
   | NFLabel LabelType
-  | NFFunc FuncType  -- (ρ, Π(x: A) B)
-  | NFPair FuncType  -- (ρ, Σ(x: A) B)
+  | NFFunc FuncType  -- (ρ, α, Π(x: A) B)
+  | NFPair FuncType  -- (ρ, α, Σ(x: A) B)
   | NFInt
   | NFDouble
   | NFGType GType -- every ground type is also a type in normal form

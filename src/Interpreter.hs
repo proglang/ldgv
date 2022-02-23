@@ -9,6 +9,7 @@ import qualified Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Control.Exception (throw)
 import Data.Foldable (find)
+import Data.Maybe (fromJust)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.Reader as R
@@ -66,6 +67,8 @@ eval = \case
         let lowerEnv = extendEnv i1 (VInt $ n-1)
         lower <- R.local lowerEnv (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
         R.local (extendEnv i2 lower . lowerEnv) (interpret' e3)
+      _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
+  --NewNatRec 
   Lam _ i _ e -> do
     env <- ask
     case penvlookup i env of
@@ -127,12 +130,8 @@ eval = \case
         liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan "
         return $ VPair val v
   Case e cases -> do
-    v <- interpret' e
-    case v of
-      (VLabel s) -> do
-        let e1 = lookup s cases
-        case e1 of
-          Just e' -> interpret' e'
+    interpret' e >>= \(VLabel s) ->
+      interpret' $ fromJust $ lookup s cases
   e -> throw $ NotImplementedException e
 
 -- Exp is only used for blame
@@ -140,7 +139,7 @@ interpretApp :: Exp -> Value -> Value -> InterpretM Value
 interpretApp e (VDecl d) w = evalDFun d >>= \vfunc -> interpretApp e vfunc w
 interpretApp _ (VFun f) w = f w
 interpretApp _ (VFunc env s exp) w = R.local (\_ -> extendEnv s w env) (interpret' exp)
-interpretApp e (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
+interpretApp e (VFuncCast v (FuncType penv _ s t1 t2) (FuncType penv' _ s' t1' t2')) w' = do
   penv0 <- ask
   let
     interpretAppCast :: IO Value
@@ -156,8 +155,8 @@ interpretApp e (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2'))
       C.traceIO ("Function cast in application results in: " ++ show u')
       return u'
   lift interpretAppCast
-interpretApp e rec@(VRec env f x e1 e0) (VInt n)
-  | n  < 0 = throw $ ApplicationException e
+interpretApp _ rec@(VRec env f x e1 e0) (VInt n)
+  | n  < 0 = throw $ RecursorNotNatException (toInteger n)
   | n == 0 = interpret' e0
   | n  > 0 = let env' = extendEnv f rec (extendEnv x (VInt (n-1)) env)
              in R.local (\_ -> env') (interpret' e1)
@@ -200,12 +199,20 @@ evalType = \case
   TDyn -> return NFDyn
   TNat -> return NFNat
   TNatLeq n -> return $ NFNatLeq n
+  TNatRec e t1 tid t2 -> do
+    v <- interpret' e
+    case v of
+      VInt 0 -> evalType t2
+      VInt n -> if n < 0
+        then throw $ RecursorNotNatException (toInteger n)
+        else R.local (id) (evalType t2)
+      _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
   TName _ s -> pmlookup s >>= \case
     (VType t) -> evalType t
     _ -> throw $ LookupException s
   TLab ls -> return $ NFLabel $ labelsFromList ls
-  TFun _ s t1 t2 -> ask >>= \penv -> return $ NFFunc $ FuncType penv s t1 t2
-  TPair _ s t1 t2 -> ask >>= \penv -> return $ NFPair $ FuncType penv s t1 t2
+  TFun  _ s t1 t2 -> ask >>= \penv -> return $ NFFunc $ FuncType penv [] s t1 t2
+  TPair _ s t1 t2 -> ask >>= \penv -> return $ NFPair $ FuncType penv [] s t1 t2
   TCase exp labels -> interpret' exp >>= \(VLabel l) ->
     let entry = find (\(l', _) -> l == l') labels
     in maybe (return NFBot) (evalType . snd) entry
@@ -252,7 +259,7 @@ reduceCast' v t1 t2 = do
   if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub/Cast-Fail
 
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
-reducePairCast (VPair v w) (NFPair (FuncType penv _ t1 t2)) (NFPair (FuncType penv' _ t1' t2')) = do
+reducePairCast (VPair v w) (NFPair (FuncType penv _ _ t1 t2)) (NFPair (FuncType penv' _ _ t1' t2')) = do
   v' <- reduceComponent v (penv, t1) (penv', t1')
   C.traceIO $ "Reduce cast of left Value(" ++ show v ++ ") from NFType(" ++ show t1 ++ ") to NFType(" ++ show t1' ++ ") returning: " ++ show v'
   w' <- reduceComponent w (penv, t2) (penv', t2')
@@ -269,8 +276,8 @@ reducePairCast _ _ _ = return Nothing
 equalsType :: NFType -> GType -> Bool
 equalsType NFUnit GUnit = True
 equalsType (NFLabel ls1) (GLabel ls2) = ls1 == ls2
-equalsType (NFFunc (FuncType _ _ TDyn TDyn)) GFunc = True
-equalsType (NFPair (FuncType _ _ TDyn TDyn)) GPair = True
+equalsType (NFFunc (FuncType _ _ _ TDyn TDyn)) GFunc = True
+equalsType (NFPair (FuncType _ _ _ TDyn TDyn)) GPair = True
 equalsType (NFGType gt1) gt2 = gt1 == gt2
 equalsType NFNat GNat = True
 equalsType (NFNatLeq n1) (GNatLeq n2) = n1 == n2
@@ -291,8 +298,8 @@ packGType :: NFType -> NFType
 packGType = \case
   NFUnit -> NFGType GUnit
   NFLabel ls -> NFGType $ GLabel ls
-  NFFunc (FuncType _ _ TDyn TDyn) -> NFGType GFunc
-  NFPair (FuncType _ _ TDyn TDyn) -> NFGType GPair
+  NFFunc (FuncType _ _ _ TDyn TDyn) -> NFGType GFunc
+  NFPair (FuncType _ _ _ TDyn TDyn) -> NFGType GPair
   NFNat -> NFGType GNat
   NFNatLeq n -> NFGType $ GNatLeq n
   nfgt@(NFGType _) -> nfgt  -- avoid recursion
