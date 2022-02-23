@@ -16,7 +16,7 @@ data InterpreterException
   | CastException Exp
   | ApplicationException Exp
   | RecursorException String
-  | RecursorNotNatException Integer
+  | RecursorNotNatException
   | NotImplementedException Exp
   | TypeNotImplementedException Type
 
@@ -27,14 +27,14 @@ instance Show InterpreterException where
     (CastException exp) -> "CastException: (" ++ pshow exp ++ ") failed"
     (ApplicationException exp) -> "ApplicationException: expression '" ++ pshow exp ++ "' not allowed"
     (RecursorException s) -> "RecursorException: " ++ s
-    (RecursorNotNatException n) -> "Recursor only works on natural numbers, but got: " ++ show n
+    RecursorNotNatException -> "Recursor only works on natural numbers"
     (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
     (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
 
 instance Exception InterpreterException
 
 -- | the interpretation monad
-type InterpretM a = T.ReaderT PEnv IO a
+type InterpretM a = T.ReaderT (PEnv, NREnv) IO a
 
 createEntry :: Decl -> Maybe (String, Value)
 createEntry = \case
@@ -45,22 +45,24 @@ createEntry = \case
 createPEnv :: [Decl] -> PEnv
 createPEnv = mapMaybe createEntry
 
-extendEnv :: String -> Value -> PEnv -> PEnv
-extendEnv = curry (:)
+extendEnv :: String -> Value -> (PEnv, NREnv) -> (PEnv, NREnv)
+extendEnv s v (penv, aenv) = ((s, v) : penv, aenv)
 
 penvlookup :: String -> PEnv -> Maybe Value
 penvlookup = lookup
 
 pmlookup :: String -> InterpretM Value
-pmlookup id = (maybe (throw $ LookupException id) (liftIO . pure) . penvlookup id) =<< ask
+pmlookup id = do
+  (penv, _) <- ask
+  maybe (throw $ LookupException id) (liftIO . pure) (penvlookup id penv)
 
 -- | a Process Envronment maps identifiers to Values of expressions and stores
 type PEnv = [PEnvEntry]
 type PEnvEntry = (String, Value)
 
 -- | environment for bindings of recursive natrec types
-type NREnv = [NREntry]
-data NREntry = NREntry PEnv Value String Type Type () -- (ρ, natrec V (a.A) B)
+type NREnv = [(String, NREntry)]
+data NREntry = NREntry PEnv Value String Type Type -- (ρ, natrec V (a.A) B)
   deriving (Show, Eq)
 
 type Label = String

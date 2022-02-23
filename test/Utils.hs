@@ -19,7 +19,7 @@ raiseFailure msg = do
 shouldInterpretInPEnvTo :: [Decl] -> Decl -> Value -> Expectation
 shouldInterpretInPEnvTo decls givenDecl expectedValue = do
   let penv = createPEnv decls
-  value <- runReaderT (evalDFun givenDecl) penv
+  value <- runReaderT (evalDFun givenDecl) (penv, [])
   return value `shouldReturn` expectedValue
 
 shouldThrowCastException :: [Decl] -> Decl -> Expectation
@@ -28,7 +28,7 @@ shouldThrowCastException decls givenDecl =
       isCastException :: InterpreterException -> Bool
       isCastException (CastException _) = True
       isCastException _ =False in
-    runReaderT (evalDFun givenDecl) penv `shouldThrow` isCastException
+    runReaderT (evalDFun givenDecl) (penv, []) `shouldThrow` isCastException
 
 shouldInterpretTo :: Decl -> Value -> Expectation
 shouldInterpretTo = shouldInterpretInPEnvTo []
