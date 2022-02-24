@@ -48,14 +48,6 @@ createPEnv = mapMaybe createEntry
 extendEnv :: String -> Value -> (PEnv, NREnv) -> (PEnv, NREnv)
 extendEnv s v (penv, aenv) = ((s, v) : penv, aenv)
 
-penvlookup :: String -> PEnv -> Maybe Value
-penvlookup = lookup
-
-pmlookup :: String -> InterpretM Value
-pmlookup id = do
-  (penv, _) <- ask
-  maybe (throw $ LookupException id) (liftIO . pure) (penvlookup id penv)
-
 -- | a Process Envronment maps identifiers to Values of expressions and stores
 type PEnv = [PEnvEntry]
 type PEnvEntry = (String, Value)
@@ -83,14 +75,15 @@ data Value
   -- we have two channels, one for reading and one for writing to the other
   -- end, so we do not read our own written values
   | VChan (C.Chan Value) (C.Chan Value)
+  | VSend Value
   | VPair Value Value -- pair of ids that map to two values
   | VDecl S.Decl -- when an identifier maps to another function we have not yet interpreted
   | VType S.Type
-  | VFun (Value -> InterpretM Value) -- Function Type
   | VFunc PEnv String Exp
   | VDynCast Value GType -- (Value : G => *)
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,α,Π(x:A)A') => (ρ,α,Π(x:B)B'))
   | VRec PEnv String String Exp Exp
+  deriving Eq
 
 instance Show Value where
   show = \case
@@ -99,27 +92,14 @@ instance Show Value where
     VInt i -> "VInt " ++ show i
     VDouble d -> "VDouble " ++ show d
     VChan _ _ -> "VChan"
+    VSend v -> "VSend (" ++ show v ++ ")"
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
-    VFun _ -> "VFunction"
     VFunc env s exp -> "VFunc " ++ show env ++ " " ++ show s ++ " " ++ show exp
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
     VRec env f x e1 e0 -> "VRec " ++ show env ++ " " ++ show f ++ " " ++ show x ++ " " ++ show e1 ++ " " ++ show e0
-
-instance Eq Value where
-  VUnit == VUnit = True
-  (VLabel s1) == (VLabel s2) = s1 == s2
-  (VInt i1) == (VInt i2) = i1 == i2
-  (VDouble d1) == (VDouble d2) = d1 == d2
-  (VChan r1 w1) == (VChan r2 w2) = r1 == r2 && w1 == w2
-  (VPair x1 y1) == (VPair x2 y2) = x1 == x2 && y1 == y2
-  (VDecl d1) == (VDecl d2) = d1 == d2
-  (VType t1) == (VType t2) = t1 == t2
-  (VDynCast v1 t1) == (VDynCast v2 t2) = v1 == v2 && t1 == t2
-  (VRec env f x e1 e0) == (VRec env' f' x' e1' e0') = env == env' && f == f' && x == x' && e1 == e1' && e0 == e0'
-  _ == _ = False
 
 class Subtypeable t where
   isSubtypeOf :: t -> t -> Bool

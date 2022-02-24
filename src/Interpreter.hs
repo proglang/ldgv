@@ -1,6 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Interpreter (interpret, evalDFun, createPEnv) where
+
+module Interpreter
+  ( interpret
+  , evalDFun
+  , createPEnv
+  ) where
 
 import qualified Config as C
 import Syntax
@@ -27,7 +32,7 @@ interpret decls = do
       isInterestingDecl DType {} = True
       isInterestingDecl _ = False
   -- find the main DFun
-  case penvlookup "main" penv of
+  case lookup "main" penv of
     Just (VDecl decl) -> R.runReaderT (evalDFun decl) (penv, [])
     _ -> throw $ LookupException "main"
 
@@ -69,12 +74,10 @@ eval = \case
         lower <- R.local lowerEnv (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
         R.local (extendEnv i2 lower . lowerEnv) (interpret' e3)
       _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
-  --NewNatRec 
+  --NewNatRec
   Lam _ i _ e -> do
     (env, _) <- ask
-    case penvlookup i env of
-      Just v -> R.local (extendEnv i v) (interpret' e)
-      Nothing -> return $ VFunc env i e
+    return $ VFunc env i e
   cast@(Cast e t1 t2) -> do
     C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
@@ -89,7 +92,9 @@ eval = \case
         v' <- lift $ reducePairCast pair from to
         maybe (blame cast) return v'
       _ -> maybe (blame cast) return (reduceCast v nft1 nft2)
-  Var s -> pmlookup s
+  Var s -> do
+    (penv, _) <- ask
+    maybe (throw $ LookupException s) (liftIO . pure) (lookup s penv)
   Let s e1 e2 -> interpret' e1 >>= \v -> R.local (extendEnv s v) (interpret' e2)
   Math m -> interpretMath m
   Lit l -> return (interpretLit l)
@@ -118,11 +123,7 @@ eval = \case
     return $ VPair (VChan r w) (VChan w r)
   Send e -> do
     v <- interpret' e
-    case v of
-      (VChan _ c) -> return $ VFun (\arg -> do
-        liftIO $ C.traceIO $ "Sending Value " ++ show arg ++ " on Channel " ++ show v
-        liftIO (Chan.writeChan c arg)
-        return v)
+    return $ VSend v
   Recv e -> do
     v <- interpret' e
     case v of
@@ -138,7 +139,6 @@ eval = \case
 -- Exp is only used for blame
 interpretApp :: Exp -> Value -> Value -> InterpretM Value
 interpretApp e (VDecl d) w = evalDFun d >>= \vfunc -> interpretApp e vfunc w
-interpretApp _ (VFun f) w = f w
 interpretApp _ (VFunc env s exp) w = R.local (\(_, aenv) -> extendEnv s w (env,aenv)) (interpret' exp)
 interpretApp e (VFuncCast v (FuncType penv aenv s t1 t2) (FuncType penv' aenv' s' t1' t2')) w' = do
   env0 <- ask
@@ -161,6 +161,7 @@ interpretApp _ rec@(VRec env f x e1 e0) (VInt n)
   | n == 0 = interpret' e0
   | n  > 0 = let env' = extendEnv f rec (extendEnv x (VInt (n-1)) (env, []))
              in R.local (const env') (interpret' e1)
+interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c w) >> return v
 interpretApp e _ _ = throw $ ApplicationException e
 
 interpretLit :: Literal -> Value
@@ -214,12 +215,11 @@ evalType = \case
   TName _ s -> do
     (penv, aenv) <- ask
     case lookup s aenv of
-      Just (NREntry _ v tid t1 t2) -> case v of
-        (VInt n) -> evalType (TNatRec (Lit $ LNat n) t1 tid t2)
-        _ -> throw RecursorNotNatException 
-      Nothing -> case penvlookup s penv of
-        Just (VType t) -> evalType t
-        _ -> throw $ LookupException s 
+      Just (NREntry _ (VInt n) tid t1 t2) -> evalType (TNatRec (Lit $ LNat n) t1 tid t2)
+      Just _ -> throw RecursorNotNatException
+      Nothing -> case lookup s penv of
+        Just (VType t)  -> evalType t
+        _ -> throw $ LookupException s
   TLab ls -> return $ NFLabel $ labelsFromList ls
   TFun  _ s t1 t2 -> ask >>= \(penv, aenv) -> return $ NFFunc $ FuncType penv aenv s t1 t2
   TPair _ s t1 t2 -> ask >>= \(penv, aenv) -> return $ NFPair $ FuncType penv aenv s t1 t2
