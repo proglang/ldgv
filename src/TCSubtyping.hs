@@ -179,6 +179,7 @@ commonGround TBot = Nothing
 commonGround TDyn = Just GDyn
 commonGround TNat = Just GNat
 commonGround (TNatRec  _ _ _ _) = Nothing
+commonGround (TNatLeq _) = Nothing
 commonGround (TVar _ _ ) = Nothing
 commonGround (TAbs _ _ _) = Nothing
 commonGround (TName _ _) = Nothing

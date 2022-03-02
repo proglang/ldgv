@@ -108,10 +108,6 @@ class Subtypeable t where
 data NFType
   = NFBot
   | NFDyn
-  | NFUnit
-  | NFNat
-  | NFNatLeq Integer
-  | NFLabel LabelType
   | NFFunc FuncType  -- (ρ, α, Π(x: A) B)
   | NFPair FuncType  -- (ρ, α, Σ(x: A) B)
   | NFInt
@@ -123,17 +119,13 @@ instance Subtypeable NFType where
   -- TODO: NFFunc and NFPair default to false, but should be handled explicitly
   isSubtypeOf NFBot _ = True
   isSubtypeOf NFDyn NFDyn = True
-  isSubtypeOf NFUnit NFUnit = True
-  isSubtypeOf NFNat NFNat = True
-  isSubtypeOf (NFNatLeq _) NFNat = True
-  isSubtypeOf (NFNatLeq n1) (NFNatLeq n2) = n1 <= n2
-  isSubtypeOf (NFLabel ls1) (NFLabel ls2) = ls1 `Set.isSubsetOf` ls2
   isSubtypeOf NFInt NFInt = True
   isSubtypeOf NFDouble NFDouble = True
   isSubtypeOf (NFGType gt1) (NFGType gt2) = gt1 `isSubtypeOf` gt2
   isSubtypeOf _ _ = False
 
-data GType = GUnit
+data GType
+  = GUnit
   | GLabel LabelType
   | GFunc -- Π(x: *) *
   | GPair -- Σ(x: *) *

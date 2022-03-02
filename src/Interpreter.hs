@@ -121,16 +121,12 @@ eval = \case
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan
     return $ VPair (VChan r w) (VChan w r)
-  Send e -> do
-    v <- interpret' e
-    return $ VSend v
+  Send e -> VSend <$> interpret' e
   Recv e -> do
-    v <- interpret' e
-    case v of
-      (VChan c _) -> do
-        val <- liftIO $ Chan.readChan c
-        liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan "
-        return $ VPair val v
+    interpret' e >>= \v@(VChan c _) -> do
+      val <- liftIO $ Chan.readChan c
+      liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan "
+      return $ VPair val v
   Case e cases -> do
     interpret' e >>= \(VLabel s) ->
       interpret' $ fromJust $ lookup s cases
@@ -194,13 +190,13 @@ interpretMath = \case
 
 evalType :: Type -> InterpretM NFType
 evalType = \case
-  TUnit -> return NFUnit
+  TUnit -> return $ NFGType GUnit
   TInt -> return NFInt
   TDouble -> return NFDouble
   TBot -> return NFBot
   TDyn -> return NFDyn
-  TNat -> return NFNat
-  TNatLeq n -> return $ NFNatLeq n
+  TNat -> return $ NFGType GNat
+  TNatLeq n -> return $ NFGType $ GNatLeq n
   TNatRec e t1 tid t2 -> do
     v <- interpret' e
     case v of
@@ -220,8 +216,10 @@ evalType = \case
       Nothing -> case lookup s penv of
         Just (VType t)  -> evalType t
         _ -> throw $ LookupException s
-  TLab ls -> return $ NFLabel $ labelsFromList ls
+  TLab ls -> return $ NFGType $ GLabel $ labelsFromList ls
+  TFun  _ _ TDyn TDyn -> return $ NFGType GFunc
   TFun  _ s t1 t2 -> ask >>= \(penv, aenv) -> return $ NFFunc $ FuncType penv aenv s t1 t2
+  TPair _ _ TDyn TDyn -> return $ NFGType GPair
   TPair _ s t1 t2 -> ask >>= \(penv, aenv) -> return $ NFPair $ FuncType penv aenv s t1 t2
   TCase exp labels -> interpret' exp >>= \(VLabel l) ->
     let entry = find (\(l', _) -> l == l') labels
@@ -229,10 +227,7 @@ evalType = \case
   t -> throw $ TypeNotImplementedException t
 
 reduceCast :: Value -> NFType -> NFType -> Maybe Value
-reduceCast v t1 t2 = castIsValue v t1 t2
-                 <|> reduceCast' v t1' t2'
-  where t1' = packGType t1
-        t2' = packGType t2
+reduceCast v t1 t2 = castIsValue v t1 t2 <|> reduceCast' v t1 t2
 
 -- Cast-Is-Value: return correct value if arguments already form a value
 castIsValue :: Value -> NFType -> NFType -> Maybe Value
@@ -284,33 +279,14 @@ reducePairCast (VPair v w) (NFPair (FuncType penv aenv _ t1 t2)) (NFPair (FuncTy
 reducePairCast _ _ _ = return Nothing
 
 equalsType :: NFType -> GType -> Bool
-equalsType NFUnit GUnit = True
-equalsType (NFLabel ls1) (GLabel ls2) = ls1 == ls2
 equalsType (NFFunc (FuncType _ _ _ TDyn TDyn)) GFunc = True
 equalsType (NFPair (FuncType _ _ _ TDyn TDyn)) GPair = True
 equalsType (NFGType gt1) gt2 = gt1 == gt2
-equalsType NFNat GNat = True
-equalsType (NFNatLeq n1) (GNatLeq n2) = n1 == n2
 equalsType _ _ = False
 
 matchType :: NFType -> Maybe GType
 matchType = \case
-  NFUnit -> Just GUnit
-  NFLabel ls -> Just $ GLabel ls
   NFFunc FuncType {} -> Just GFunc
   NFPair FuncType {} -> Just GPair
   NFGType gt -> Just gt
-  NFNat -> Just GNat
-  NFNatLeq n -> Just $ GNatLeq n
   _ -> Nothing
-
-packGType :: NFType -> NFType
-packGType = \case
-  NFUnit -> NFGType GUnit
-  NFLabel ls -> NFGType $ GLabel ls
-  NFFunc (FuncType _ _ _ TDyn TDyn) -> NFGType GFunc
-  NFPair (FuncType _ _ _ TDyn TDyn) -> NFGType GPair
-  NFNat -> NFGType GNat
-  NFNatLeq n -> NFGType $ GNatLeq n
-  nfgt@(NFGType _) -> nfgt  -- avoid recursion
-  t -> t
