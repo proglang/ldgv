@@ -139,8 +139,8 @@ data GType
 instance Subtypeable GType where
   isSubtypeOf GUnit GUnit = True
   isSubtypeOf (GLabel ls1) (GLabel ls2) = ls1 `Set.isSubsetOf` ls2
-  isSubtypeOf (GFunc x) (GFunc x') = x == x'
-  isSubtypeOf (GPair x) (GPair x') = x == x'
+  isSubtypeOf (GFunc _) (GFunc _) = True
+  isSubtypeOf (GPair _) (GPair _) = True
   isSubtypeOf GNat GNat = True
   isSubtypeOf (GNatLeq _) GNat = True
   isSubtypeOf (GNatLeq n1) (GNatLeq n2) = n1 <= n2
