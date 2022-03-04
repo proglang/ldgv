@@ -86,10 +86,10 @@ eval = \case
     C.traceIO $ "Evaluating type " ++ show t1 ++ " to normal form " ++ show nft1
     nft2 <- evalType t2
     C.traceIO $ "Evaluating type " ++ show t2 ++ " to normal form " ++ show nft2
-    case (v, nft1, nft2) of
-      (pair@VPair {}, from@NFPair {}, to@NFPair {}) -> do
-        C.traceIO $ "Interpreting pair cast expression: Value(" ++ show pair ++ ") NFType(" ++ show from ++ ") NFType(" ++ show to ++ ")"
-        v' <- lift $ reducePairCast pair from to
+    case v of
+      VPair {} -> do
+        C.traceIO $ "Interpreting pair cast expression: Value(" ++ show v ++ ") NFType(" ++ show nft1 ++ ") NFType(" ++ show nft2 ++ ")"
+        v' <- lift $ reducePairCast v (toNFPair nft1) (toNFPair nft2)
         maybe (blame cast) return v'
       _ -> let v' = reduceCast v nft1 nft2 in maybe (blame cast) return (C.trace ("Cast reduction of " ++ show v ++ " : " ++ show nft1 ++ " => " ++ show nft2 ++ " results in value " ++ show v') v')
   Var s -> do
@@ -261,13 +261,20 @@ reduceCast' v NFDyn t = do
 reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing
 reduceCast' _ _ _ = Nothing
 
+toNFPair :: NFType -> NFType
+toNFPair (NFGType (GPair s)) = NFPair (FuncType [] [] s TDyn TDyn)
+toNFPair t = t
+
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
-reducePairCast (VPair v w) (NFPair (FuncType penv aenv _ t1 t2)) (NFPair (FuncType penv' aenv' _ t1' t2')) = do
-  v' <- reduceComponent v (penv, aenv, t1) (penv', aenv', t1')
-  C.traceIO $ "Reduce cast of left Value(" ++ show v ++ ") from NFType(" ++ show t1 ++ ") to NFType(" ++ show t1' ++ ") returning: " ++ show v'
-  w' <- reduceComponent w (penv, aenv, t2) (penv', aenv', t2')
-  C.traceIO $ "Reduce cast of right Value(" ++ show w ++ ") from NFType(" ++ show t2 ++ ") to NFType(" ++ show t2' ++ ") returning: " ++ show w'
-  return $ liftM2 VPair v' w'
+reducePairCast (VPair v w) (NFPair (FuncType penv aenv s t1 t2)) (NFPair (FuncType penv' aenv' s' t1' t2')) = do
+  mv' <- reduceComponent v (penv, aenv, t1) (penv', aenv', t1')
+  C.traceIO $ "Reduce cast of left Value(" ++ show v ++ ") from NFType(" ++ show t1 ++ ") to NFType(" ++ show t1' ++ ") returning: " ++ show mv'
+  case mv' of
+    Nothing -> return Nothing
+    Just v' -> do
+      mw' <- reduceComponent w ((s, v) : penv, aenv, t2) ((s', v') : penv', aenv', t2')
+      C.traceIO $ "Reduce cast of right Value(" ++ show w ++ ") from NFType(" ++ show t2 ++ ") to NFType(" ++ show t2' ++ ") returning: " ++ show mw'
+      return $ liftM2 VPair mv' mw'
   where
     reduceComponent :: Value -> (PEnv, NREnv, Type) -> (PEnv, NREnv, Type) -> IO (Maybe Value)
     reduceComponent v (penv, aenv, t) (penv', aenv', t') = do
