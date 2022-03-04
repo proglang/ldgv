@@ -64,7 +64,10 @@ labelsFromList :: [Label] -> LabelType
 labelsFromList = Set.fromList
 
 data FuncType = FuncType PEnv NREnv String S.Type S.Type
-  deriving (Show, Eq)
+  deriving Eq
+
+instance Show FuncType where
+  show (FuncType penv aenv s t1 t2) = "FuncType " ++ show s ++ " " ++ show t1 ++ " " ++ show t2
 
 -- | (Unit, Label, Int, Values of self-declared Data Types), Channels
 data Value
@@ -96,10 +99,10 @@ instance Show Value where
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
-    VFunc env s exp -> "VFunc " ++ show env ++ " " ++ show s ++ " " ++ show exp
+    VFunc env s exp -> "VFunc " ++ show s ++ " " ++ show exp
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
-    VRec env f x e1 e0 -> "VRec " ++ show env ++ " " ++ show f ++ " " ++ show x ++ " " ++ show e1 ++ " " ++ show e0
+    VRec env f x e1 e0 -> "VRec " ++ " " ++ show f ++ " " ++ show x ++ " " ++ show e1 ++ " " ++ show e0
 
 class Subtypeable t where
   isSubtypeOf :: t -> t -> Bool
@@ -127,8 +130,8 @@ instance Subtypeable NFType where
 data GType
   = GUnit
   | GLabel LabelType
-  | GFunc -- Π(x: *) *
-  | GPair -- Σ(x: *) *
+  | GFunc String -- Π(x: *) *
+  | GPair String -- Σ(x: *) *
   | GNat
   | GNatLeq Integer
   deriving (Show, Eq)
@@ -136,8 +139,8 @@ data GType
 instance Subtypeable GType where
   isSubtypeOf GUnit GUnit = True
   isSubtypeOf (GLabel ls1) (GLabel ls2) = ls1 `Set.isSubsetOf` ls2
-  isSubtypeOf GFunc GFunc = True
-  isSubtypeOf GPair GPair = True
+  isSubtypeOf (GFunc x) (GFunc x') = x == x'
+  isSubtypeOf (GPair x) (GPair x') = x == x'
   isSubtypeOf GNat GNat = True
   isSubtypeOf (GNatLeq _) GNat = True
   isSubtypeOf (GNatLeq n1) (GNatLeq n2) = n1 <= n2

@@ -81,7 +81,7 @@ eval = \case
   cast@(Cast e t1 t2) -> do
     C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
-    C.traceIO ("Evaluating expression " ++ show e ++ " to value " ++ show v)
+    C.traceIO ("Evaluating expression " ++ pshow e ++ " to value " ++ show v)
     nft1 <- evalType t1
     C.traceIO $ "Evaluating type " ++ show t1 ++ " to normal form " ++ show nft1
     nft2 <- evalType t2
@@ -91,7 +91,7 @@ eval = \case
         C.traceIO $ "Interpreting pair cast expression: Value(" ++ show pair ++ ") NFType(" ++ show from ++ ") NFType(" ++ show to ++ ")"
         v' <- lift $ reducePairCast pair from to
         maybe (blame cast) return v'
-      _ -> maybe (blame cast) return (reduceCast v nft1 nft2)
+      _ -> let v' = reduceCast v nft1 nft2 in maybe (blame cast) return (C.trace ("Cast reduction of " ++ show v ++ " : " ++ show nft1 ++ " => " ++ show nft2 ++ " results in value " ++ show v') v')
   Var s -> do
     (penv, _) <- ask
     maybe (throw $ LookupException s) (liftIO . pure) (lookup s penv)
@@ -144,9 +144,9 @@ interpretApp e (VFuncCast v (FuncType penv aenv s t1 t2) (FuncType penv' aenv' s
       C.traceIO ("Attempting function cast in application (" ++ show v ++ ") with (" ++ show w' ++ ")")
       nft1  <- R.runReaderT (evalType t1)  (penv, aenv)
       nft1' <- R.runReaderT (evalType t1') (penv', aenv')
-      w <- maybe (blame e) return (reduceCast w' nft1 nft1')
+      w <- maybe (blame e) return (reduceCast w' nft1' nft1)
       nft2' <- R.runReaderT (evalType t2') (extendEnv s' w' (penv', aenv'))
-      nft2  <- R.runReaderT (evalType t2) (extendEnv s w (penv, aenv))
+      nft2  <- R.runReaderT (evalType t2)  (extendEnv s  w  (penv, aenv))
       u  <- R.runReaderT (interpretApp e v w) env0
       u' <- maybe (blame e) return (reduceCast u nft2 nft2')
       C.traceIO ("Function cast in application results in: " ++ show u')
@@ -217,9 +217,9 @@ evalType = \case
         Just (VType t)  -> evalType t
         _ -> throw $ LookupException s
   TLab ls -> return $ NFGType $ GLabel $ labelsFromList ls
-  TFun  _ _ TDyn TDyn -> return $ NFGType GFunc
+  TFun  _ s TDyn TDyn -> return $ NFGType $ GFunc s
   TFun  _ s t1 t2 -> ask >>= \(penv, aenv) -> return $ NFFunc $ FuncType penv aenv s t1 t2
-  TPair _ _ TDyn TDyn -> return $ NFGType GPair
+  TPair _ s TDyn TDyn -> return $ NFGType $ GPair s
   TPair _ s t1 t2 -> ask >>= \(penv, aenv) -> return $ NFPair $ FuncType penv aenv s t1 t2
   TCase exp labels -> interpret' exp >>= \(VLabel l) ->
     let entry = find (\(l', _) -> l == l') labels
@@ -231,21 +231,22 @@ reduceCast v t1 t2 = castIsValue v t1 t2 <|> reduceCast' v t1 t2
 
 -- Cast-Is-Value: return correct value if arguments already form a value
 castIsValue :: Value -> NFType -> NFType -> Maybe Value
-castIsValue v t NFDyn = do
-  gt <- matchType t
-  if t `equalsType` gt then Just $VDynCast v gt else Nothing
-castIsValue v (NFFunc ft1) (NFFunc ft2) = Just $ VFuncCast v ft1 ft2
+castIsValue v (NFGType gt) NFDyn = Just $ VDynCast v gt
+castIsValue v (NFFunc ft1)        (NFFunc ft2)        = Just $ VFuncCast v ft1                          ft2
+castIsValue v (NFFunc ft1)        (NFGType (GFunc y)) = Just $ VFuncCast v ft1                          (FuncType [] [] y TDyn TDyn)
+castIsValue v (NFGType (GFunc x)) (NFFunc ft2)        = Just $ VFuncCast v (FuncType [] [] x TDyn TDyn) ft2
+castIsValue v (NFGType (GFunc x)) (NFGType (GFunc y)) = Just $ VFuncCast v (FuncType [] [] x TDyn TDyn) (FuncType [] [] y TDyn TDyn)
 castIsValue _ _ _ = Nothing
 
 reduceCast' :: Value -> NFType -> NFType -> Maybe Value
-reduceCast' v t NFDyn = maybe castDynDyn factorLeft (matchType t)
-  where
-    castDynDyn = if t `isSubtypeOf` NFDyn then Just v else Nothing  -- Cast-Dyn-Dyn
-    factorLeft gt = if let typeq = t `equalsType` gt in C.trace (show t ++ " == " ++ show gt ++ " = " ++ show typeq) (not typeq)
-      then reduceCast v t (NFGType gt) >>= \v' -> Just $ VDynCast v' gt -- Factor-Left
-      else castDynDyn
+reduceCast' v t NFDyn =
+  if t `isSubtypeOf` NFDyn
+  then Just v --Cast-Dyn-Dyn
+  else do
+    gt <- matchType t
+    v' <- reduceCast v t (NFGType gt)
+    Just $ C.trace "Factor-Left!" (VDynCast v' gt)
 reduceCast' _ _ NFBot = Nothing -- Cast-Bot
-reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub
 reduceCast' (VDynCast v gt1) NFDyn (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Collapse/Cast-Collide
 reduceCast' v NFDyn t = do
   gt <- matchType t
@@ -254,14 +255,11 @@ reduceCast' v NFDyn t = do
   if C.trace (show t ++ " == " ++ show gt ++ " = " ++ show typeq) (not typeq) then do
     v'  <- reduceCast v NFDyn nfgt
     v'' <- reduceCast v' nfgt t
-    Just v''  -- Factor-Right
+    Just $ C.trace "Factor-Right!" v''  -- Factor-Right
   else
     Nothing
-reduceCast' v t1 t2 = do
-  gt1 <- matchType t1
-  gt2 <- matchType t2
-  -- TODO: What do with gt1 and gt2?
-  if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Sub/Cast-Fail
+reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing
+reduceCast' _ _ _ = Nothing
 
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
 reducePairCast (VPair v w) (NFPair (FuncType penv aenv _ t1 t2)) (NFPair (FuncType penv' aenv' _ t1' t2')) = do
@@ -279,14 +277,14 @@ reducePairCast (VPair v w) (NFPair (FuncType penv aenv _ t1 t2)) (NFPair (FuncTy
 reducePairCast _ _ _ = return Nothing
 
 equalsType :: NFType -> GType -> Bool
-equalsType (NFFunc (FuncType _ _ _ TDyn TDyn)) GFunc = True
-equalsType (NFPair (FuncType _ _ _ TDyn TDyn)) GPair = True
+equalsType (NFFunc (FuncType _ _ x TDyn TDyn)) (GFunc x') = x == x'
+equalsType (NFPair (FuncType _ _ x TDyn TDyn)) (GPair x') = x == x'
 equalsType (NFGType gt1) gt2 = gt1 == gt2
 equalsType _ _ = False
 
 matchType :: NFType -> Maybe GType
 matchType = \case
-  NFFunc FuncType {} -> Just GFunc
-  NFPair FuncType {} -> Just GPair
+  NFFunc (FuncType _ _ x _ _) -> Just $ GFunc x
+  NFPair (FuncType _ _ x _ _) -> Just $ GPair x
   NFGType gt -> Just gt
   _ -> Nothing
