@@ -92,6 +92,11 @@ spec = do
                 (Lit (LLab "'T")))
           Nothing)
         (VLabel "'T")
+    it "interprets application of x='F,y=(not: (b:Bool) -> Bool => *) on example function f4" $
+      shouldInterpretInPEnvTo [boolType, notFunc]
+        (DFun "f4" [] (App (App f4 (Lit $ LLab "'F")) (Cast (Var "not") (TFun MMany "b" (TName False "Bool") (TName False "Bool")) TDyn))
+          Nothing)
+        (VLabel "'T")
     it "interprets cast of boolean pair from Bool to OnlyTrue" $
       shouldThrowCastException [boolType, onlyTrueType]
       (DFun "paircast" []

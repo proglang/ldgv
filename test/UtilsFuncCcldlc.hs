@@ -61,6 +61,13 @@ f4' = Lam MMany "x" (TName False "Bool")
         [("'T",App (App (Cast (Var "y") TDyn (TFun MMany "a" (TName False "Bool") (TFun MMany "b" (TName False "Bool") (TName False "Bool")))) (Var "z")) (Var "z"))
         ,("'F",App (Cast (Var "y") TDyn (TFun MMany "b" (TName False "Bool") (TName False "Bool"))) (Var "z"))])))
 
+-- val f4 = 𝜆(x: Bool) 𝜆(y: *) case x {'T: (y: * => (a:Bool) -> (b:Bool) -> Bool) x x, 'F: (y: * => (a:Bool) -> Bool) x}
+f4 = Lam MMany "x" (TName False "Bool")
+  (Lam MMany "y" TDyn
+    (Case (Var "x")
+      [("'T",App (App (Cast (Var "y") TDyn (TFun MMany "a" (TName False "Bool") (TFun MMany "b" (TName False "Bool") (TName False "Bool")))) (Var "x")) (Var "x"))
+      ,("'F",App (Cast (Var "y") TDyn (TFun MMany "a" (TName False "Bool") (TName False "Bool"))) (Var "x"))]))
+
 -- rec f ( x . (fn (acc : Int) fn (x : Int) f (acc + x)) ) (fn (acc : Int) acc)
 sumfRec = Rec "f" "x"
   (Lam MMany "acc" TInt
