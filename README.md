@@ -1,16 +1,22 @@
 # ldgv - Label dependent session types
 
 This repository contains an implementation of a frontend (parser and
-type checker) and a backend for LDGV.
+type checker), an interpreter and a C backend for LDGV.
+
+LDGV stands for _Label Dependency_ an _Gay & Vasconcelos_, the authors of multiple papers about _Session Types_. It mainly implements [Label-Dependent Session Types](https://doi.org/10.1145/3371135). It additionally includes an implementation of the _Cast Calculus_ from [Label-Dependent Lambda Calculus and Gradual Typing](https://doi.org/10.1145/3485485).
 
 The syntax is described in `syntax.txt`. The directory `examples/`
 contains some examples, source files end in `.ldgv`.
 
+Compilation is done via [Stack](https://docs.haskellstack.org/), which you need to have installed. You may either compile and run LDGV by `stack run ldgv` (**recommended**). Or you install LDGV by `stack install`, essentially copying the executable `ldgv` to your `$PATH`.
+
 ## Interpreter
 
-There are two ways to run the interpreter, via the [command
-line](#command-line) and via a local [web page](#web-page).
+Running the interpreter is possible via its command line interface
 
+```stack run ldgv -- interpret```
+
+resp. `ldgv interpret`.
 
 ## C backend
 
@@ -74,51 +80,14 @@ properly curried, the top level symbol must have a type signature matching
 `LDST_fp0_t` and the name must match the name transformations pointed out
 above. (NB: this allows to subvert the type system, in all good and bad ways.)
 
-
-## Building
-
-### Command Line
-
-To build the command line program the Haskell build tool `cabal` is required with GHC ≥8.6.1.
-
-```
-cabal run :exe:ldgv-exe -- --help
-```
-
-builds and runs the executable.
-
-### Web Page
-
-A prebuilt version is available in the `browser-support` directory.
-
-To build the webpage the [nix package manager](https://nixos.org/nix/) is
-required, preferably with a binary cache set up as described
-[here](https://github.com/obsidiansystems/obelisk/blob/master/README.md).
-
-```
-nix-build -A ghcjs.ldgv
-```
-
-builds the project. Afterwards there is a `index.html` in `results/bin/ldgv.exe`.
-
-Incremental builds are not supported by `nix-build`, instead building via
-`nix-shell` and `cabal` is possible:
-
-1. Enter the `nix-shell`, this provides you with `cabal` and `ghcjs`:
-
-      ```
-      nix-shell -A shells.ghcjs
-      ```
-
-2. Use `cabal` inside the new shell, with a custom `--project-file`:
-
-      ```
-      cabal --project-file=cabal-ghcjs.project v2-build
-      ```
-
-
 ## Testing
 
+You can run the full test suite by:
+
 ```
-cabal test
+stack test
 ```
+
+## Web Page (Deprecated)
+
+There was a web version availabe, using [ghcjs](https://github.com/ghcjs/ghcjs) and the [reflex-platform](https://github.com/reflex-frp/reflex-platform). Because of some regression, presumably in some dependency of _reflex_, it is currently not available. Code and artifacts were factored out and moved to branch [browser-support](https://github.com/leyhline/ldgv/tree/browser-support).

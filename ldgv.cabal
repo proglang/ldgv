@@ -9,7 +9,8 @@ version:        0.0.1
 synopsis:       Frontend, interpreter and C backend for LDGV/LDST
 homepage:       https://github.com/proglang/ldgv#readme
 bug-reports:    https://github.com/proglang/ldgv/issues
-author:         Nils Hagner (web frontend, interpreter),
+author:         Thomas Leyh (CCLDLC implementation),
+                Nils Hagner (web frontend, interpreter),
                 Janek Spaderna (command line fronted, C backend),
                 Peter Thiemann (parser, typechecker)
 maintainer:     thiemann@informatik.uni-freiburg.de
@@ -74,7 +75,7 @@ library
     , validation-selective
   default-language: Haskell2010
 
-executable ldgv-exe
+executable ldgv
   main-is: Main.hs
   other-modules:
       Output
