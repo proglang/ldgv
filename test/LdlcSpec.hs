@@ -9,7 +9,7 @@ import Syntax
 import Kinds
 
 spec :: Spec
-spec =
+spec = do
   describe "LDGV parser for section2 examples" $ do
     it "type declaration for bool" $ do
       "type Bool : ~un = {'T, 'F}"
@@ -33,3 +33,12 @@ spec =
               [("'T",Math (Add (Lit (LNat 17)) (Var "y")))
               ,("'F",App (Var "not") (Var "y"))])))
         Nothing
+  describe "string parsing" $ do
+    it "parses a single string" $
+      "val str = \"foo bar\""
+      `shouldParseDecl`
+      DFun "str" [] (Lit (LString "foo bar")) Nothing
+    it "parses an empty string" $
+      "val str = \"\""
+      `shouldParseDecl`
+      DFun "str" [] (Lit (LString "")) Nothing

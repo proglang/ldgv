@@ -175,6 +175,7 @@ commonGround :: Type -> Maybe GHead
 commonGround TUnit = Just GUnit
 commonGround TInt = Just GInt
 commonGround TDouble = Just GDouble
+commonGround TString = Just GString
 commonGround TBot = Nothing
 commonGround TDyn = Just GDyn
 commonGround TNat = Just GNat
@@ -227,6 +228,7 @@ eqvtype' tenv _ TDyn = return Kunit
 eqvtype' tenv TUnit TUnit = return Kunit
 eqvtype' tenv TInt TInt = return Kunit
 eqvtype' tenv TDouble TDouble = return Kunit
+eqvtype' tenv TString TString = return Kunit
 eqvtype' tenv TNat TNat = return Kunit
 eqvtype' tenv (TLab ls1) (TLab ls2) | sort ls1 == sort ls2 = return Kidx
 eqvtype' tenv s@(TFun sm sx sin sout) t@(TFun tm tx tin tout) =
@@ -374,6 +376,7 @@ subtype' tenv _ TDyn = return Kunit
 subtype' tenv TUnit TUnit = return Kunit
 subtype' tenv TInt TInt = return Kunit
 subtype' tenv TDouble TDouble = return Kunit
+subtype' tenv TString TString = return Kunit
 subtype' tenv TNat TNat = return Kunit
 subtype' tenv TNat TInt = return Kunit
 subtype' tenv (TLab ls1) (TLab ls2) | all (`elem` ls2) ls1 = return Kidx

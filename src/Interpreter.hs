@@ -166,6 +166,7 @@ interpretLit = \case
   LNat n -> VInt n
   LLab l -> VLabel l
   LDouble d -> VDouble d
+  LString s -> VString s
   LUnit  -> VUnit
 
 interpretMathOp :: Exp -> Exp -> (Int -> Int -> Int) -> (Double -> Double -> Double) -> InterpretM Value
@@ -193,6 +194,7 @@ evalType = \case
   TUnit -> return $ NFGType GUnit
   TInt -> return NFInt
   TDouble -> return NFDouble
+  TString -> return NFString
   TBot -> return NFBot
   TDyn -> return NFDyn
   TNat -> return $ NFGType GNat

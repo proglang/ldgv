@@ -50,6 +50,7 @@ instance Pretty Type where
   pretty TBot = pretty "_|_"
   pretty TDyn = pretty "*"
   pretty TDouble = pretty "Double"
+  pretty TString = pretty "String"
     -- the bool indicates whether the type needs to be dualized
   pretty (TName b s) = (if b then pretty "~" else mempty) <> pretty s
   pretty (TVar b s) = (if b then pretty "~" else mempty) <> brackets (pretty s)
@@ -135,6 +136,7 @@ instance Pretty Literal where
     LInt i -> pretty i
     LNat n -> pretty n
     LDouble d -> pretty d
+    LString s -> pretty s
     LLab s -> pretty "`" <> plab s
     LUnit  -> pretty "()"
 

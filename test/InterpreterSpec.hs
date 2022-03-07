@@ -10,6 +10,16 @@ import UtilsFuncCcldlc
 
 spec :: Spec
 spec = do
+  describe "LDGV interpretation of string expression and type" $ do
+    it "interpret empty string literal" $
+      DFun "str" [] (Lit (LString "")) Nothing
+      `shouldInterpretTo`
+      VString ""
+    it "interpret simple string literal" $
+      DFun "str" [] (Lit (LString "foo bar")) Nothing
+      `shouldInterpretTo`
+      VString "foo bar"
+
   describe "LDGV interpretation of single arithmetic declarations" $ do
     it "compares integer and double value" $
       VInt 42 == VDouble 42.0 `shouldBe` False
@@ -149,7 +159,7 @@ spec = do
       VInt 0
     it "interprets application sumf 1" $
       DFun "sumf" []
-        (App (App (App (App sumfRec (Lit $ LInt 1)) (Lit $ LInt 13)) (Lit $ LInt 0)) (Lit $ LInt 0))
+        (App (App (App sumfRec (Lit $ LInt 1)) (Lit $ LInt 1)) (Lit $ LInt 1))
         Nothing
       `shouldInterpretTo`
-      VInt 34
+      VInt 2

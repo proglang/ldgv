@@ -48,6 +48,7 @@ data Literal
   | LDouble !Double
   | LLab !String
   | LUnit
+  | LString !String
   deriving (Show, Eq)
 
 data Type
@@ -57,6 +58,7 @@ data Type
   | TBot
   | TDyn
   | TNat
+  | TString
   | TNatLeq Integer
   | TNatRec Exp Type TIdent Type
   | TVar Bool TIdent
@@ -175,6 +177,7 @@ instance Freevars Type where
   fv TUnit = Set.empty
   fv TInt = Set.empty
   fv TDouble = Set.empty
+  fv TString = Set.empty
   fv TBot = Set.empty
   fv TDyn = Set.empty
   fv (TName b tn) = Set.empty
@@ -270,6 +273,8 @@ instance Substitution Type where
     ty
   subst x exp ty@TDyn =
     ty
+  subst x exp ty@TString =
+    ty
   -- rationale: a type abbreviation has no free variables
   subst x exp ty@(TName b tid) =
     ty
@@ -321,6 +326,7 @@ single x tyx ty =
     TDouble -> TDouble
     TBot -> TBot
     TDyn -> TDyn
+    TString -> TString
     TName b i -> TName b i
     TVar b i -> TVar b i
     TLab labs -> TLab labs
@@ -345,6 +351,7 @@ instance Eq Type where
   TDouble == TDouble = True
   TBot  == TBot  = True
   TDyn == TDyn   = True
+  TString == TString = True
   TName b s == TName b' s' = b == b' && s == s'
   TVar b s == TVar b' s' = b == b' && s == s'
   TLab labs == TLab labs'  = sort labs == sort labs'
@@ -404,6 +411,7 @@ tsubst tn tyn ty = ts ty
         TBot -> TBot
         TDyn -> TDyn
         TNat -> TNat
+        TString -> TString
         TNatRec e tz ti tsu ->
           TNatRec e (ts tz) ti (if ti == tn then tsu else ts tsu)
         TLab _ -> ty

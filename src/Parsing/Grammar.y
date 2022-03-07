@@ -24,6 +24,7 @@ import qualified Parsing.Tokens as T
     in      { T _ T.In }
     int     { T _ (T.Int $$) }
     double  { T _ (T.Double $$) }
+    string  { T _ (T.Str $$) }
     var     { T _ (T.Var $$) }
     case    { T _ T.Case }
     fst     { T _ T.Fst }
@@ -50,6 +51,7 @@ import qualified Parsing.Tokens as T
     Bot     { T _ T.TBot }
     Int     { T _ T.TInt }
     Nat     { T _ T.TNat }
+    String  { T _ T.TString }
     Double  { T _ T.TDouble }
     natrec  { T _ T.NatRec }
     new_natrec { T _ T.NewNatRec }
@@ -81,6 +83,7 @@ import qualified Parsing.Tokens as T
     ']'     { T _ (T.Sym ']') }
     '!'     { T _ (T.Sym '!') }
     '?'     { T _ (T.Sym '?') }
+    '"'     { T _ (T.Sym '"') }
 
 %right LET
 %nonassoc int double '(' var lab case natrec '()' lam rec fst snd new fork
@@ -128,6 +131,7 @@ Of : of {()} | {()}
 AExp
     : int                    { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
     | double                 { Lit $ LDouble $1 }
+    | string                 { Lit $ LString (trimQuote $1) }
     | var                    { Var $1 }
     | lab                    { Lit $ LLab $1 }
     | '(' Exp ')'            { $2 }
@@ -142,6 +146,7 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | '-' Exp %prec NEG     { Math $ Neg $2 }
     | int                   { Lit $ if $1 < 0 then LInt $1 else LNat $1 }
     | double                { Lit $ LDouble $1 }
+    | string                { Lit $ LString (trimQuote $1) }
     | Exp ':' Typ '=>' Typ  { Cast $1 $3 $5 }
     | var                   { Var $1 }
     | lab                   { Lit $ LLab $1 }
@@ -180,6 +185,7 @@ ATyp : Unit                           { TUnit }
     | Int                             { TInt }
     | Nat                             { TNat }
     | Double                          { TDouble }
+    | String                          { TString }
     | Bot                             { TBot }
     | '*'                             { TDyn }
     | tid                             { TName False $1 }
@@ -215,4 +221,7 @@ parseError (T (T.AlexPn _ line column) t) = do
   T.alexError err
 
 showToken t = "›" ++ show t ++ "‹"
+
+trimQuote :: String -> String
+trimQuote (_:xs) = init xs
 }

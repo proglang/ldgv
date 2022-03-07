@@ -55,6 +55,7 @@ tokens :-
   Bot                                   { tok $ const TBot }
   Unit                                  { tok $ const TUnit }
   Int                                   { tok $ const TInt }
+  String                                { tok $ const TString }
   natrec                                { tok $ const NatRec }
   new_natrec                            { tok $ const NewNatRec }
   Nat                                   { tok $ const TNat }
@@ -75,6 +76,7 @@ tokens :-
   [\=\+\-\*\/\(\)\:\!\?\{\}\[\]\<\>]    { tok $ Sym . head }
   "'" [$alpha $digit]+                  { tok $ Lab }
   "~" $alpha+                           { tokKind }
+  \"[^\"]*\"                            { tok $ Str }
   $lower [$alpha $digit \_ \']*         { tok $ Var }
   $upper [$alpha $digit \_ \']*         { tok $ TID }
 
@@ -108,9 +110,11 @@ data Token =
         Lab String      |
         Var String      |
         TID String      |
+        Str String      |
         Unit            |
         TBot            |
         TUnit           |
+        TString         |
         TInt            |
         TNat            |
         TDouble         |

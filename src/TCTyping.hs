@@ -27,6 +27,7 @@ kiSynth te (TName b tn) = do
 kiSynth te TUnit = return (Kunit, MMany)
 kiSynth te TInt  = return (Kun, MMany)
 kiSynth te TDouble = return (Kun, MMany)
+kiSynth te TString = return (Kun, MMany)
 kiSynth te TNat  = return (Kun, MMany)
 kiSynth te TBot  = return (Kunit, MMany) -- this kind is compatible with everything
 kiSynth te TDyn  = return (Kidx, MMany)
@@ -324,6 +325,7 @@ tySynthLit = \case
   LInt _ -> TInt
   LNat _ -> TNat
   LDouble _ -> TDouble
+  LString _ -> TString
   LLab l -> TLab [l]
   LUnit  -> TUnit
 

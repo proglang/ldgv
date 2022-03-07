@@ -75,6 +75,7 @@ data Value
   | VLabel String
   | VInt Int
   | VDouble Double
+  | VString String
   -- we have two channels, one for reading and one for writing to the other
   -- end, so we do not read our own written values
   | VChan (C.Chan Value) (C.Chan Value)
@@ -94,6 +95,7 @@ instance Show Value where
     VLabel s -> "VLabel " ++ s
     VInt i -> "VInt " ++ show i
     VDouble d -> "VDouble " ++ show d
+    VString s -> "VString \"" ++ show s ++ "\""
     VChan _ _ -> "VChan"
     VSend v -> "VSend (" ++ show v ++ ")"
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
@@ -115,6 +117,7 @@ data NFType
   | NFPair FuncType  -- (ρ, α, Σ(x: A) B)
   | NFInt
   | NFDouble
+  | NFString
   | NFGType GType -- every ground type is also a type in normal form
   deriving (Show, Eq)
 
@@ -124,6 +127,7 @@ instance Subtypeable NFType where
   isSubtypeOf NFDyn NFDyn = True
   isSubtypeOf NFInt NFInt = True
   isSubtypeOf NFDouble NFDouble = True
+  isSubtypeOf NFString NFString = True
   isSubtypeOf (NFGType gt1) (NFGType gt2) = gt1 `isSubtypeOf` gt2
   isSubtypeOf _ _ = False
 
