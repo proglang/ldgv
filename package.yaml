@@ -20,6 +20,13 @@ ghc-options:
 - -Wno-unused-do-bind
 - -Wno-unused-matches
 
+extra-doc-files:
+- examples/*.ldgv
+- examples/*.ccldgv
+- examples/*.gldgv
+- examples/*.txt
+- examples/*.out
+
 data-files:
 - c-support/runtime/*.h
 - c-support/runtime/*.c

@@ -1,3 +1,6 @@
+-- Example of Label-Dependent Session Types
+-- From section 2.3
+
 type Close : ~unit = Unit
 
 type Node : ~un =
@@ -23,7 +26,7 @@ val recvList (c : dualof NodeC) : Node =
 val recvListb (c : dualof NodeC) : Node =
   let <tag,c> = recv c in
   let <payload,c> = recv c in
-  <tag = tag, 
+  <tag = tag,
     case tag of
     { 'Empty : payload
     , 'Node  : <elem = payload , recvListb c>

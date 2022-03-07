@@ -1,3 +1,6 @@
+-- Subtyping example for Label-Dependent Lambda Calculus
+-- Typechecks subtyping relations between case and function types
+
 type BOOL : ~un = {'True,'False}
 
 type T1 : ~un = (b : BOOL) ->

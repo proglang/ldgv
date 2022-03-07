@@ -1,3 +1,8 @@
+-- Example of Label-Dependent Lambda Calculus
+-- (no Session Types)
+-- Typechecks and interprets natrec used for
+-- calculating the sum over n numbers
+
 type SUMF : ~un =
      (n : Nat) ->
      natrec n
@@ -18,3 +23,5 @@ val sumf ( n : Nat) =
 val r0 = sumf 0
 val r1 = sumf 1 42
 val r2 = sumf 2 17 4
+
+val main = sumf 5 1 2 3 4 5

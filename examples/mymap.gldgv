@@ -1,11 +1,15 @@
-type Bool = {'True, 'False}
+-- Example of Gradual Label-Dependent Lambda Calculus
+-- Example of typed map, see section 2.2
+-- (Label-Dependent Lambda Calculus and Gradual Typing, 2021)
 
-type A = Unit
-type B = Unit
-type ListA = Int
-type ListB = Double
-type ArrayA = String
-type ArrayB = Unit
+type Bool : ~un = {'True, 'False}
+
+type A : ~unit = Unit
+type B : ~unit = Unit
+type ListA : ~un = Int
+type ListB : ~un = Double
+type ArrayA : ~un = String
+type ArrayB : ~un = Unit
 
 val arraymap : (f : (x:A) -> B) -> ((xs:ArrayA) -> ArrayB)
 val listmap : (f : (x:A) -> B) -> (xs:ListA) -> ListB
@@ -30,15 +34,16 @@ val dyn3map = fn (b : *) fn (f : *) fn (x : *)
 val mymap2 = fn (b : Bool) fn (f : (z:A) -> B) fn (x : *)
     case b {'True: arraytolist (arraymap f x), 'False: arrayoflist (listmap f x)}
 
-val typedmap2 = fn (b : Bool) fn (f : (z:A) -> B) fn (x : case b {'True: ArrayA, `False: ListA})
+val typedmap2 = fn (b : Bool) fn (f : (z:A) -> B) fn (x : case b {'True: ArrayA, 'False: ListA})
     case b {'True: arraytolist (arraymap f x), 'False: arrayoflist (listmap f x)}
 
 val checkedmap2 :
-    		(b : Bool) ->
+  (b : Bool) ->
 		(f : (z:A) -> B) ->
-		(x : case b {'True: ArrayA, `False: ListA}) ->
-		=
-    fn (b : Bool) fn (f : (z:A) -> B) fn (x : case b {'True: ArrayA, `False: ListA})
-    case b {'True: arraytolist (arraymap f x), 'False: arrayoflist (listmap f x)}
-
-
+      (x : case b {'True: ArrayA, 'False: ListA}) ->
+        (case b {'True: ListA, 'False: ArrayA})
+val checkedmap2 =
+  fn (b : Bool)
+    fn (f : (z:A) -> B)
+      fn (x : case b {'True: ArrayA, 'False: ListA})
+        case b {'True: arraytolist (arraymap f x), 'False: arrayoflist (listmap f x)}

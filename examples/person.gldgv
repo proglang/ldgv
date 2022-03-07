@@ -1,8 +1,10 @@
-type BOOL = {'True, 'False}
+-- Example of Gradual Label-Dependent Lambda Calculus
 
-type PERSON = (x : {'Name, 'Age, 'Flag}) -> case x of {'Name: Int, 'Age: Nat, 'Flag: BOOL}
+type BOOL : ~un = {'True, 'False}
 
-type PERSONX = (x : *) -> case x of {'Name: Int, 'Age: Nat, 'Flag: BOOL}
+type PERSON : ~un = (x : {'Name, 'Age, 'Flag}) -> case x of {'Name: Int, 'Age: Nat, 'Flag: BOOL}
+
+type PERSONX : ~un = (x : *) -> case x of {'Name: Int, 'Age: Nat, 'Flag: BOOL}
 
 val jim (x : {'Name,'Age, 'Flag}) =
   case x of

@@ -1,3 +1,10 @@
-val sumf_rec = rec f ( x . (fn (acc : Int) fn (x : Int) f (acc + x)) ) (fn (acc : Int) acc)
+-- Example of untyped recursion over natural numbers using rec
+-- sumf_rec n m calculates the sum over n numbers starting with m
 
-val main = sumf_rec
+val sumf_rec =
+  rec
+    f
+    (x . (fn (acc : Int) fn (x : Int) f (acc + x)))
+    (fn (acc : Int) acc)
+
+val main = sumf_rec 0 5

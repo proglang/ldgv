@@ -1,4 +1,4 @@
-cabal-version: 1.12
+cabal-version: 1.18
 
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
@@ -18,6 +18,30 @@ copyright:      2019-2021 Chair of Programming Languages, Uni Freiburg
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
+extra-doc-files:
+    examples/add.ldgv
+    examples/casesub.ldgv
+    examples/casetest.ldgv
+    examples/depsum.ldgv
+    examples/natsum.ldgv
+    examples/natsum2-new.ldgv
+    examples/natsum2-rec.ldgv
+    examples/natsum2.ldgv
+    examples/node.ldgv
+    examples/noderec.ldgv
+    examples/simple.ldgv
+    examples/simple_recursion.ldgv
+    examples/tclient.ldgv
+    examples/tserver.ldgv
+    examples/casts.ccldgv
+    examples/depcast.ccldgv
+    examples/mymap.gldgv
+    examples/person.gldgv
+    examples/example-inputs.txt
+    examples/type-equivalence.txt
+    examples/node.out
+    examples/tclient.out
+    examples/tserver.out
 data-files:
     c-support/runtime/LDST.h
     c-support/runtime/LDST_debug.h

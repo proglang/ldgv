@@ -405,6 +405,8 @@ subtype' tenv (TRecv sx sin sout) (TRecv tx tin tout) =
                      (subst sx (Var nx) sout)
                      (subst tx (Var nx) tout)
      return Kssn
+subtype' tenv (TCase (Cast e t1 t2) cases) (TCase (Cast e' t1' t2') cases') = do
+  return Kunit  -- TODO: Implement fig. 17 (LDLC and Gradual Typing)
 subtype' tenv (TCase val cases) ty2
   | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
   do ty1 <- lablookup lll cases
