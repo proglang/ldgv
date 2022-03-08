@@ -4,7 +4,7 @@
 val sumf_rec =
   rec
     f
-    (x . (fn (acc : Int) fn (x : Int) f (acc + x)))
+    (n1 . (fn (acc : Int) fn (x : Int) f n1 (acc + x)))
     (fn (acc : Int) acc)
 
 val main = sumf_rec 5 0 1 2 3 4 5

@@ -146,12 +146,12 @@ spec = do
     it "interprets sumf rec expression to itself" $
       DFun "sumf" [] sumfRec Nothing
       `shouldInterpretTo`
-      VRec [] "f" "x"
+      VRec [] "f" "n1"
         (Lam MMany "acc" TInt
-          (Lam MMany "x" TInt (App (Var "f") (Math (Add (Var "acc") (Var "x"))))))
+          (Lam MMany "x" TInt (App (App (Var "f") (Var "n1")) (Math (Add (Var "acc") (Var "x"))))))
         (Lam MMany "acc" TInt
           (Var "acc"))
-    it "interprets application sumf 0 to M term" $
+    it "interprets application sumf 0 0 to M term, then to 0" $
       DFun "sumf" []
         (App (App sumfRec (Lit $ LInt 0)) (Lit $ LInt 0))
         Nothing
@@ -175,3 +175,15 @@ spec = do
         Nothing
       `shouldThrowInterpreterException`
       RecursorNotNatException
+    it "interprets application newsumf 0 0 to M term, then to 0" $
+      DFun "newsumf" []
+        (App (App newsumfRec (Lit $ LInt 0)) (Lit $ LInt 0))
+        Nothing
+      `shouldInterpretTo`
+      VInt 0
+    it "interprets application newsumf 1 1 1" $
+      DFun "newsumf" []
+        (App (App (App newsumfRec (Lit $ LInt 1)) (Lit $ LInt 1)) (Lit $ LInt 1))
+        Nothing
+      `shouldInterpretTo`
+      VInt 2

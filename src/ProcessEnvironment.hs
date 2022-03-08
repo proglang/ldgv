@@ -88,6 +88,7 @@ data Value
   | VDynCast Value GType -- (Value : G => *)
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,α,Π(x:A)A') => (ρ,α,Π(x:B)B'))
   | VRec PEnv String String Exp Exp
+  | VNewNatRec PEnv String String String Type Exp String Exp
   deriving Eq
 
 instance Show Value where
@@ -105,7 +106,8 @@ instance Show Value where
     VFunc env s exp -> "VFunc " ++ show s ++ " " ++ show exp ++ " with environment " ++ concatMap (\entry -> '\n':'\t':show entry) env
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
-    VRec env f x e1 e0 -> "VRec " ++ " " ++ show f ++ " " ++ show x ++ " " ++ show e1 ++ " " ++ show e0
+    VRec env f x e1 e0 -> "VRec " ++ " " ++ f ++ " " ++ x ++ " " ++ show e1 ++ " " ++ show e0
+    VNewNatRec env f n tid ty ez x es -> "VNewNatRec " ++ f ++ n ++ tid ++ show ty ++ show ez ++ x ++ show es
 
 class Subtypeable t where
   isSubtypeOf :: t -> t -> Bool

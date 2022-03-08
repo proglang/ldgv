@@ -69,8 +69,21 @@ f4 = Lam MMany "x" (TName False "Bool")
       ,("'F",App (Cast (Var "y") TDyn (TFun MMany "a" (TName False "Bool") (TName False "Bool"))) (Var "x"))]))
 
 -- rec f ( x . (fn (acc : Int) fn (x : Int) f (acc + x)) ) (fn (acc : Int) acc)
-sumfRec = Rec "f" "x"
+sumfRec = Rec "f" "n1"
   (Lam MMany "acc" TInt
     (Lam MMany "x" TInt
-      (App (Var "f") (Math (Add (Var "acc") (Var "x"))))))
+      (App (App (Var "f") (Var "n1")) (Math (Add (Var "acc") (Var "x"))))))
   (Lam MMany "acc" TInt (Var "acc"))
+
+-- new_natrec f : n . A . (acc : Int) -> A
+--   { fn (acc: Int) acc
+--   , n1. fn (acc : Int) fn (x : Int) f n1 (acc + x) }
+newsumfRec = NewNatRec
+  "f" "n1" "A" (TFun MMany "acc" TInt (TName False "A"))
+  (Lam MMany "acc" TInt (Var "acc"))
+  "n1"
+  (Lam MMany "acc" TInt
+    (Lam MMany "x" TInt
+      (App
+        (App (Var "f") (Var "n1"))
+        (Math (Add (Var "acc") (Var "x"))))))

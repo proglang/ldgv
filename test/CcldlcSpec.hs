@@ -53,6 +53,10 @@ spec = do
         Nothing
   describe "recursor expressions (natrec, new_natrec, rec)" $ do
     it "sumf function using rec" $
-      "val sumf = rec f ( x . (fn (acc : Int) fn (x : Int) f (acc + x)) ) (fn (acc : Int) acc)"
+      "val sumf = rec f ( n1 . (fn (acc : Int) fn (x : Int) f n1 (acc + x)) ) (fn (acc : Int) acc)"
       `shouldParseDecl`
       DFun "sumf" [] sumfRec Nothing
+    it "newsumf function using new_natrec" $
+      "val newsumf = new_natrec f : n1 . A . (acc : Int) -> A { fn (acc: Int) acc, n1. fn (acc : Int) fn (x : Int) f n1 (acc + x) }"
+      `shouldParseDecl`
+      DFun "newsumf" [] newsumfRec Nothing

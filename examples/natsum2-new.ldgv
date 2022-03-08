@@ -19,11 +19,11 @@ val sumf ( n : Nat) =
     }) 0
 
 val newsumf ( n : Nat ) =
-    -- (new_natrec f : n . A . T { n1.Msucc,  Mzero }) n 0
-    (new_natrec f : n . A . (acc : Int) -> A
+    -- (new_natrec f : n . A . T { Mzero, n1.Msucc }) n 0
+    (new_natrec f : n1 . A . (acc : Int) -> A
     {
-	    fn (acc: Int) acc,				-- zero: Int -> Int
-        n1. fn (acc : Int) fn (x : Int) f n1 (acc + x)	-- succ: Int -> Int -> A
+	    fn (acc: Int) acc,				                      -- zero: Int -> Int
+      n1. fn (acc : Int) fn (x : Int) f n1 (acc + x)	-- succ: Int -> Int -> A
     })
     -- : (n: Nat) -> (acc: Int) -> natrec n { Int, A. (x: Int) -> A }
     n

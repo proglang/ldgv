@@ -74,7 +74,7 @@ eval = \case
         lower <- R.local lowerEnv (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
         R.local (extendEnv i2 lower . lowerEnv) (interpret' e3)
       _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
-  --NewNatRec
+  NewNatRec f n tid ty ez x es -> ask >>= \(env, _) -> return $ VNewNatRec env f n tid ty ez x es
   Lam _ i _ e -> do
     (env, _) <- ask
     return $ VFunc env i e
@@ -152,13 +152,18 @@ interpretApp e (VFuncCast v (FuncType penv aenv s t1 t2) (FuncType penv' aenv' s
       C.traceIO ("Function cast in application results in: " ++ show u')
       return u'
   lift interpretAppCast
-interpretApp e rec@(VRec env f x e1 e0) (VInt n)
+interpretApp e rec@(VRec env f n1 e1 e0) (VInt n)
   | n  < 0 = throw RecursorNotNatException
   | n == 0 = interpret' e0
   | n  > 0 = do
-    nrec <- interpretApp e rec (VInt (n-1))
-    let env' = extendEnv f nrec (env, [])
+    let env' = extendEnv n1 (VInt (n-1)) (extendEnv f rec (env, []))
     R.local (const env') (interpret' e1)
+interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
+  | n  < 0 = throw RecursorNotNatException
+  | n == 0 = interpret' ez
+  | n  > 0 = do
+    let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec (env, []))
+    R.local (const env') (interpret' es)
 interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c w) >> return v
 interpretApp e _ _ = throw $ ApplicationException e
 
