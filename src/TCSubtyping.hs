@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module TCSubtyping where
 

@@ -169,6 +169,7 @@ instance Freevars Exp where
   fv (Cast e t1 t2) = fv e
   fv (Succ e) = fv e
   fv (NatRec e ez x t y tyy es) = fv e <> fv ez <> Set.delete x (Set.delete y (fv es)) <> fv tyy
+  fv (NewNatRec id1 id2 tid t e1 id3 e2) = fv e1 <> fv e2 -- TODO: This is not correct!
 
 instance Freevars e => Freevars (MathOp e) where
   fv = foldMap fv
@@ -191,6 +192,7 @@ instance Freevars Type where
   fv (TEqn e1 e2 ty) = fv e1 <> fv e2 <> fv ty
   fv (TSingle x) = Set.singleton x
   fv TNat = Set.empty
+  fv (TNatLeq _) = Set.empty
   fv (TNatRec e tz y ts) = fv e <> fv tz <> Set.delete y (fv ts)
   fv (TAbs x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
 
@@ -232,6 +234,7 @@ instance Substitution Exp where
     sb (Succ e1) = Succ (sb e1)
     sb (NatRec e ez y t z tyz es) =
       NatRec (sb e) (sb ez) y t z (subst x exp tyz) (if x /= y && x /= z then sb es else es)
+    sb orig@(NewNatRec id1 id2 tid t e1 id3 e2) = orig -- TODO: This is not correct!
 
 instance Substitution e => Substitution (MathOp e) where
   subst x = fmap . subst x
@@ -284,6 +287,8 @@ instance Substitution Type where
     if x == z then TSingle y else ty
   subst x exp ty@TNat =
     ty
+  subst x exp ty@(TNatLeq _) =
+    ty
   subst x exp ty@(TNatRec e tz y ts) =
     TNatRec (subst x exp e) (subst x exp tz) y (if x /= y then subst x exp ts else ts)
   subst x exp (TAbs z ty1 ty2) =
@@ -331,6 +336,7 @@ single x tyx ty =
     TVar b i -> TVar b i
     TLab labs -> TLab labs
     TNat -> TNat
+    TNatLeq n -> TNatLeq n
     TNatRec e tz y ts ->
       TNatRec e (single x tyx tz) y (if x==y then ts else single x tyx ts)
     TAbs y t1 t2 ->
@@ -338,7 +344,7 @@ single x tyx ty =
 
 
 varsupply :: Ident -> [Ident]
-varsupply x = x : [ x ++ show n | n <- [0..]]
+varsupply x = x : [ x ++ show n | n <- [(0::Integer)..]]
 
 -- | @freshvar template prohibited_vars@
 freshvar :: Ident -> Set Ident -> Ident
@@ -385,6 +391,7 @@ instance Eq Type where
     x == y
   TNat == TNat =
     True
+  TNatLeq n == TNatLeq n' = n == n'
   TNatRec e tz x ts == TNatRec e' tz' x' ts' =
     e == e' &&
     tz == tz' &&
@@ -411,6 +418,7 @@ tsubst tn tyn ty = ts ty
         TBot -> TBot
         TDyn -> TDyn
         TNat -> TNat
+        TNatLeq _ -> ty
         TString -> TString
         TNatRec e tz ti tsu ->
           TNatRec e (ts tz) ti (if ti == tn then tsu else ts tsu)
@@ -423,3 +431,4 @@ tsubst tn tyn ty = ts ty
         TEqn e1 e2 t -> TEqn e1 e2 (ts t)
         TSingle x -> ty
         TUnit -> TUnit
+        TAbs _ _ _ -> ty

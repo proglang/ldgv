@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+
 module Kinds where
 
 data Multiplicity = MMany | MOne
