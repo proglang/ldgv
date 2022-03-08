@@ -157,9 +157,21 @@ spec = do
         Nothing
       `shouldInterpretTo`
       VInt 0
-    it "interprets application sumf 1" $
+    it "interprets application sumf 1 1 1" $
       DFun "sumf" []
         (App (App (App sumfRec (Lit $ LInt 1)) (Lit $ LInt 1)) (Lit $ LInt 1))
         Nothing
       `shouldInterpretTo`
       VInt 2
+    it "interprets application sumf 5 0 1 2 3 4 5" $
+      DFun "sumf" []
+        (App (App (App (App (App (App (App sumfRec (Lit $ LInt 5)) (Lit $ LInt 0)) (Lit $ LInt 1)) (Lit $ LInt 2)) (Lit $ LInt 3)) (Lit $ LInt 4)) (Lit $ LInt 5))
+        Nothing
+      `shouldInterpretTo`
+      VInt 15
+    it "interprets application sumf -1 expecting failure" $
+      DFun "sumf" []
+        (App sumfRec (Lit $ LInt (-1)))
+        Nothing
+      `shouldThrowInterpreterException`
+      RecursorNotNatException

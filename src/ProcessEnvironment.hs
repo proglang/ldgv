@@ -19,6 +19,7 @@ data InterpreterException
   | RecursorNotNatException
   | NotImplementedException Exp
   | TypeNotImplementedException Type
+  deriving Eq
 
 instance Show InterpreterException where
   show = \case
@@ -101,7 +102,7 @@ instance Show Value where
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
-    VFunc env s exp -> "VFunc " ++ show s ++ " " ++ show exp
+    VFunc env s exp -> "VFunc " ++ show s ++ " " ++ show exp ++ " with environment " ++ concatMap (\entry -> '\n':'\t':show entry) env
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
     VRec env f x e1 e0 -> "VRec " ++ " " ++ show f ++ " " ++ show x ++ " " ++ show e1 ++ " " ++ show e0

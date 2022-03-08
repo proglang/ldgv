@@ -152,11 +152,13 @@ interpretApp e (VFuncCast v (FuncType penv aenv s t1 t2) (FuncType penv' aenv' s
       C.traceIO ("Function cast in application results in: " ++ show u')
       return u'
   lift interpretAppCast
-interpretApp _ rec@(VRec env f x e1 e0) (VInt n)
+interpretApp e rec@(VRec env f x e1 e0) (VInt n)
   | n  < 0 = throw RecursorNotNatException
   | n == 0 = interpret' e0
-  | n  > 0 = let env' = extendEnv f rec (extendEnv x (VInt (n-1)) (env, []))
-             in R.local (const env') (interpret' e1)
+  | n  > 0 = do
+    nrec <- interpretApp e rec (VInt (n-1))
+    let env' = extendEnv f nrec (env, [])
+    R.local (const env') (interpret' e1)
 interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c w) >> return v
 interpretApp e _ _ = throw $ ApplicationException e
 

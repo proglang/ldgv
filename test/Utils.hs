@@ -30,5 +30,8 @@ shouldThrowCastException decls givenDecl =
       isCastException _ =False in
     runReaderT (evalDFun givenDecl) (penv, []) `shouldThrow` isCastException
 
+shouldThrowInterpreterException :: Decl -> InterpreterException -> Expectation
+shouldThrowInterpreterException given except = runReaderT (evalDFun given) ([], []) `shouldThrow` (== except)
+
 shouldInterpretTo :: Decl -> Value -> Expectation
 shouldInterpretTo = shouldInterpretInPEnvTo []

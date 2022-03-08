@@ -1,5 +1,5 @@
 -- Example of untyped recursion over natural numbers using rec
--- sumf_rec n m calculates the sum over n numbers starting with m
+-- sumf_rec n m calculates the sum over n numbers with initial value m
 
 val sumf_rec =
   rec
@@ -7,4 +7,4 @@ val sumf_rec =
     (x . (fn (acc : Int) fn (x : Int) f (acc + x)))
     (fn (acc : Int) acc)
 
-val main = sumf_rec 0 5
+val main = sumf_rec 5 0 1 2 3 4 5
