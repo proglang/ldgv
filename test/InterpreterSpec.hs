@@ -187,3 +187,11 @@ spec = do
         Nothing
       `shouldInterpretTo`
       VInt 2
+    it "evaluates NatRec type to head normal form" $
+      TNatRec (Lit $ LNat 1) TInt "A" (TFun MMany "x" TInt (TName False "A"))
+      `shouldInterpretTypeTo`
+      -- NFFunc does not further evaluate its component types, therefore
+      -- its environment contains an unevaluates TNatRec which is equivalent
+      -- to TInt since its given Z (zero).
+      NFFunc (FuncType [("A", VType lower)] "x" TInt (TName False "A"))
+      where lower = TNatRec (Lit $ LNat 0) TInt "A" (TFun MMany "x" TInt (TName False "A"))

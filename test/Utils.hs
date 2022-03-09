@@ -19,8 +19,8 @@ raiseFailure msg = do
 shouldInterpretInPEnvTo :: [Decl] -> Decl -> Value -> Expectation
 shouldInterpretInPEnvTo decls givenDecl expectedValue = do
   let penv = createPEnv decls
-  value <- runReaderT (evalDFun givenDecl) (penv, [])
-  return value `shouldReturn` expectedValue
+  value <- runReaderT (evalDFun givenDecl) penv
+  value `shouldBe` expectedValue
 
 shouldThrowCastException :: [Decl] -> Decl -> Expectation
 shouldThrowCastException decls givenDecl =
@@ -28,10 +28,15 @@ shouldThrowCastException decls givenDecl =
       isCastException :: InterpreterException -> Bool
       isCastException (CastException _) = True
       isCastException _ =False in
-    runReaderT (evalDFun givenDecl) (penv, []) `shouldThrow` isCastException
+    runReaderT (evalDFun givenDecl) penv `shouldThrow` isCastException
 
 shouldThrowInterpreterException :: Decl -> InterpreterException -> Expectation
-shouldThrowInterpreterException given except = runReaderT (evalDFun given) ([], []) `shouldThrow` (== except)
+shouldThrowInterpreterException given except = runReaderT (evalDFun given) [] `shouldThrow` (== except)
 
 shouldInterpretTo :: Decl -> Value -> Expectation
 shouldInterpretTo = shouldInterpretInPEnvTo []
+
+shouldInterpretTypeTo :: Type -> NFType -> Expectation
+shouldInterpretTypeTo t expected = do
+  nft <- runReaderT (evalType t) []
+  nft `shouldBe` expected

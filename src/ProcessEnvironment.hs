@@ -35,7 +35,7 @@ instance Show InterpreterException where
 instance Exception InterpreterException
 
 -- | the interpretation monad
-type InterpretM a = T.ReaderT (PEnv, NREnv) IO a
+type InterpretM a = T.ReaderT PEnv IO a
 
 createEntry :: Decl -> Maybe (String, Value)
 createEntry = \case
@@ -46,17 +46,12 @@ createEntry = \case
 createPEnv :: [Decl] -> PEnv
 createPEnv = mapMaybe createEntry
 
-extendEnv :: String -> Value -> (PEnv, NREnv) -> (PEnv, NREnv)
-extendEnv s v (penv, aenv) = ((s, v) : penv, aenv)
+extendEnv :: String -> Value -> PEnv -> PEnv
+extendEnv = curry (:)
 
 -- | a Process Envronment maps identifiers to Values of expressions and stores
 type PEnv = [PEnvEntry]
 type PEnvEntry = (String, Value)
-
--- | environment for bindings of recursive natrec types
-type NREnv = [(String, NREntry)]
-data NREntry = NREntry PEnv Value String Type Type -- (ρ, natrec V (a.A) B)
-  deriving (Show, Eq)
 
 type Label = String
 type LabelType = Set Label
@@ -64,11 +59,11 @@ type LabelType = Set Label
 labelsFromList :: [Label] -> LabelType
 labelsFromList = Set.fromList
 
-data FuncType = FuncType PEnv NREnv String S.Type S.Type
+data FuncType = FuncType PEnv String S.Type S.Type
   deriving Eq
 
 instance Show FuncType where
-  show (FuncType penv aenv s t1 t2) = "FuncType " ++ show s ++ " " ++ show t1 ++ " " ++ show t2
+  show (FuncType _ s t1 t2) = "FuncType " ++ show s ++ " " ++ show t1 ++ " " ++ show t2
 
 -- | (Unit, Label, Int, Values of self-declared Data Types), Channels
 data Value
@@ -103,7 +98,7 @@ instance Show Value where
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
     VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
-    VFunc env s exp -> "VFunc " ++ show s ++ " " ++ show exp ++ " with environment " ++ concatMap (\entry -> '\n':'\t':show entry) env
+    VFunc _ s exp -> "VFunc " ++ show s ++ " " ++ show exp
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
     VRec env f x e1 e0 -> "VRec " ++ " " ++ f ++ " " ++ x ++ " " ++ show e1 ++ " " ++ show e0

@@ -5,6 +5,7 @@ module Interpreter
   ( interpret
   , evalDFun
   , createPEnv
+  , evalType
   ) where
 
 import qualified Config as C
@@ -33,7 +34,7 @@ interpret decls = do
       isInterestingDecl _ = False
   -- find the main DFun
   case lookup "main" penv of
-    Just (VDecl decl) -> R.runReaderT (evalDFun decl) (penv, [])
+    Just (VDecl decl) -> R.runReaderT (evalDFun decl) penv
     _ -> throw $ LookupException "main"
 
 -- | interpret a DFun (Function declaration)
@@ -54,7 +55,7 @@ interpret' e = ask >>= \penv ->
 eval :: Exp -> InterpretM Value
 eval = \case
   Succ e -> interpretMath $ Add (Lit (LInt 1)) e
-  Rec f x e1 e0 -> ask >>= \(env, _) -> return $ VRec env f x e1 e0
+  Rec f x e1 e0 -> ask >>= \env -> return $ VRec env f x e1 e0
   NatRec e1 e2 i1 t1 i2 t e3 -> do
   -- returns a function indexed over e1 (should be a variable pointing to a Nat)
   -- e1 should be the recursive variable which gets decreased each time the
@@ -74,10 +75,8 @@ eval = \case
         lower <- R.local lowerEnv (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
         R.local (extendEnv i2 lower . lowerEnv) (interpret' e3)
       _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
-  NewNatRec f n tid ty ez x es -> ask >>= \(env, _) -> return $ VNewNatRec env f n tid ty ez x es
-  Lam _ i _ e -> do
-    (env, _) <- ask
-    return $ VFunc env i e
+  NewNatRec f n tid ty ez x es -> ask >>= \env -> return $ VNewNatRec env f n tid ty ez x es
+  Lam _ i _ e -> ask >>= \env -> return $ VFunc env i e
   cast@(Cast e t1 t2) -> do
     C.traceIO $ "Interpreting cast expression: " ++ pshow cast
     v <- interpret' e
@@ -92,9 +91,7 @@ eval = \case
         v' <- lift $ reducePairCast v (toNFPair nft1) (toNFPair nft2)
         maybe (blame cast) return v'
       _ -> let v' = reduceCast v nft1 nft2 in maybe (blame cast) return (C.trace ("Cast reduction of " ++ show v ++ " : " ++ show nft1 ++ " => " ++ show nft2 ++ " results in value " ++ show v') v')
-  Var s -> do
-    (penv, _) <- ask
-    maybe (throw $ LookupException s) (liftIO . pure) (lookup s penv)
+  Var s -> ask >>= \env -> maybe (throw $ LookupException s) (liftIO . pure) (lookup s env)
   Let s e1 e2 -> interpret' e1 >>= \v -> R.local (extendEnv s v) (interpret' e2)
   Math m -> interpretMath m
   Lit l -> return (interpretLit l)
@@ -107,8 +104,7 @@ eval = \case
     v1 <- interpret' e1
     v2 <- R.local (extendEnv s v1) (interpret' e2)
     return $ VPair v1 v2
-  LetPair s1 s2 e1 e2 -> do
-    interpret' e1 >>= \(VPair v1 v2) -> R.local (extendEnv s2 v2 . extendEnv s1 v1) (interpret' e2)
+  LetPair s1 s2 e1 e2 -> interpret' e1 >>= \(VPair v1 v2) -> R.local (extendEnv s2 v2 . extendEnv s1 v1) (interpret' e2)
   fst@(Fst e) -> interpret' e >>= \(VPair s1 s2) -> return s1
   snd@(Snd e) -> interpret' e >>= \(VPair s1 s2) -> return s2
   Fork e -> do
@@ -127,26 +123,24 @@ eval = \case
       val <- liftIO $ Chan.readChan c
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan "
       return $ VPair val v
-  Case e cases -> do
-    interpret' e >>= \(VLabel s) ->
-      interpret' $ fromJust $ lookup s cases
+  Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   e -> throw $ NotImplementedException e
 
 -- Exp is only used for blame
 interpretApp :: Exp -> Value -> Value -> InterpretM Value
 interpretApp e (VDecl d) w = evalDFun d >>= \vfunc -> interpretApp e vfunc w
-interpretApp _ (VFunc env s exp) w = R.local (\(_, aenv) -> extendEnv s w (env,aenv)) (interpret' exp)
-interpretApp e (VFuncCast v (FuncType penv aenv s t1 t2) (FuncType penv' aenv' s' t1' t2')) w' = do
+interpretApp _ (VFunc env s exp) w = R.local (const $ extendEnv s w env) (interpret' exp)
+interpretApp e (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
   env0 <- ask
   let
     interpretAppCast :: IO Value
     interpretAppCast = do
       C.traceIO ("Attempting function cast in application (" ++ show v ++ ") with (" ++ show w' ++ ")")
-      nft1  <- R.runReaderT (evalType t1)  (penv, aenv)
-      nft1' <- R.runReaderT (evalType t1') (penv', aenv')
+      nft1  <- R.runReaderT (evalType t1)  penv
+      nft1' <- R.runReaderT (evalType t1') penv'
       w <- maybe (blame e) return (reduceCast w' nft1' nft1)
-      nft2' <- R.runReaderT (evalType t2') (extendEnv s' w' (penv', aenv'))
-      nft2  <- R.runReaderT (evalType t2)  (extendEnv s  w  (penv, aenv))
+      nft2' <- R.runReaderT (evalType t2') (extendEnv s' w' penv')
+      nft2  <- R.runReaderT (evalType t2)  (extendEnv s  w  penv)
       u  <- R.runReaderT (interpretApp e v w) env0
       u' <- maybe (blame e) return (reduceCast u nft2 nft2')
       C.traceIO ("Function cast in application results in: " ++ show u')
@@ -156,13 +150,13 @@ interpretApp e rec@(VRec env f n1 e1 e0) (VInt n)
   | n  < 0 = throw RecursorNotNatException
   | n == 0 = interpret' e0
   | n  > 0 = do
-    let env' = extendEnv n1 (VInt (n-1)) (extendEnv f rec (env, []))
+    let env' = extendEnv n1 (VInt (n-1)) (extendEnv f rec env)
     R.local (const env') (interpret' e1)
 interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  < 0 = throw RecursorNotNatException
   | n == 0 = interpret' ez
   | n  > 0 = do
-    let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec (env, []))
+    let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
 interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c w) >> return v
 interpretApp e _ _ = throw $ ApplicationException e
@@ -209,27 +203,19 @@ evalType = \case
   TNatRec e t1 tid t2 -> do
     v <- interpret' e
     case v of
-      VInt 0 -> evalType t2
+      VInt 0 -> evalType t1
       VInt n -> if n < 0
         then throw RecursorNotNatException
-        else R.local
-          (\(penv, aenv) ->
-            (penv, (tid, NREntry penv (VInt $ n-1) tid t1 t2) : aenv)
-          ) (evalType t2)
+        else
+          let lower = TNatRec (Lit $ LNat (n-1)) t1 tid t2
+          in R.local (extendEnv tid (VType lower)) (evalType t2)
       _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
-  TName _ s -> do
-    (penv, aenv) <- ask
-    case lookup s aenv of
-      Just (NREntry _ (VInt n) tid t1 t2) -> evalType (TNatRec (Lit $ LNat n) t1 tid t2)
-      Just _ -> throw RecursorNotNatException
-      Nothing -> case lookup s penv of
-        Just (VType t)  -> evalType t
-        _ -> throw $ LookupException s
+  TName _ s -> ask >>= \env -> maybe (throw $ LookupException s) (\(VType t) -> evalType t) (lookup s env)
   TLab ls -> return $ NFGType $ GLabel $ labelsFromList ls
   TFun  _ s TDyn TDyn -> return $ NFGType $ GFunc s
-  TFun  _ s t1 t2 -> ask >>= \(penv, aenv) -> return $ NFFunc $ FuncType penv aenv s t1 t2
+  TFun  _ s t1 t2 -> ask >>= \env -> return $ NFFunc $ FuncType env s t1 t2
   TPair _ s TDyn TDyn -> return $ NFGType $ GPair s
-  TPair _ s t1 t2 -> ask >>= \(penv, aenv) -> return $ NFPair $ FuncType penv aenv s t1 t2
+  TPair _ s t1 t2 -> ask >>= \env -> return $ NFPair $ FuncType env s t1 t2
   TCase exp labels -> interpret' exp >>= \(VLabel l) ->
     let entry = find (\(l', _) -> l == l') labels
     in maybe (return NFBot) (evalType . snd) entry
@@ -241,10 +227,10 @@ reduceCast v t1 t2 = castIsValue v t1 t2 <|> reduceCast' v t1 t2
 -- Cast-Is-Value: return correct value if arguments already form a value
 castIsValue :: Value -> NFType -> NFType -> Maybe Value
 castIsValue v (NFGType gt) NFDyn = Just $ VDynCast v gt
-castIsValue v (NFFunc ft1)        (NFFunc ft2)        = Just $ VFuncCast v ft1                          ft2
-castIsValue v (NFFunc ft1)        (NFGType (GFunc y)) = Just $ VFuncCast v ft1                          (FuncType [] [] y TDyn TDyn)
-castIsValue v (NFGType (GFunc x)) (NFFunc ft2)        = Just $ VFuncCast v (FuncType [] [] x TDyn TDyn) ft2
-castIsValue v (NFGType (GFunc x)) (NFGType (GFunc y)) = Just $ VFuncCast v (FuncType [] [] x TDyn TDyn) (FuncType [] [] y TDyn TDyn)
+castIsValue v (NFFunc ft1)        (NFFunc ft2)        = Just $ VFuncCast v ft1                       ft2
+castIsValue v (NFFunc ft1)        (NFGType (GFunc y)) = Just $ VFuncCast v ft1                       (FuncType [] y TDyn TDyn)
+castIsValue v (NFGType (GFunc x)) (NFFunc ft2)        = Just $ VFuncCast v (FuncType [] x TDyn TDyn) ft2
+castIsValue v (NFGType (GFunc x)) (NFGType (GFunc y)) = Just $ VFuncCast v (FuncType [] x TDyn TDyn) (FuncType [] y TDyn TDyn)
 castIsValue _ _ _ = Nothing
 
 reduceCast' :: Value -> NFType -> NFType -> Maybe Value
@@ -271,36 +257,36 @@ reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v
 reduceCast' _ _ _ = Nothing
 
 toNFPair :: NFType -> NFType
-toNFPair (NFGType (GPair s)) = NFPair (FuncType [] [] s TDyn TDyn)
+toNFPair (NFGType (GPair s)) = NFPair (FuncType [] s TDyn TDyn)
 toNFPair t = t
 
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
-reducePairCast (VPair v w) (NFPair (FuncType penv aenv s t1 t2)) (NFPair (FuncType penv' aenv' s' t1' t2')) = do
-  mv' <- reduceComponent v (penv, aenv, t1) (penv', aenv', t1')
+reducePairCast (VPair v w) (NFPair (FuncType penv s t1 t2)) (NFPair (FuncType penv' s' t1' t2')) = do
+  mv' <- reduceComponent v (penv, t1) (penv', t1')
   C.traceIO $ "Reduce cast of left Value(" ++ show v ++ ") from NFType(" ++ show t1 ++ ") to NFType(" ++ show t1' ++ ") returning: " ++ show mv'
   case mv' of
     Nothing -> return Nothing
     Just v' -> do
-      mw' <- reduceComponent w ((s, v) : penv, aenv, t2) ((s', v') : penv', aenv', t2')
+      mw' <- reduceComponent w ((s, v) : penv, t2) ((s', v') : penv', t2')
       C.traceIO $ "Reduce cast of right Value(" ++ show w ++ ") from NFType(" ++ show t2 ++ ") to NFType(" ++ show t2' ++ ") returning: " ++ show mw'
       return $ liftM2 VPair mv' mw'
   where
-    reduceComponent :: Value -> (PEnv, NREnv, Type) -> (PEnv, NREnv, Type) -> IO (Maybe Value)
-    reduceComponent v (penv, aenv, t) (penv', aenv', t') = do
-      nft  <- R.runReaderT (evalType t)  (penv,  aenv)
-      nft' <- R.runReaderT (evalType t') (penv', aenv')
+    reduceComponent :: Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)
+    reduceComponent v (penv, t) (penv', t') = do
+      nft  <- R.runReaderT (evalType t)  penv
+      nft' <- R.runReaderT (evalType t') penv'
       return $ reduceCast v nft nft'
 reducePairCast _ _ _ = return Nothing
 
 equalsType :: NFType -> GType -> Bool
-equalsType (NFFunc (FuncType _ _ x TDyn TDyn)) (GFunc x') = x == x'
-equalsType (NFPair (FuncType _ _ x TDyn TDyn)) (GPair x') = x == x'
+equalsType (NFFunc (FuncType _ x TDyn TDyn)) (GFunc x') = x == x'
+equalsType (NFPair (FuncType _ x TDyn TDyn)) (GPair x') = x == x'
 equalsType (NFGType gt1) gt2 = gt1 == gt2
 equalsType _ _ = False
 
 matchType :: NFType -> Maybe GType
 matchType = \case
-  NFFunc (FuncType _ _ x _ _) -> Just $ GFunc x
-  NFPair (FuncType _ _ x _ _) -> Just $ GPair x
+  NFFunc (FuncType _ x _ _) -> Just $ GFunc x
+  NFPair (FuncType _ x _ _) -> Just $ GPair x
   NFGType gt -> Just gt
   _ -> Nothing
