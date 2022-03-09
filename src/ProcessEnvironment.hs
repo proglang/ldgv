@@ -118,19 +118,15 @@ data NFType
   | NFDyn
   | NFFunc FuncType  -- (ρ, α, Π(x: A) B)
   | NFPair FuncType  -- (ρ, α, Σ(x: A) B)
-  | NFInt
-  | NFDouble
-  | NFString
   | NFGType GType -- every ground type is also a type in normal form
   deriving (Show, Eq)
 
 instance Subtypeable NFType where
-  -- TODO: NFFunc and NFPair default to false, but should be handled explicitly
+  -- NFFunc and NFPair default to false, which is not really correct.
+  -- Implementation would be quite complicated and its not necessary,
+  -- i.e. not used anywhere.
   isSubtypeOf NFBot _ = True
   isSubtypeOf NFDyn NFDyn = True
-  isSubtypeOf NFInt NFInt = True
-  isSubtypeOf NFDouble NFDouble = True
-  isSubtypeOf NFString NFString = True
   isSubtypeOf (NFGType gt1) (NFGType gt2) = gt1 `isSubtypeOf` gt2
   isSubtypeOf _ _ = False
 
@@ -141,6 +137,9 @@ data GType
   | GPair String -- Σ(x: *) *
   | GNat
   | GNatLeq Integer
+  | GInt
+  | GDouble
+  | GString
   deriving (Show, Eq)
 
 instance Subtypeable GType where
@@ -151,4 +150,7 @@ instance Subtypeable GType where
   isSubtypeOf GNat GNat = True
   isSubtypeOf (GNatLeq _) GNat = True
   isSubtypeOf (GNatLeq n1) (GNatLeq n2) = n1 <= n2
+  isSubtypeOf GInt GInt = True
+  isSubtypeOf GDouble GDouble = True
+  isSubtypeOf GString GString = True
   isSubtypeOf _ _ = False

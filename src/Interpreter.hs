@@ -199,9 +199,9 @@ interpretMath = \case
 evalType :: Type -> InterpretM NFType
 evalType = \case
   TUnit -> return $ NFGType GUnit
-  TInt -> return NFInt
-  TDouble -> return NFDouble
-  TString -> return NFString
+  TInt -> return $ NFGType GInt
+  TDouble -> return $ NFGType GDouble
+  TString -> return $ NFGType GString
   TBot -> return NFBot
   TDyn -> return NFDyn
   TNat -> return $ NFGType GNat
