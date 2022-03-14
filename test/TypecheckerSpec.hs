@@ -29,4 +29,4 @@ spec = do
       typecheck [boolType, notFunc, f] `shouldBe` Right ()
     it "typechecks section 5.1 (2) function, expecting failure" $ do
       let term = DSub (TFun MMany "x" TUnit TInt) (TFun MMany "x" TDyn (TCase (Cast (Var "x") TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")]))
-      typecheck [boolType, term] `shouldBe` Left "Subtyping fails to establish Int <: case zz0 : * => Bool {'T:Int, 'F:Bool}"
+      typecheck [boolType, term] `shouldBe` Left "Subtyping fails to establish Int <: {'T, 'F}"

@@ -8,7 +8,6 @@ import Control.Monad (ap)
 import Data.List (nub, sort)
 import Data.Set (Set)
 import qualified Data.Set as Set
-
 import qualified Config as D
 
 import Syntax
@@ -409,8 +408,61 @@ subtype' tenv (TRecv sx sin sout) (TRecv tx tin tout) =
                      (subst sx (Var nx) sout)
                      (subst tx (Var nx) tout)
      return Kssn
-subtype' tenv (TCase (Cast e t1 t2) cases) (TCase (Cast e' t1' t2') cases') = do
-  return Kunit  -- TODO: Implement fig. 17 (LDLC and Gradual Typing)
+
+-- resolve type identifiers (TName) before actual subtyping
+subtype' tenv (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) tyy2 = do
+  (t1,_) <- mlookup tv1
+  (t2,_) <- mlookup tv2
+  subtype tenv (TCase (Cast x t1 t2) cases) tyy2
+subtype' tenv (TCase (Cast x (TName _ tv) t2) cases) tyy2 =
+  mlookup tv >>= \(t1,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
+subtype' tenv (TCase (Cast x t1 (TName _ tv)) cases) tyy2 =
+  mlookup tv >>= \(t2,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
+-- subtyping for casts with case on the left side: case (x:D=>L) {...} <: B
+subtype' tenv (TCase (Cast (Var x) t1 (TLab ls2)) cases) tyy2 =
+  case lookup x tenv of
+    Just (_,TLab [l]) -> do
+      t <- lablookup l cases
+      subtype tenv t tyy2
+    _ -> do
+      let ls' = case t1 of
+            TDyn    -> ls2
+            TLab ls -> filter (`elem` ls) ls2
+            _       -> []
+          subtypeCast l = do
+            let tenv' = (x,(Many,TLab [l])) : tenv
+            cty <- lablookup l cases
+            subtype tenv' cty tyy2
+      results <- mapM subtypeCast ls'
+      return $ foldr1 klub results
+
+-- resolve type identifiers (TName) before actual subtyping
+subtype' tenv tyy1 (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) = do
+  (t1,_) <- mlookup tv1
+  (t2,_) <- mlookup tv2
+  subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
+subtype' tenv tyy1 (TCase (Cast x (TName _ tv) t2) cases) =
+  mlookup tv >>= \(t1,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
+subtype' tenv tyy1 (TCase (Cast x t1 (TName _ tv)) cases) =
+  mlookup tv >>= \(t2,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
+-- subtyping for casts with case on the right side: A <: case (x:D=>L) {...}
+subtype' tenv tyy1 (TCase (Cast (Var x) t1 (TLab ls2)) cases) =
+  case lookup x tenv of
+    Just (_,TLab [l]) -> do
+      t <- lablookup l cases
+      subtype tenv tyy1 t
+    _ -> do
+      let ls' = case t1 of
+            TDyn    -> ls2
+            TLab ls -> filter (`elem` ls) ls2
+            _       -> []
+          subtypeCast l = do
+            let tenv' = (x,(Many,TLab [l])) : tenv
+            cty <- lablookup l cases
+            subtype tenv' tyy1 cty
+      results <- mapM subtypeCast ls'
+      return $ foldr1 klub results
+
 subtype' tenv (TCase val cases) ty2
   | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
   do ty1 <- lablookup lll cases
@@ -529,8 +581,6 @@ subtype tenv t1 t2 = do
   D.traceM ("Entering subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
   r <- subtype' tenv t1 t2
   return $ D.trace ("subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ show r) r
-
-
 
 -- smart constructor that drops the case if all branches are equal (eta reduction)
 tcase :: Exp -> Type -> [(String, Type)] -> Type

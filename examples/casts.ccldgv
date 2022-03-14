@@ -28,11 +28,11 @@ val f2' = 𝜆(x: *)   𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool})    case 
 -- Conversion from * to case type
 type Direction : ~un = {'L, 'R}
 
-val f3 :
-  (x: Bool)
-    -> (y: *)
-      -> (z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
-        -> case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool}
+--val f3 :
+--  (x: Bool)
+--    -> (y: *)
+--      -> (z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+--        -> case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool}
 val f3 =
   𝜆(x: Bool)
     𝜆(y: *)
