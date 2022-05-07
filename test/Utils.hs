@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Utils where
 
 import Parsing
@@ -16,19 +18,17 @@ raiseFailure msg = do
   expectationFailure msg
   return $ error "expectationFailure did not abort"
 
-shouldInterpretInPEnvTo :: [Decl] -> Decl -> Value -> Expectation
-shouldInterpretInPEnvTo decls givenDecl expectedValue = do
-  let penv = createPEnv decls
+shouldInterpretInPEnvTo :: PEnv -> Decl -> Value -> Expectation
+shouldInterpretInPEnvTo penv givenDecl expectedValue = do
   value <- runReaderT (evalDFun givenDecl) penv
   value `shouldBe` expectedValue
 
-shouldThrowCastException :: [Decl] -> Decl -> Expectation
-shouldThrowCastException decls givenDecl =
-  let penv = createPEnv decls
-      isCastException :: InterpreterException -> Bool
+shouldThrowCastException :: PEnv -> Decl -> Expectation
+shouldThrowCastException penv givenDecl =
+  let isCastException :: InterpreterException -> Bool
       isCastException (CastException _) = True
-      isCastException _ =False in
-    runReaderT (evalDFun givenDecl) penv `shouldThrow` isCastException
+      isCastException _ = False
+  in runReaderT (evalDFun givenDecl) penv `shouldThrow` isCastException
 
 shouldThrowInterpreterException :: Decl -> InterpreterException -> Expectation
 shouldThrowInterpreterException given except = runReaderT (evalDFun given) [] `shouldThrow` (== except)

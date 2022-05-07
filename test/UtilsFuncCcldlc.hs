@@ -6,21 +6,27 @@ module UtilsFuncCcldlc
 
 import Kinds
 import Syntax
+import ProcessEnvironment
 
 -- type Bool : ~un = {'T, 'F}
 boolType = DType "Bool" MMany Kun (TLab ["'T","'F"])
+boolTypeVal = ("Bool", VType $ TLab ["'T","'F"])
 
 -- type MaybeBool : ~un = {'T, 'F, 'N}
 maybeBoolType = DType "MaybeBool" MMany Kun (TLab ["'T","'F","'N"])
+maybeBoolTypeVal = ("MaybeBool", VType $ TLab ["'T","'F","'N"])
 
 -- type OnlyTrue : ~un = {'T}
 onlyTrueType = DType "OnlyTrue" MMany Kun (TLab ["'T"])
+onlyTrueTypeVal = ("OnlyTrue", VType $ TLab ["'T"])
 
 -- val not(b: Bool) = (case b {'T: 'F, 'F: 'T})
 notFunc = DFun "not" [(MMany,"b",TName False "Bool")] (Case (Var "b") [("'T",Lit (LLab "'F")),("'F",Lit (LLab "'T"))]) Nothing
+notFuncVal = ("not", VFunc [] "b" (Case (Var "b") [("'T",Lit (LLab "'F")),("'F",Lit (LLab "'T"))]))
 
 -- val and(a: Bool, b: Bool) = (case a {'T: b, 'F: 'F})
 andFunc = DFun "and" [(MMany,"a",TName False "Bool"),(MMany,"b",TName False "Bool")] (Case (Var "a") [("'T",Var "b"),("'F",Lit (LLab "'F"))]) Nothing
+andFuncVal = ("and", VFunc [] "a" (Lam MMany "b" (TName False "Bool") (Case (Var "a") [("'T",Var "b"),("'F",Lit (LLab "'F"))])))
 
 -- val f = 𝜆(x: Bool) 𝜆(y: case x {'T: Int, 'F: Bool}) case x {'T: 17+y, 'F: not y}
 f = Lam MMany "x" (TName False "Bool")
@@ -42,6 +48,7 @@ f2' = Lam MMany "x" TDyn
 
 -- type Direction : ~un = {'L, 'R}
 directionType = DType "Direction" MMany Kun (TLab ["'L","'R"])
+directionTypeVal = ("Direction", VType $ TLab ["'L","'R"])
 
 -- val f3 = 𝜆(x: Bool) 𝜆(y: *) 𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
 --            case (y: * => case x {'T: Direction, 'F: Bool}) {'T: y, 'F: not y, 'L: z, 'R: not z}

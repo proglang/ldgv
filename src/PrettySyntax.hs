@@ -161,7 +161,6 @@ instance Pretty Value where
     VChan _ _ -> pretty "VChan"
     VSend v -> pretty "VSend"
     VPair a b -> pretty "&lt;" <+> pretty a <+> pretty ", " <+> pretty b <+> pretty "&gt;"
-    VDecl d -> pretty d
     VType t -> pretty t
     VFunc _ s exp -> pretty "λ" <+> pretty s <+> pretty " (" <+> pretty exp <+> pretty ")"
     VDynCast v t -> pretty "(" <+> pretty v <+> pretty " : " <+> pretty t <+> pretty " ⇒ ★)"

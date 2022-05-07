@@ -4,7 +4,6 @@
 module Interpreter
   ( interpret
   , evalDFun
-  , createPEnv
   , evalType
   , InterpreterException(..)
   ) where
@@ -51,16 +50,17 @@ blame exp = throw $ CastException exp
 
 -- | interpret the "main" value in an ldgv file given over stdin
 interpret :: [Decl] -> IO Value
-interpret decls = do
-  -- gather Type and Function definitions
-  let penv = createPEnv $ filter isInterestingDecl decls
-      isInterestingDecl DFun {} = True
-      isInterestingDecl DType {} = True
-      isInterestingDecl _ = False
-  -- find the main DFun
-  case lookup "main" penv of
-    Just (VDecl decl) -> R.runReaderT (evalDFun decl) penv
-    _ -> throw $ LookupException "main"
+interpret decls = R.runReaderT (interpretDecl decls) []
+
+interpretDecl :: [Decl] -> InterpretM Value
+interpretDecl (DFun "main" _ e _:_) = interpret' e
+interpretDecl (DFun name [] e _:decls) = interpret' e >>= \v -> local (extendEnv name v) (interpretDecl decls)
+interpretDecl (DFun name binds e _:decls) =
+  let lambda = foldr (\(mul, id, ty) -> Lam mul id ty) e binds
+  in interpret' lambda >>= \v -> local (extendEnv name v) (interpretDecl decls)
+interpretDecl (DType name _ _ t:decls) = local (extendEnv name $ VType t) (interpretDecl decls)
+interpretDecl (_:decls) = interpretDecl decls
+interpretDecl [] = throw $ LookupException "main"
 
 -- | interpret a DFun (Function declaration)
 evalDFun :: Decl -> InterpretM Value
@@ -153,7 +153,6 @@ eval = \case
 
 -- Exp is only used for blame
 interpretApp :: Exp -> Value -> Value -> InterpretM Value
-interpretApp e (VDecl d) w = evalDFun d >>= \vfunc -> interpretApp e vfunc w
 interpretApp _ (VFunc env s exp) w = R.local (const $ extendEnv s w env) (interpret' exp)
 interpretApp e (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
   env0 <- ask

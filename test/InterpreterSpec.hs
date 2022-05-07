@@ -39,54 +39,54 @@ spec = do
 
   describe "LDLC function interpretation" $ do
     it "interprets application of (x='F, y='F) on section2 example function f" $
-      shouldInterpretInPEnvTo [boolType, notFunc]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal]
        (DFun "f" [] (App (App f
           (Lit (LLab "'F"))) (Lit (LLab "'F"))) Nothing)
         (VLabel "'T")
 
   describe "LDLC pair interpretation" $ do
     it "interprets function returning a <Bool, Int> pair: <x='T, 1>" $
-      shouldInterpretInPEnvTo [boolType]
+      shouldInterpretInPEnvTo [boolTypeVal]
         (DFun "f" [] (Pair MMany "x" (Lit (LLab "'T")) (Lit $ LNat 1)) Nothing)
         (VPair (VLabel "'T") (VInt 1))
     it "interprets function returning a <Bool, Int> pair, where snd depends on evaluation of fst: <x='T, case x {'T: 1, 'F: 0}>" $
-      shouldInterpretInPEnvTo [boolType]
+      shouldInterpretInPEnvTo [boolTypeVal]
         (DFun "f" [] (Pair MMany "x" (Lit $ LLab "'T") (Case (Var "x") [("'T",Lit $ LNat 1), ("'F",Lit $ LNat 0)])) Nothing)
         (VPair (VLabel "'T") (VInt 1))
 
   describe "CCLDLC function interpretation" $ do
     it "interprets application of x='F, y=('F: Bool => *) on section2 example function f1'" $
-      shouldInterpretInPEnvTo [boolType, notFunc]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal]
         (DFun "f1'" [] (App (App f1' (Lit $ LLab "'F")) (Cast (Lit $ LLab "'F") (TName False "Bool") TDyn)) Nothing)
         (VLabel "'T")
     it "interprets application of x=('F: Bool => *), y='F on section2 example function f2'" $
-      shouldInterpretInPEnvTo [boolType, notFunc]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal]
         (DFun "f2'" [] (App (App f2' (Cast (Lit (LLab "'F")) (TName False "Bool") TDyn)) (Lit (LLab "'F"))) Nothing)
         (VLabel "'T")
     it "interprets application of x=('T: Bool -> *), y=6 on section2 example function f2'" $
-      shouldInterpretInPEnvTo [boolType, notFunc]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal]
         (DFun "f2'" [] (App (App f2' (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)) (Lit (LNat 6))) Nothing)
         (VInt 23)
     it "interprets application of x=('F: MaybeBool => *), y='F on section2 example function f2'" $
-      shouldThrowCastException [boolType, notFunc, maybeBoolType]
+      shouldThrowCastException [boolTypeVal, notFuncVal, maybeBoolTypeVal]
         (DFun "f2'" [] (App (App f2' (Cast (Lit (LLab "'F")) (TName False "MaybeBool") TDyn)) (Lit (LLab "'F"))) Nothing)
     it "interprets application of x=('F: MaybeBool => Bool), y='F on section2 example function f" $
-      shouldThrowCastException [boolType, notFunc, maybeBoolType]
+      shouldThrowCastException [boolTypeVal, notFuncVal, maybeBoolTypeVal]
         (DFun "f" [] (App (App f (Cast (Lit (LLab "'F")) (TName False "MaybeBool") (TName False "Bool"))) (Lit (LLab "'F"))) Nothing)
     it "interprets application of x=('T: OnlyTrue => Bool), y='6 on section2 example function f" $
-      shouldInterpretInPEnvTo [boolType, notFunc, onlyTrueType]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal, onlyTrueTypeVal]
         (DFun "f" [] (App (App f (Cast (Lit (LLab "'T")) (TName False "OnlyTrue") (TName False "Bool"))) (Lit (LNat 6))) Nothing)
         (VInt 23)
     it "interprets application of x=('T: OnlyTrue => *), y=6 on section2 example function f2'" $
-      shouldInterpretInPEnvTo [boolType, notFunc, onlyTrueType]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal, onlyTrueTypeVal]
         (DFun "f2'" [] (App (App f2' (Cast (Lit (LLab "'T")) (TName False "OnlyTrue") TDyn)) (Lit (LNat 6))) Nothing)
         (VInt 23)
     it "interprets application of x='T, y=('L: Direction => *), z='T on example function f3" $
-      shouldInterpretInPEnvTo [boolType, notFunc, directionType]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal, directionTypeVal]
         (DFun "f3" [] (App (App (App f3 (Lit (LLab "'T"))) (Cast (Lit (LLab "'R")) (TName False "Direction") TDyn)) (Lit (LLab "'T"))) Nothing)
         (VLabel "'F")
     it "interprets application of x='F,y=(not: (b:Bool) -> Bool => *),z='T on example function f4'" $
-      shouldInterpretInPEnvTo [boolType, notFunc]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal]
         (DFun "f4'" []
           (App (App (App f4'
             (Lit (LLab "'F")))
@@ -95,7 +95,7 @@ spec = do
           Nothing)
         (VLabel "'F")
     it "interprets application of x='T,y=(and: (a:Bool) -> (b:Bool) -> Bool => *),z='T on example function f4'" $
-      shouldInterpretInPEnvTo [boolType, andFunc]
+      shouldInterpretInPEnvTo [boolTypeVal, andFuncVal]
         (DFun "f4'" []
           (App (App (App f4'
             (Lit (LLab "'T")))
@@ -104,12 +104,12 @@ spec = do
           Nothing)
         (VLabel "'T")
     it "interprets application of x='F,y=(not: (b:Bool) -> Bool => *) on example function f4" $
-      shouldInterpretInPEnvTo [boolType, notFunc]
+      shouldInterpretInPEnvTo [boolTypeVal, notFuncVal]
         (DFun "f4" [] (App (App f4 (Lit $ LLab "'F")) (Cast (Var "not") (TFun MMany "b" (TName False "Bool") (TName False "Bool")) TDyn))
           Nothing)
         (VLabel "'T")
     it "interprets cast of boolean pair from Bool to OnlyTrue" $
-      shouldThrowCastException [boolType, onlyTrueType]
+      shouldThrowCastException [boolTypeVal, onlyTrueTypeVal]
       (DFun "paircast" []
         (Cast
           (Pair MMany "x"
@@ -119,7 +119,7 @@ spec = do
           (TPair MMany "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
         Nothing)
     it "interprets cast of boolean pair from Bool to MaybeBool" $
-      shouldInterpretInPEnvTo [boolType, maybeBoolType]
+      shouldInterpretInPEnvTo [boolTypeVal, maybeBoolTypeVal]
       (DFun "paircast" []
         (Cast
           (Pair MMany "x"

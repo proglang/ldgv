@@ -4,21 +4,11 @@ module ProcessEnvironment where
 import Syntax as S
 import Control.Concurrent.Chan as C
 import Control.Monad.Reader as T
-import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 
 -- | the interpretation monad
 type InterpretM a = T.ReaderT PEnv IO a
-
-createEntry :: Decl -> Maybe (String, Value)
-createEntry = \case
-  d@(DType str mult kind typ) -> Just (str, VType typ)
-  d@(DFun str args e mt) -> Just (str, VDecl d)
-  _ -> Nothing
-
-createPEnv :: [Decl] -> PEnv
-createPEnv = mapMaybe createEntry
 
 extendEnv :: String -> Value -> PEnv -> PEnv
 extendEnv = curry (:)
@@ -51,7 +41,6 @@ data Value
   | VChan (C.Chan Value) (C.Chan Value)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
-  | VDecl S.Decl -- when an identifier maps to another function we have not yet interpreted
   | VType S.Type
   | VFunc PEnv String Exp
   | VDynCast Value GType -- (Value : G => *)
@@ -70,7 +59,6 @@ instance Show Value where
     VChan _ _ -> "VChan"
     VSend v -> "VSend (" ++ show v ++ ")"
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
-    VDecl d -> "VDecl " ++ show d
     VType t -> "VType " ++ show t
     VFunc _ s exp -> "VFunc " ++ show s ++ " " ++ show exp
     VDynCast v t -> "VDynCast (" ++ show v ++ ") (" ++ show t ++ ")"
