@@ -6,8 +6,10 @@ module PrettySyntax (Pretty(), pretty, pshow) where
 
 import Kinds
 import Syntax
+import ProcessEnvironment
 
 import Data.Text.Prettyprint.Doc
+import qualified Data.Set as Set
 
 pshow :: Pretty a => a -> String
 pshow x = show (pretty x)
@@ -49,7 +51,7 @@ instance Pretty Type where
   pretty TInt = pretty "Int"
   pretty TNat = pretty "Nat"
   pretty TBot = pretty "_|_"
-  pretty TDyn = pretty "*"
+  pretty TDyn = pretty "★"
   pretty TDouble = pretty "Double"
   pretty TString = pretty "String"
     -- the bool indicates whether the type needs to be dualized
@@ -118,7 +120,7 @@ instance Pretty Exp where
   pretty (Case e ses) =
     pcase e ses
   pretty (Cast e t1 t2) =
-    pretty e <+> pretty ":" <+> pretty t1 <+> pretty "=>" <+> pretty t2
+    pretty "(" <+> pretty e <+> pretty ":" <+> pretty t1 <+> pretty "⇒" <+> pretty t2 <+> pretty ")"
   pretty (Succ e) =
     pretty "succ" <+> pretty e
   pretty (NatRec e ez x t y tyy es) =
@@ -138,7 +140,7 @@ instance Pretty Literal where
     LNat n -> pretty n
     LDouble d -> pretty d
     LString s -> pretty s
-    LLab s -> pretty "`" <> plab s
+    LLab s -> plab s
     LUnit  -> pretty "()"
 
 instance Pretty e => Pretty (MathOp e) where
@@ -148,3 +150,55 @@ instance Pretty e => Pretty (MathOp e) where
     Mul a b -> pretty a <+> pretty "*" <+> pretty b
     Div a b -> pretty a <+> pretty "/" <+> pretty b
     Neg a   -> pretty "-" <> pretty a
+
+instance Pretty Value where
+  pretty = \case
+    VUnit -> pretty "()"
+    VLabel s -> pretty s
+    VInt i -> pretty $ show i
+    VDouble d -> pretty $ show d
+    VString s -> pretty $ show s
+    VChan _ _ -> pretty "VChan"
+    VSend v -> pretty "VSend"
+    VPair a b -> pretty "&lt;" <+> pretty a <+> pretty ", " <+> pretty b <+> pretty "&gt;"
+    VDecl d -> pretty d
+    VType t -> pretty t
+    VFunc _ s exp -> pretty "λ" <+> pretty s <+> pretty " (" <+> pretty exp <+> pretty ")"
+    VDynCast v t -> pretty "(" <+> pretty v <+> pretty " : " <+> pretty t <+> pretty " ⇒ ★)"
+    VFuncCast v ft1 ft2 -> pretty "(" <+> pretty v <+> pretty " : " <+> pretty ft1 <+> pretty " ⇒ " <+> pretty ft2 <+> pretty ")"
+    VRec {} -> pretty "VRec"
+    VNewNatRec {} -> pretty "VNewNatRec"
+
+instance Pretty FuncType where
+  pretty (FuncType _ s t1 t2) = pretty "Π(" <+> pretty s <+> pretty ":" <+> pretty t1 <+> pretty ")" <+> pretty t2
+
+instance Pretty GType where
+  pretty = \case
+    GUnit -> pretty "()"
+    GLabel ls -> braces (plab str <> foldr f mempty strs)
+      where
+        ll = Set.toList ls
+        str = head ll
+        strs = tail ll
+        f str rest = comma <+> plab str <> rest
+    GFunc s -> pretty "Π(" <+> pretty s <+> pretty ":★)★"
+    GPair s -> pretty "Σ(" <+> pretty s <+> pretty ":★)★"
+    GNat -> pretty "Nat"
+    GNatLeq n -> pretty "Nat(" <+> pretty n <+> pretty ")"
+    GInt -> pretty "Int"
+    GDouble -> pretty "Double"
+    GString -> pretty "String"
+
+instance Pretty Decl where
+  pretty = \case
+    DType s _ k t -> pretty "type " <+> pretty s <+> pretty " : " <+> pretty k <+> pretty " = " <+> pretty t
+    DSig s _ t -> pretty "val " <+> pretty s <+> pretty " : " <+> pretty t
+    DFun s _ exp _ -> pretty "val " <+> pretty s <+> pretty " = " <+> pretty exp
+
+instance Pretty NFType where
+  pretty = \case
+    NFBot -> pretty "⊥"
+    NFDyn -> pretty "★"
+    NFFunc (FuncType _ s t1 t2) -> pretty "Π(" <+> pretty s <+> pretty ":" <+> pretty t1 <+> pretty ")" <+> pretty t2
+    NFPair (FuncType _ s t1 t2) -> pretty "Σ(" <+> pretty s <+> pretty ":" <+> pretty t1 <+> pretty ")" <+> pretty t2
+    NFGType gt -> pretty gt

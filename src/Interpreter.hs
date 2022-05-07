@@ -6,6 +6,7 @@ module Interpreter
   , evalDFun
   , createPEnv
   , evalType
+  , InterpreterException(..)
   ) where
 
 import qualified Config as C
@@ -13,13 +14,37 @@ import Syntax
 import PrettySyntax
 import qualified Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
-import Control.Exception (throw)
 import Data.Foldable (find)
 import Data.Maybe (fromJust)
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.Reader as R
 import Control.Applicative ((<|>))
+import Control.Exception
+
+data InterpreterException
+  = MathException String
+  | LookupException String
+  | CastException Exp
+  | ApplicationException Exp
+  | RecursorException String
+  | RecursorNotNatException
+  | NotImplementedException Exp
+  | TypeNotImplementedException Type
+  deriving Eq
+
+instance Show InterpreterException where
+  show = \case
+    (MathException s) -> "MathException: " ++ s
+    (LookupException s) -> "LookupException: Lookup of '" ++ s ++ "' did not yield a value"
+    (CastException exp) -> "CastException: (" ++ pshow exp ++ ") failed"
+    (ApplicationException exp) -> "ApplicationException: expression '" ++ pshow exp ++ "' not allowed"
+    (RecursorException s) -> "RecursorException: " ++ s
+    RecursorNotNatException -> "Recursor only works on natural numbers"
+    (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
+    (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
+
+instance Exception InterpreterException
 
 blame :: Exp -> a
 blame exp = throw $ CastException exp

@@ -5,6 +5,7 @@ import Utils
 
 import Kinds
 import Syntax
+import Interpreter
 import ProcessEnvironment
 import UtilsFuncCcldlc
 
