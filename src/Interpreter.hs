@@ -3,7 +3,7 @@
 
 module Interpreter
   ( interpret
-  , evalDFun
+  , interpretDecl
   , evalType
   , InterpreterException(..)
   ) where
@@ -62,14 +62,6 @@ interpretDecl (DType name _ _ t:decls) = local (extendEnv name $ VType t) (inter
 interpretDecl (_:decls) = interpretDecl decls
 interpretDecl [] = throw $ LookupException "main"
 
--- | interpret a DFun (Function declaration)
-evalDFun :: Decl -> InterpretM Value
-evalDFun decl@(DFun name [] e _) = interpret' e  -- a Declaration without free variables can be just interpreted
-evalDFun decl@(DFun name binds e _) =
-  let lambda = foldr (\(mul, id, ty) -> Lam mul id ty) e binds
-  in interpret' lambda
-evalDFun decl = fail ("evalDFun expects DFun, got: " ++ show decl)
-
 -- | interpret a single Expression
 interpret' :: Exp ->  InterpretM Value
 interpret' e = ask >>= \penv ->
@@ -115,7 +107,7 @@ eval = \case
         C.traceIO $ "Interpreting pair cast expression: Value(" ++ show v ++ ") NFType(" ++ show nft1 ++ ") NFType(" ++ show nft2 ++ ")"
         v' <- lift $ reducePairCast v (toNFPair nft1) (toNFPair nft2)
         maybe (blame cast) return v'
-      _ -> let v' = reduceCast v nft1 nft2 in maybe (blame cast) return (C.trace ("Cast reduction of " ++ show v ++ " : " ++ show nft1 ++ " => " ++ show nft2 ++ " results in value " ++ show v') v')
+      _ -> let v' = reduceCast v nft1 nft2 in maybe (blame cast) return v'
   Var s -> ask >>= \env -> maybe (throw $ LookupException s) (liftIO . pure) (lookup s env)
   Let s e1 e2 -> interpret' e1 >>= \v -> R.local (extendEnv s v) (interpret' e2)
   Math m -> interpretMath m
@@ -264,17 +256,17 @@ reduceCast' v t NFDyn =
   else do
     gt <- matchType t
     v' <- reduceCast v t (NFGType gt)
-    Just $ C.trace "Factor-Left!" (VDynCast v' gt)
+    Just (VDynCast v' gt) -- Factor-Left
 reduceCast' _ _ NFBot = Nothing -- Cast-Bot
 reduceCast' (VDynCast v gt1) NFDyn (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing -- Cast-Collapse/Cast-Collide
 reduceCast' v NFDyn t = do
   gt <- matchType t
   let nfgt = NFGType gt
   let typeq = t `equalsType` gt
-  if C.trace (show t ++ " == " ++ show gt ++ " = " ++ show typeq) (not typeq) then do
+  if not typeq then do
     v'  <- reduceCast v NFDyn nfgt
     v'' <- reduceCast v' nfgt t
-    Just $ C.trace "Factor-Right!" v''  -- Factor-Right
+    Just v''  -- Factor-Right
   else
     Nothing
 reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing
@@ -287,12 +279,10 @@ toNFPair t = t
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
 reducePairCast (VPair v w) (NFPair (FuncType penv s t1 t2)) (NFPair (FuncType penv' s' t1' t2')) = do
   mv' <- reduceComponent v (penv, t1) (penv', t1')
-  C.traceIO $ "Reduce cast of left Value(" ++ show v ++ ") from NFType(" ++ show t1 ++ ") to NFType(" ++ show t1' ++ ") returning: " ++ show mv'
   case mv' of
     Nothing -> return Nothing
     Just v' -> do
       mw' <- reduceComponent w ((s, v) : penv, t2) ((s', v') : penv', t2')
-      C.traceIO $ "Reduce cast of right Value(" ++ show w ++ ") from NFType(" ++ show t2 ++ ") to NFType(" ++ show t2' ++ ") returning: " ++ show mw'
       return $ liftM2 VPair mv' mw'
   where
     reduceComponent :: Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)
