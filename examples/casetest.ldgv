@@ -1,3 +1,5 @@
+-- Simple function definition in Label-Dependent Lambda Calculus
+
 val negate (b : {'True,'False}) =
   case b of
   { 'True : 'False

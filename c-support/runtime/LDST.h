@@ -47,6 +47,7 @@ struct LDST_cont {
 
 union LDST_val {
   int            val_int;
+  double         val_double;
   LDST_lam_t     val_lam;
   LDST_t        *val_pair;
   LDST_chan_t   *val_chan;

@@ -42,23 +42,29 @@ tokens :-
   new                                   { tok $ const New }
   send                                  { tok $ const Send }
   recv                                  { tok $ const Recv }
+
+  -- for Binary Session Types; obsolete for Label Dependent ones
   select                                { tok $ const Select }
   rcase                                 { tok $ const Rcase }
   close                                 { tok $ const Close }
   wait                                  { tok $ const Wait }
+
   expect                                { tok $ const Expect }
+  $digit+ "." $digit+                   { tok $ Double . read }
   $digit+                               { tok $ Int . read }
   Bot                                   { tok $ const TBot }
   Unit                                  { tok $ const TUnit }
   Int                                   { tok $ const TInt }
-  natrec                                { tok $ const NatRec } 
+  String                                { tok $ const TString }
+  natrec                                { tok $ const NatRec }
+  new_natrec                            { tok $ const NewNatRec }
   Nat                                   { tok $ const TNat }
+  Double                                { tok $ const TDouble }
   dualof                                { tok $ const DualOf }
   "_|_"                                 { tok $ const TBot }
-  "/\"                                  { tok $ const Glb }
-  "\/"                                  { tok $ const Lub }
   "()"                                  { tok $ const Unit }
   "->"                                  { tok $ const Arrow }
+  "=>"                                  { tok $ const DoubleArrow }
   "{{"                                  { tok $ const OpenEqn }
   "}}"                                  { tok $ const CloseEqn }
   "<:"                                  { tok $ const Subtype }
@@ -66,10 +72,11 @@ tokens :-
   ":"                                   { tok $ const Colon }
   ","                                   { tok $ const Comma }
   "."                                   { tok $ const Dot }
-  fn                                    { tok $ const Lambda }
+  fn | 𝜆                                { tok $ const Lambda }
   [\=\+\-\*\/\(\)\:\!\?\{\}\[\]\<\>]    { tok $ Sym . head }
   "'" [$alpha $digit]+                  { tok $ Lab }
   "~" $alpha+                           { tokKind }
+  \"[^\"]*\"                            { tok $ Str }
   $lower [$alpha $digit \_ \']*         { tok $ Var }
   $upper [$alpha $digit \_ \']*         { tok $ TID }
 
@@ -80,8 +87,8 @@ data Token =
         Rec             |
         Fst             |
         Snd             |
-        Case            |       
-        Assume          |       
+        Case            |
+        Assume          |
         In              |
         Of              |
         Val             |
@@ -89,36 +96,43 @@ data Token =
         New             |
         Send            |
         Recv            |
+
+        -- for Binary Session Types; obsolete for Label Dependent ones
         Select          |
         Rcase           |
         Close           |
         Wait            |
+
         Expect          |
         Type            |
         Sym Char        |
-        Kind Kind      |
+        Kind Kind       |
         Lab String      |
         Var String      |
         TID String      |
+        Str String      |
         Unit            |
         TBot            |
         TUnit           |
+        TString         |
         TInt            |
         TNat            |
+        TDouble         |
         NatRec          |
+        NewNatRec       |
         Subtype         |
-        Equiv         |
+        Equiv           |
         OpenEqn         |
         CloseEqn        |
         Arrow           |
+        DoubleArrow     |
         Colon           |
         Comma           |
         Dot             |
         Lambda          |
         DualOf          |
-        Glb          |
-        Lub          |
         Int Int         |
+        Double Double   |
         EOF
         deriving (Eq,Show)
 

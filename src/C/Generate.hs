@@ -40,9 +40,9 @@ import Data.Set (Set)
 import Data.String
 import Data.Version
 import Kinds (Multiplicity(..))
-import MonadStack
+import C.MonadStack
 import Numeric
-import Syntax.CPS
+import C.CPS
 import Validation
 import qualified Data.ByteString.Builder as B
 import qualified Data.Char as C
@@ -122,6 +122,8 @@ newtype CStmt = CStmt Builder
 
 data Tag a where
   TagInt :: Tag Int
+  TagDouble :: Tag Double
+  TagString :: Tag String
   TagLabel :: Tag String
   TagPair :: Tag (CExp V, CExp V)
   TagLam :: Tag (CExp L)
@@ -342,6 +344,8 @@ explainExpression ty0 v0 =
         TUnit -> literal "()"
         TInt -> formatted "Int %d" $ access TagInt v
         TNat -> formatted "Nat %d" $ access TagInt v
+        TDouble -> formatted "Double %.6f" $ access TagDouble v
+        TString -> formatted "String %s" $ access TagString v
         TLab _ -> formatted "Label %s" $ access TagLabel v
         TPair _ _ t1 t2 ->
           let (v1, v2) = accessPair v in
@@ -459,7 +463,7 @@ signatureParameters name args = do
           & insertRecArg
 
   pure (params, bindings)
-  
+
 -- | @functionDeclDef signature body@ returns a pair of @(declaration, definition)@.
 --
 -- The @signature@ should be built by 'functionSignature'.
@@ -658,6 +662,8 @@ generateLiteral :: Literal -> GenM (CVar V)
 generateLiteral = \case
   LInt i -> mkValue TagInt i
   LNat n -> mkValue TagInt n
+  LDouble d -> mkValue TagDouble d
+  LString s -> mkValue TagString s
   LLab l -> mkValue TagLabel l
   LUnit  -> newUnitVar
 
@@ -786,6 +792,8 @@ takeAddress = declareFresh . (B.char7 '&' <>) . unCExp . toCExp
 mkValue :: Tag a -> a -> GenM (CVar V)
 mkValue tag a = liftValue tag =<< case tag of
   TagInt -> pure $ B.intDec a
+  TagDouble -> pure $ B.doubleDec a
+  TagString -> pure $ B.stringUtf8 a
   TagLabel -> pure $ labelForC a
   TagPair -> do
     let (x, y) = a
@@ -928,6 +936,8 @@ accessValChannel = CVar . access TagChan
 tagAccessor :: Tag a -> Builder
 tagAccessor = \case
   TagInt   -> "val_int"
+  TagDouble -> "val_double"
+  TagString -> "val_string"
   TagLabel -> "val_label"
   TagPair  -> "val_pair"
   TagLam   -> "val_lam"

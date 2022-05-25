@@ -33,7 +33,7 @@ data CompileMode
   = CompileC
   | CompileObject
   | CompileLink String
-  deriving (Show, Eq) 
+  deriving (Show, Eq)
 
 data CompileOpts = Compile
   { compileInputs   :: ![FilePath]
@@ -138,6 +138,7 @@ actionParserInfo :: Opts.ParserInfo (Action ())
 actionParserInfo = Opts.info (actionParser <**> Opts.helper) $ mconcat
   [ Opts.progDesc "An implementation of Label Dependent Session Types (LDST)."
   , Opts.footer "Authors: \
+      \Thomas Leyh (CCLDLC implementation), \
       \Nils Hagner (interpreter, web frontend), \
       \Janek Spaderna (C backend, command line frontend), \
       \Peter Thiemann (parser, typechecker)"
@@ -204,7 +205,7 @@ generate Compile{..} writeOutput = do
   let addSig = maybe id addSig' ((,) <$> compileMainId <*> compileMainSig)
   decls <- addSig <$> parseInput compileInputs
   either msgFatal (liftIO . writeOutput) (T.typecheck decls >> C.generate compileMainId decls)
-  
+
 parseInput :: [FilePath] -> Action [Syntax.Decl]
 parseInput fps = do
   -- Unwraps a parse result of type @Maybe [Decl]@.

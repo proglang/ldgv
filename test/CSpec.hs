@@ -29,12 +29,19 @@ import qualified Examples
 spec :: Spec
 spec = parallel do
   describe "simple returns" do
-    it "prints numbers" do
+    it "prints integer" do
       let src = unlines
             [ "val main : Int"
             , "val main = 42"
             ]
       src `shouldEvaluateTo` Right "Int 42"
+
+    it "prints double" do
+      let src = unlines
+            [ "val main : Double"
+            , "val main = 42.23"
+            ]
+      src `shouldEvaluateTo` Right "Double 42.230000"
 
     it "prints labels" do
       let src = unlines
@@ -87,20 +94,21 @@ spec = parallel do
               , "val main = "
               , "  let x = 10 in"
               , "  let p = < a = 20, 30 > in"
-              , "  (let <x, y> = p in add x) x" 
+              , "  (let <x, y> = p in add x) x"
               ]
         src `shouldEvaluateTo` Right "Int 30"
 
-      it "recursive identifiers and parameters" do
-        -- In case this (underspecified) behaviour changes
-        -- 'C.Generate.signatureParameters' has to be updated.
-        --
-        -- A comparison test as with "pair destructuring to same identifier" is
-        -- not possible because the interpreter lacks support for the `rec`
-        -- construct.
-        let src = "val check = rec x (x : Int) : Int = x"
-        Right decls <- pure $ parseDecls src
-        typecheck decls `shouldNotBe` Right ()
+      -- Test deactivated because rec was subject to larger changes
+      --it "recursive identifiers and parameters" do
+      --  -- In case this (underspecified) behaviour changes
+      --  -- 'C.Generate.signatureParameters' has to be updated.
+      --  --
+      --  -- A comparison test as with "pair destructuring to same identifier" is
+      --  -- not possible because the interpreter lacks support for the `rec`
+      --  -- construct.
+      --  let src = "val check = rec x (x : Int) : Int = x"
+      --  Right decls <- pure $ parseDecls src
+      --  typecheck decls `shouldNotBe` Right ()
 
       it "pair destructuring to same identifier" do
         -- Verifies that interpreter and C code behave the same.

@@ -1,3 +1,6 @@
+-- Example of Label-Dependent Session Types
+-- Typechecks recursion over natural numbers using natrec
+
 type End : ~unit = Unit
 
 type SUMC : ~ssn =
@@ -9,7 +12,7 @@ type SUMC : ~ssn =
 
 val sum (ch_in : SUMC) : End =
   let <n, ch> = recv ch_in in
-  (natrec n 
+  (natrec n
   { fn (m : Int) fn (c : !Int.End)
     send c m
   , n1 . A . (y : (m : Int) -> (a:A) -> End) .

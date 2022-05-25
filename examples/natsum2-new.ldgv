@@ -1,0 +1,61 @@
+-- Example of Cast Calculus Label-Dependent Lambda Calculus
+-- Using new_natrec to calculate sum of n numbers
+
+type SUMF : ~un =
+     (n : Nat) ->
+     natrec n
+     {
+	Int
+	, A. (x : Int) -> A
+     }
+
+val sumf ( n : Nat) =
+    (natrec n
+    {
+	fn (acc : Int) acc
+	, n1 . A . (y : (acc : Int) -> A) .
+	fn (acc : Int) fn (x : Int)
+	y (acc + x)
+    }) 0
+
+val newsumf ( n : Nat ) =
+    -- (new_natrec f : n . A . T { Mzero, n1.Msucc }) n 0
+    (new_natrec f : n1 . A . (acc : Int) -> A
+    {
+	    fn (acc: Int) acc,				                      -- zero: Int -> Int
+      n1. fn (acc : Int) fn (x : Int) f n1 (acc + x)	-- succ: Int -> Int -> A
+    })
+    -- : (n: Nat) -> (acc: Int) -> natrec n { Int, A. (x: Int) -> A }
+    n
+    0
+
+val r0 = sumf 0
+val r1 = sumf 1 42
+val r2 = sumf 2 17 4
+
+val newr0 = newsumf 0
+val newr1 = newsumf 1 42
+val newr2 = newsumf 2 17 4
+
+val main = newsumf 2 17 4
+
+-- example reductions (new)
+
+--     (new_natrec f : n . A . (y : (acc : Int) -> A) {
+--         n1. fn (acc : Int) fn (x : Int) f n1 (acc + x),
+--     	fn (acc: Int) acc
+--     }) 0
+--     -> fn (acc: Int) acc
+
+--     (new_natrec f : n . A . (y : (acc : Int) -> A) {
+--         n1. fn (acc : Int) fn (x : Int) f n1 (acc + x),
+--     	fn (acc: Int) acc
+--     }) (S n1)
+--     -> fn (acc : Int) fn (x : Int) (new_natrec f ...) n1 (acc + x)
+
+-- transformation old -> new:
+
+-- natrec V { Mzero, n1 . A . (y : T) . Msucc }
+----->
+-- (new_natrec f : n . A . T { Mzero, n1 . Msucc[y := f n1] }) V
+

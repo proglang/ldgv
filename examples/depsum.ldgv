@@ -1,3 +1,6 @@
+-- Pair types in Label-Dependent Lambda Calculus
+-- Typechecks pairs and functions
+
 type Bool : ~un = {'True,'False}
 
 val f1 =

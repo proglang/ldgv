@@ -3,24 +3,20 @@ module TCXMonad (
   mget, mstate, mupdate, mlocal, mfail, tell, listen, censor
   ) where
 
-import Control.Applicative
-
 import Control.Monad.Reader
 import Control.Monad.Writer
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Except
-
-import Data.Tuple (swap)
 
 type M r s w a =
   ReaderT r (WriterT w (ExceptT String  (State s))) a
 
 runM :: M r s w a -> r -> s -> (Either String (a, w), s)
-runM ma r s =
-  runState (runExceptT (runWriterT (runReaderT ma r))) s
+runM ma r =
+  runState (runExceptT (runWriterT (runReaderT ma r)))
 
 mget :: Monoid w => M r s w r
-mget = ask 
+mget = ask
 
 mstate :: Monoid w => M r s w s
 mstate = get

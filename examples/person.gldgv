@@ -1,0 +1,37 @@
+-- Example of Gradual Label-Dependent Lambda Calculus
+
+type BOOL : ~un = {'True, 'False}
+
+type PERSON : ~un = (x : {'Name, 'Age, 'Flag}) -> case x of {'Name: Int, 'Age: Nat, 'Flag: BOOL}
+
+type PERSONX : ~un = (x : *) -> case x of {'Name: Int, 'Age: Nat, 'Flag: BOOL}
+
+val jim (x : {'Name,'Age, 'Flag}) =
+  case x of
+  { 'Name: 65536
+  , 'Age:  27
+  , 'Flag: 'False
+  }
+
+val ageof (p : PERSON) = p 'Age
+
+val ageofX (p : PERSONX) = p 'Age
+
+val main = ageofX jim
+
+val fooOfX (p : PERSONX) = p 'Foo
+
+val intOfNat (n : Nat) = -42
+
+val intOfBool (b : BOOL) = case b {'True: -1, 'False: 0}
+
+val intOfField (f : *) (p : PERSONX) : Int =
+    case f of { 'Name: p f, 'Age: intOfNat (p f), 'Flag: intOfBool (p f) }
+
+val intOfName (p : PERSONX) = intOfField 'Name p
+
+val intOfAge (p : PERSONX) = intOfField 'Age p
+
+val intOfFlag (p : PERSONX) = intOfField 'Flag p
+
+val intOfFoo (p : PERSONX) = intOfField 'Foo p

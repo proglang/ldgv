@@ -1,3 +1,6 @@
+-- Example of Label-Dependent Session Types
+-- From section 2.3
+
 type End : ~unit = Unit
 
 type NodeC :! ~ssn =
@@ -21,4 +24,4 @@ val sendNode (n : Node) (c : NodeC) =
   let < tag , v > = n in
   let c = send c tag in
   send c v
-  
+

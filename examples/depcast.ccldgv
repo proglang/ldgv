@@ -1,0 +1,23 @@
+-- Examples of Cast Calculus Label-Dependent Lambda Calculus
+-- Comparison of functions without and with dynamic type casts
+-- Interprets function application of section 2.1 example
+-- (Label-Dependent Lambda Calculus and Gradual Typing, 2021)
+
+type Bool : ~un = {'T, 'F}
+
+val not : (b: Bool) -> Bool
+val not   (b: Bool) = (case b {'T: 'F, 'F: 'T})
+
+val f1 :   (x : Int) -> Int
+val f1 = fn(x: Int) x
+
+val f1' :   (x : *) -> Int
+val f1' = fn(x : *) (x : * => Int)
+
+val f  :   (x: Bool) -> (y: case x {'T: Int, 'F: Bool}) -> case x {'T: Int,  'F: Bool}
+val f  = fn(x: Bool)  fn(y: case x {'T: Int, 'F: Bool})    case x {'T: 17+y, 'F: not y}
+
+val f' :   (x: Bool) -> (y: *) -> case x {'T: Int, 'F: Bool}
+val f' = fn(x: Bool)  fn(y: *) case x {'T: 17 + (y : * => Int), 'F: not (y : * => Bool)}
+
+val main = f' 'F ('T : Bool => *)

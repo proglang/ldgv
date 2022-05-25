@@ -1,3 +1,6 @@
+-- Simple example of Label-Dependent Session Types
+-- Interprets addition of two numbers
+
 type SendInt : ! ~ssn = !Int. !Int. Unit
 
 val send2 (c: SendInt) =

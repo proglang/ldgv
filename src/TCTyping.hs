@@ -1,5 +1,8 @@
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
+
 module TCTyping where
 
 import Control.Monad (foldM, zipWithM, ap)
@@ -8,7 +11,7 @@ import qualified Data.Set as Set
 import qualified Config as D
 
 import Syntax
-import Syntax.Pretty
+import PrettySyntax
 import Kinds
 import TCSubtyping
 import qualified TCXMonad as TC
@@ -24,8 +27,11 @@ kiSynth te (TName b tn) = do
   return (k, mult k)
 kiSynth te TUnit = return (Kunit, MMany)
 kiSynth te TInt  = return (Kun, MMany)
+kiSynth te TDouble = return (Kun, MMany)
+kiSynth te TString = return (Kun, MMany)
 kiSynth te TNat  = return (Kun, MMany)
 kiSynth te TBot  = return (Kunit, MMany) -- this kind is compatible with everything
+kiSynth te TDyn  = return (Kidx, MMany)
 kiSynth te (TLab labs) = do
   case labs of
     (_ : _) -> return (Kidx, MMany)
@@ -41,17 +47,17 @@ kiSynth te ty@(TPair m x ty1 ty2) = do
   if mout <= m then return (kindof mout, mout) else TC.mfail ("kiSynth " ++ pshow ty)
 kiSynth te (TSend x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
-  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn 
+  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
   return (Kssn, MOne)
 kiSynth te (TRecv x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
-  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn 
+  m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
   return (Kssn, MOne)
 kiSynth te (TCase e1 cases) = do
   -- alternative: synthesize the type of e1 and only check the cases arising from this type
   let tlabs = TLab (map fst cases)
   _ <- tyCheck te e1 tlabs
-  ks <- mapM (\(lab, elab) -> 
+  ks <- mapM (\(lab, elab) ->
               kiSynth (("*kis*", (Many, TEqn e1 (Lit $ LLab lab) tlabs)) : te) elab)
              cases
   return (foldr1 kolub ks)
@@ -86,7 +92,7 @@ strengthenTop e ((x, (One, _)) : te) = TC.mfail ("Linear variable " ++ x ++ " no
 -- unrestricted strengthening + expanding singletons if needed
 strengthen :: Exp -> (Type, TEnv) -> TCM (Type, TEnv)
 strengthen e (ty, (x, (mm, tyx)) : te) =
-  if mm == One then 
+  if mm == One then
     TC.mfail ("Linear variable " ++ x ++ " not used in " ++ pshow e)
   else
     return (single x tyx ty, te)
@@ -102,7 +108,7 @@ tySynthUnfold te e = do
 
 -- type synthesis
 tySynth :: TEnv -> Exp -> TCM (Type, TEnv)
-tySynth te e = 
+tySynth te e =
   ap (return (\r@(ty, te) -> D.trace ("Leaving tySynth with " ++ pshow e ++ " : " ++ pshow ty ++ " -| " ++ pshow te) r)) $
   case D.trace ("Invoking tySynth on " ++ pshow te ++ " |- " ++ pshow e) $ e of
   Let x e1 e2 -> do
@@ -122,10 +128,6 @@ tySynth te e =
     (kix, mx) <- kiSynth (demoteTE te) tyx
     (ty, te1) <- tySynth ((x, (inject mx, tyx)) : te) e1
     strengthen e (TFun mm x tyx ty, te1)
-  Rec f x tyx tyr e1 -> do -- return type is declared
-    (kix, mx) <- kiSynth (demoteTE te) tyx
-    te1 <- tyCheck ((f, (Many, TFun MMany x tyx tyr)) : (x, (inject mx, tyx)) : te) e1 tyr
-    strengthen e (TFun MMany x tyx tyr, te1) >>= strengthen e
   App e1 e2 -> do
     (tf, te1) <- tySynth te e1
     tfu <- unfold te1 tf
@@ -135,6 +137,9 @@ tySynth te e =
         let tyout = subst x e2 ty2
         _ <- kiSynth (demoteTE te) tyout
         return (tyout, te2)
+      TDyn -> do
+        te2 <- tyCheck te1 e2 TDyn
+        return (TDyn, te2)
       _ ->
         TC.mfail ("Function expected, but got " ++ pshow tf ++ " (" ++ pshow tfu ++ ")")
 
@@ -175,13 +180,18 @@ tySynth te e =
         (ki2, mu2) <- kiSynth ((x, (demote mu1, ty1)) : demoteTE te) ty2'
         (ty3, te2) <- case ty1 of
           TLab labs ->
-            tySynth ((y, (inject mu2, ty2')) : (x, (inject mu1, ty1)) : te1) 
+            tySynth ((y, (inject mu2, ty2')) : (x, (inject mu1, ty1)) : te1)
                       $ Case (Var x) (map (,e2) labs)
           _ ->
             tySynth ((y, (inject mu2, ty2')) : (x, (inject mu1, ty1)) : te1) e2
         D.trace ("LetPair/kiSynth " ++ pshow (te2, ty3)) $ return ()
         (ki3, mu3) <- kiSynth (demoteTE te2) ty3
         strengthen e (ty3, te2) >>= strengthen e
+      TDyn -> do                -- matching happens here!
+        (ty3, te2) <- tySynth ((y, (Many, TDyn)) : (x, (Many, TDyn)) : te1) e2
+        (ki3, mu3) <- kiSynth (demoteTE te2) ty3
+        let ty3_without_xy = subst x (Fst e1) (subst y (Snd e1) ty3) -- FISHY
+        strengthen e (ty3_without_xy, te2) >>= strengthen e
       _ ->
         TC.mfail ("Pair expected, but got " ++ pshow tp ++ " (" ++ pshow tpu ++ ")")
   Fst e1 -> do                  -- only if second component can be discarded
@@ -194,6 +204,8 @@ tySynth te e =
         case mu2 of
           MMany -> return (ty1, te1)
           _ -> TC.mfail "Fst: MMany expected"
+      TDyn -> do
+        return (TDyn, te1)
       _ ->
         TC.mfail ("Fst: pair expected")
   Snd e1 -> do                  -- only if first component can be discarded
@@ -207,6 +219,8 @@ tySynth te e =
         case mu1 of
           MMany -> return (ty2', te1)
           _ -> TC.mfail "Snd: MMany expected"
+      TDyn -> do
+        return (TDyn, te1)
       _ ->
         TC.mfail ("Snd: pair expected")
   Fork e1 -> do
@@ -221,6 +235,8 @@ tySynth te e =
     case tsu of
       TSend x ty1 ty2 ->
         return (TFun MOne x ty1 ty2, te1)
+      TDyn ->
+        return (TFun MOne "d" TDyn TDyn, te1)
       _ ->
         TC.mfail ("Send expected, but got " ++ pshow ts ++ " (" ++ pshow tsu ++ ")")
   Recv e1 -> do
@@ -229,6 +245,8 @@ tySynth te e =
     case tru of
       TRecv x ty1 ty2 ->
         return (TPair MOne x ty1 ty2, te1)
+      TDyn ->
+        return (TPair MOne "d" TDyn TDyn, te1)
       _ ->
         TC.mfail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
   Case e1 cases
@@ -247,21 +265,9 @@ tySynth te e =
     -- let ty' = tcase e1 (map fst ty_te_s)
     te' <- tenvJoinN (map snd ty_te_s)
     return (ty', te')
-{- -- previous implementation using lub
-  Case e1@(Var x) cases -> do
-    let labels = map fst cases
-        tlabels = TLab labels
-    tyCheck (demoteTE te) e1 tlabels
-    let flab (lab, elab) = do
-          (tylab, telab) <- tySynth (("*lab-e2*", (Many, TEqn e1 (Lab lab) tlabels)) : te) elab
-          telab' <- strengthenTop e telab -- drop the equation
-          return (TCase e1 ((lab, tylab) : [(lab', TBot) | lab' <- labels, lab' /= lab]),
-                  telab')
-    ty_te_s <- mapM flab cases
-    ty' <- lubn (demoteTE te) (map fst ty_te_s)
-    te' <- tenvJoinN (map snd ty_te_s)
-    return (ty', te')
--}
+  Case e1@(Cast e t1 t2) cases -> do
+    (t1', te') <- tySynthCast te e t1 t2
+    tySynth te' e
   Case _ _ ->
     TC.mfail "illegal case expression"
   NatRec e1 ez n1 tv y tyy es -> do
@@ -286,13 +292,41 @@ tySynth te e =
           nonvar tl _ = tl
       D.traceM ("NatRec returns " ++ pshow rty)
       return (rty, tez)
-  _ ->
-    TC.mfail ("Unhandled expression: " ++ pshow e)
+  Cast e t1 t2 -> tySynthCast te e t1 t2
+  NewNatRec f n tv tyy ez n1 es -> do
+    -- _ <- tyCheck (demoteTE te) e1 TNat
+    TC.censor (const []) $ TC.mlocal tv (TVar False tv, Kunit) $ do
+      (tyz, tez) <- tySynth te ez
+      D.traceM ("NewNatRec: tyz = " ++ pshow tyz)
+      (kiy, muy) <- kiSynth (demoteTE te) tyy
+      D.traceM ("NewNatRec: kiy = " ++ pshow (kiy, muy))
+      (_, ccz) <- TC.listen (tyCheck te ez tyy)
+      let tes_in = (f, (Many, TFun MMany n TNat tyy)) : (n1, (Many, TNat)) : te
+      D.traceM ("NewNatRec: tes_in = " ++ pshow tes_in)
+      (tys, tes) <- tySynth tes_in es
+      D.traceM ("NewNatRec: tys = " ++ pshow tys)
+      (_, ccs) <- TC.listen (tyCheck tes_in es tyy)
+      D.traceM ("NewNatRec found constraints " ++ pshow ccz ++ ", " ++ pshow ccs)
+      -- hack alert
+      let rty = tsubst tv (TNatRec (Var n) (nonvar tzl tzr) tv (nonvar tsl tsr)) tyy
+          tzl :<: tzr = head ccz
+          tsl :<: tsr = head ccs
+          nonvar (TVar _ _) tr = tr
+          nonvar tl _ = tl
+      D.traceM ("NewNatRec returns body " ++ pshow rty)
+      return (TFun MMany n TNat rty, tez)
+  Rec f x e1 e0 -> return (TDyn, te)
+  _ -> TC.mfail ("Unhandled expression: " ++ pshow e)
+
+tySynthCast :: TEnv -> Exp -> Type -> Type -> TCM (Type, TEnv)
+tySynthCast te e t1 t2 = (,) t2 <$> tyCheck te e t1
 
 tySynthLit :: Literal -> Type
 tySynthLit = \case
   LInt _ -> TInt
   LNat _ -> TNat
+  LDouble _ -> TDouble
+  LString _ -> TString
   LLab l -> TLab [l]
   LUnit  -> TUnit
 

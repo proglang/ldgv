@@ -2,12 +2,13 @@
 module Config where
 
 import qualified Debug.Trace as D
-import Syntax.Pretty (Pretty, pshow)
+import PrettySyntax (Pretty, pshow)
 import Control.Monad.IO.Class
 
 data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)
 
+debugLevel :: DebugLevel
 --debugLevel = DebugAll
 debugLevel = DebugNone
 
