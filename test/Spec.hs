@@ -30,6 +30,9 @@ scanTest =
     it "scans a double" $ do
       scan "-3.14159" `shouldBe`
         [T.Double (negate 3.14159)]
+    it "scans a double with preceding plus sign" $ do
+      scan "+3.14159" `shouldBe`
+        [T.Double 3.14159]
     it "scans another double" $ do
       scan "-0.0" `shouldBe`
         [T.Double (negate 0.0)]

@@ -1,55 +1,53 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.1.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 29d22c5cf32aadfe4d6e86479316c77999ce492703a65ab0b50ffa33cb201721
 
 name:           ld-session-code
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/peterthiemann/ld-session-code#readme>
-homepage:       https://github.com/peterthiemann/ld-session-code#readme
-bug-reports:    https://github.com/peterthiemann/ld-session-code/issues
+homepage:       https://github.com/proglang/ldgv#readme
+bug-reports:    https://github.com/proglang/ldgv/issues
 author:         Peter Thiemann
 maintainer:     peter.thiemann@gmail.com
-copyright:      2018 Peter Thiemann
+copyright:      2018-2021 Peter Thiemann
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
+    OVERVIEW.md
     README.md
     ChangeLog.md
-    src/Tokens.x
-    src/Grammar.y
 
 source-repository head
   type: git
-  location: https://github.com/peterthiemann/ld-session-code
+  location: https://github.com/proglang/ldgv
 
 library
-  build-tools: happy, alex
   exposed-modules:
-      Lib
-      Tokens
+      Config
       Grammar
-      Subtyping
       Kinds
+      PrettySyntax
+      Subtyping
       Syntax
       TCSubtyping
       TCTyping
-      PrettySyntax
-      Config
       TCXMonad
+      Tokens
   other-modules:
       Paths_ld_session_code
   hs-source-dirs:
       src
+  build-tools:
+      alex
+    , happy
   build-depends:
-      base >=4.7 && <5,
-      array >= 0.4 && < 0.6,
-      prettyprinter >= 1.1.1,
-      mtl >= 2.2.2
+      array >=0.4 && <0.6
+    , base >=4.7 && <5
+    , mtl >=2.2.2
+    , prettyprinter >=1.1.1
   default-language: Haskell2010
 
 executable ld-session-code-exe
@@ -60,8 +58,11 @@ executable ld-session-code-exe
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      array >=0.4 && <0.6
+    , base >=4.7 && <5
     , ld-session-code
+    , mtl >=2.2.2
+    , prettyprinter >=1.1.1
   default-language: Haskell2010
 
 test-suite ld-session-code-test
@@ -73,8 +74,11 @@ test-suite ld-session-code-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
-    , ld-session-code
+      QuickCheck
+    , array >=0.4 && <0.6
+    , base >=4.7 && <5
     , hspec
-    , QuickCheck
+    , ld-session-code
+    , mtl >=2.2.2
+    , prettyprinter >=1.1.1
   default-language: Haskell2010
