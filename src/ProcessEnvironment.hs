@@ -6,6 +6,7 @@ import Control.Concurrent.Chan as C
 import Control.Monad.Reader as T
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Kinds (Multiplicity(..))
 
 -- | the interpretation monad
 type InterpretM a = T.ReaderT PEnv IO a
@@ -90,8 +91,8 @@ instance Subtypeable NFType where
 data GType
   = GUnit
   | GLabel LabelType
-  | GFunc String -- Π(x: *) *
-  | GPair String -- Σ(x: *) *
+  | GFunc Multiplicity -- Π(x: *) *
+  | GPair Multiplicity -- Σ(x: *) *
   | GNat
   | GNatLeq Integer
   | GInt

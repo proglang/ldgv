@@ -20,6 +20,7 @@ import qualified Control.Monad as M
 import Control.Monad.Reader as R
 import Control.Applicative ((<|>))
 import Control.Exception
+import Kinds (Multiplicity(..))
 
 data InterpreterException
   = MathException String
@@ -228,10 +229,10 @@ evalType = \case
       _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
   TName _ s -> ask >>= \env -> maybe (throw $ LookupException s) (\(VType t) -> evalType t) (lookup s env)
   TLab ls -> return $ NFGType $ GLabel $ labelsFromList ls
-  TFun  _ s TDyn TDyn -> return $ NFGType $ GFunc s
-  TFun  _ s t1 t2 -> ask >>= \env -> return $ NFFunc $ FuncType env s t1 t2
-  TPair _ s TDyn TDyn -> return $ NFGType $ GPair s
-  TPair _ s t1 t2 -> ask >>= \env -> return $ NFPair $ FuncType env s t1 t2
+  TFun  m _ TDyn TDyn -> return $ NFGType $ GFunc m
+  TFun  m s t1 t2 -> ask >>= \env -> return $ NFFunc $ FuncType env s t1 t2
+  TPair m _ TDyn TDyn -> return $ NFGType $ GPair m
+  TPair m s t1 t2 -> ask >>= \env -> return $ NFPair $ FuncType env s t1 t2
   TCase exp labels -> interpret' exp >>= \(VLabel l) ->
     let entry = find (\(l', _) -> l == l') labels
     in maybe (return NFBot) (evalType . snd) entry
@@ -244,9 +245,9 @@ reduceCast v t1 t2 = castIsValue v t1 t2 <|> reduceCast' v t1 t2
 castIsValue :: Value -> NFType -> NFType -> Maybe Value
 castIsValue v (NFGType gt) NFDyn = Just $ VDynCast v gt
 castIsValue v (NFFunc ft1)        (NFFunc ft2)        = Just $ VFuncCast v ft1                       ft2
-castIsValue v (NFFunc ft1)        (NFGType (GFunc y)) = Just $ VFuncCast v ft1                       (FuncType [] y TDyn TDyn)
-castIsValue v (NFGType (GFunc x)) (NFFunc ft2)        = Just $ VFuncCast v (FuncType [] x TDyn TDyn) ft2
-castIsValue v (NFGType (GFunc x)) (NFGType (GFunc y)) = Just $ VFuncCast v (FuncType [] x TDyn TDyn) (FuncType [] y TDyn TDyn)
+castIsValue v (NFFunc ft1)        (NFGType (GFunc _)) = Just $ VFuncCast v ft1                       (FuncType [] "x" TDyn TDyn)
+castIsValue v (NFGType (GFunc _)) (NFFunc ft2)        = Just $ VFuncCast v (FuncType [] "x" TDyn TDyn) ft2
+castIsValue v (NFGType (GFunc x)) (NFGType (GFunc y)) = Just $ VFuncCast v (FuncType [] "x" TDyn TDyn) (FuncType [] "y" TDyn TDyn)
 castIsValue _ _ _ = Nothing
 
 reduceCast' :: Value -> NFType -> NFType -> Maybe Value
@@ -273,7 +274,7 @@ reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v
 reduceCast' _ _ _ = Nothing
 
 toNFPair :: NFType -> NFType
-toNFPair (NFGType (GPair s)) = NFPair (FuncType [] s TDyn TDyn)
+toNFPair (NFGType (GPair m)) = NFPair (FuncType [] "x" TDyn TDyn)
 toNFPair t = t
 
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
@@ -293,14 +294,14 @@ reducePairCast (VPair v w) (NFPair (FuncType penv s t1 t2)) (NFPair (FuncType pe
 reducePairCast _ _ _ = return Nothing
 
 equalsType :: NFType -> GType -> Bool
-equalsType (NFFunc (FuncType _ x TDyn TDyn)) (GFunc x') = x == x'
-equalsType (NFPair (FuncType _ x TDyn TDyn)) (GPair x') = x == x'
+equalsType (NFFunc (FuncType _ _ TDyn TDyn)) (GFunc _) = True
+equalsType (NFPair (FuncType _ _ TDyn TDyn)) (GPair _) = True
 equalsType (NFGType gt1) gt2 = gt1 == gt2
 equalsType _ _ = False
 
 matchType :: NFType -> Maybe GType
 matchType = \case
-  NFFunc (FuncType _ x _ _) -> Just $ GFunc x
-  NFPair (FuncType _ x _ _) -> Just $ GPair x
+  NFFunc (FuncType _ _ _ _) -> Just $ GFunc MMany
+  NFPair (FuncType _ _ _ _) -> Just $ GPair MMany
   NFGType gt -> Just gt
   _ -> Nothing
