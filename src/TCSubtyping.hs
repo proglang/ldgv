@@ -117,6 +117,38 @@ unfold tenv (TCase val cases)
   | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = do
       ty <- lablookup lll cases
       unfold tenv ty
+unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
+  let caselabels = map fst cases
+  -- check if cast is type correct
+  (_, tyx) <- varlookup x tenv
+  kx <- subtype tenv tyx tvar
+  kl <- subtype tenv tval (TLab caselabels)
+  results <- mapM (\(lll, tyl) -> unfold (("*unfold*", (Many, TEqn val (Cast (Lit $ LLab lll) (TLab caselabels) tvar) tvar)) : tenv) tyl) cases
+
+  case commonGrounds results of
+    Just (GFun m) -> do
+      let xarg = freshvar x (fv t0) -- fill this
+          farg (TFun _ z targ tres) = targ
+          farg TDyn = TDyn
+          fres (TFun _ z targ tres) = subst z (Var xarg) tres
+          fres TDyn = TDyn
+          targcases = zip caselabels $ map farg results
+          trescases = zip caselabels $ map fres results
+      return $ TFun m xarg (TCase val targcases) (TCase val trescases)
+    Just (GPair m) -> do
+      let xarg = freshvar x (fv t0) -- fill this
+          farg (TPair _ z targ tres) = targ
+          farg TDyn = TDyn
+          fres (TPair _ z targ tres) = subst z (Var xarg) tres
+          fres TDyn = TDyn
+          targcases = zip caselabels $ map farg results
+          trescases = zip caselabels $ map fres results
+      return $ TPair m xarg (TCase val targcases) (TCase val trescases)
+    Just GDyn -> do
+      return TDyn           -- all cases dynamic - eta reduce the case
+    _ ->
+      TC.mfail "unfold dynamic: type mismatch"
+
 unfold tenv t0@(TCase val@(Var x) cases) = do
   let caselabels = map fst cases
   tyx <- varlookupUnfolding x tenv
@@ -125,6 +157,7 @@ unfold tenv t0@(TCase val@(Var x) cases) = do
       mapM (\lll -> lablookup lll cases >>=
                     unfold (("*unfold*", (Many, TEqn val (Lit $ LLab lll) tyx)) : tenv))
             labs
+    -- the following is for gradual typing!
     TDyn ->
       mapM (\(lll, tyl) -> unfold (("*unfold*", (Many, TEqn val (Lit $ LLab lll) tyx)) : tenv) tyl) cases
     _ ->
