@@ -8,13 +8,16 @@ import Kinds
 import Syntax
 import Typechecker
 
+tcOptionsCast :: Options
+tcOptionsCast = Options{ gradual = False }
+
 spec :: Spec
 spec = do
   let tcShouldFail :: [Decl] -> Expectation
-      tcShouldFail decls = typecheck decls `shouldNotBe` Right ()
+      tcShouldFail decls = typecheck tcOptionsCast decls `shouldNotBe` Right ()
 
   let tcShouldSucceed :: [Decl] -> Expectation
-      tcShouldSucceed decls = typecheck decls `shouldBe` Right ()
+      tcShouldSucceed decls = typecheck tcOptionsCast decls `shouldBe` Right ()
 
   describe "duplicate signatures" do
     it "raises an error if the types agree" do

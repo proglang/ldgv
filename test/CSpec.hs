@@ -23,7 +23,7 @@ import C.Generate
 import Interpreter (interpret)
 import Parsing
 import ProcessEnvironment (Value(..))
-import Typechecker (typecheck)
+import Typechecker (typecheck, Options(..))
 import qualified Examples
 
 spec :: Spec
@@ -232,7 +232,7 @@ withGeneratedCode
 withGeneratedCode source body = do
   let parseAndCheck = do
         decls <- parseDecls source
-        typecheck decls
+        typecheck Options{ gradual = False } decls
         pure decls
   code <- case parseAndCheck >>= generate (Just "main") of
     Left err -> raiseFailure $ "cannot generate code:\n" ++ err
