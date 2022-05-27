@@ -1,4 +1,4 @@
-module Typechecker (typecheck) where
+module Typechecker (typecheck, Options(..)) where
 
 import Control.Monad
 import Control.Monad.Except
@@ -16,29 +16,33 @@ import Config as C
 data Seen = SeenSig G.Type | SeenDef
   deriving (Eq)
 
+data Options = Options
+  { gradual :: Bool
+  }
+
 -- | Typecheck a list of declarations.
 --                      Left -> Error  Ok <- Right
-typecheck :: [G.Decl] -> Either String ()
-typecheck decls = do
+typecheck :: Options -> [G.Decl] -> Either String ()
+typecheck tcOptions decls = do
   C.traceM "-------- Running Typecheck Request --------"
-  exec Map.empty [] [] decls
+  exec tcOptions Map.empty [] [] decls
 
-exec :: Map G.Ident Seen -> [G.TEnvEntry] -> G.KEnv -> [G.Decl] -> Either String ()
-exec _ _ _ [] = return ()
-exec seendIds tenv kenv (cmd:cmds) = execCmd cmd
+exec :: Options -> Map G.Ident Seen -> [G.TEnvEntry] -> G.KEnv -> [G.Decl] -> Either String ()
+exec _ _ _ _ [] = return ()
+exec tcOptions seendIds tenv kenv (cmd:cmds) = execCmd cmd
   where
     execCmd :: G.Decl -> Either String ()
     execCmd (G.DSub ty1 ty2) = do
       C.traceM "--- subtyping ---"
       void $ runTC (TS.subtype tenv ty1 ty2) kenv
-      exec seendIds tenv kenv cmds
+      exec tcOptions seendIds tenv kenv cmds
     execCmd (G.DEqv ty1 ty2) = do
       C.traceM "--- equivalence ---"
       void $ runTC (TS.eqvtype tenv ty1 ty2) kenv
-      exec seendIds tenv kenv cmds
+      exec tcOptions seendIds tenv kenv cmds
     execCmd (G.DSubst x e1 e2) = do
       C.traceShowM $ G.subst x e1 e2
-      exec seendIds tenv kenv cmds
+      exec tcOptions seendIds tenv kenv cmds
     execCmd (G.DSig x m ty) = do
       C.traceM ("--- signature: " ++ x ++ " ---")
       case Map.lookup x seendIds of
@@ -47,7 +51,7 @@ exec seendIds tenv kenv (cmd:cmds) = execCmd cmd
         Just SeenDef ->
           throwError $ "signature for ‘" ++ x ++ "’ given after its definition"
         Nothing ->
-          exec (Map.insert x (SeenSig ty) seendIds) ((x,(m, ty)) : tenv) kenv cmds
+          exec tcOptions (Map.insert x (SeenSig ty) seendIds) ((x,(m, ty)) : tenv) kenv cmds
     execCmd (G.DFun f binds e mty) = do
       traceM ("--- type checking: " ++ f ++ " ---")
       let buildFunction c = foldr (\(m, v, ty) -> c m v ty)
@@ -73,16 +77,16 @@ exec seendIds tenv kenv (cmd:cmds) = execCmd cmd
           return (tenv, maybe id ((:) . eqv) mty cmds)
         (Just SeenDef, _) ->
           throwError $ "duplicate definition for ‘" ++ f ++ "’"
-      exec (Map.insert f SeenDef seendIds) tenv' kenv cmds'
+      exec tcOptions (Map.insert f SeenDef seendIds) tenv' kenv cmds'
     execCmd (G.DType tid _m k ty) = do
       traceM ("--- type declaration: " ++ tid ++ " ---")
       -- TODO: in general, we need to wait with this check until all types are declared
       let kenv' = (tid, (ty, k)):kenv
       -- C.printDebug (Ty.kiCheck tenv ty k)
       runTC (TT.kiCheck tenv ty k) kenv'
-      exec seendIds tenv kenv' cmds
+      exec tcOptions seendIds tenv kenv' cmds
     execCmd (G.DAssume _ _) = do
-      exec seendIds tenv kenv cmds
+      exec tcOptions seendIds tenv kenv cmds
 
 runTC :: (PS.Pretty a, PS.Pretty w) => TC.M r TS.Caches w a -> r -> Either String a
 runTC m kenv =

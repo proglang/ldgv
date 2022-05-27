@@ -42,8 +42,19 @@ data CompileOpts = Compile
   , compileMainSig  :: !(Maybe Syntax.Type)
   , compileMode     :: !CompileMode
   , compileEnv      :: !C.Env
+  , compileGradual  :: !Bool
   }
   deriving stock (Show)
+
+data TypecheckOpts = Typecheck
+  { typecheckInputs  :: ![FilePath]
+  , typecheckGradual :: !Bool
+  }
+
+data InterpreterOpts = Interpreter
+  { interpreterInputs  :: ![FilePath]
+  , interpreterGradual :: !Bool
+  }
 
 actionParser :: Opts.Parser (Action ())
 actionParser = commands
@@ -60,11 +71,15 @@ actionParser = commands
           $ Opts.progDesc "Only typecheck an LDGV/LDST program."
       ]
 
-    typecheckParser =
-      typecheck <$> inPathArgs
+    typecheckParser = do
+      typecheckGradual <- gradualSwitch
+      typecheckInputs <- inPathArgs
+      pure $ typecheck Typecheck{..}
 
-    interpretParser =
-      interpret <$> inPathArgs
+    interpretParser = do
+      interpreterGradual <- gradualSwitch
+      interpreterInputs <- inPathArgs
+      pure $ interpret Interpreter{..}
 
     compileParser = do
       compileMainId <- optional $ Opts.strOption $ mconcat
@@ -125,6 +140,7 @@ actionParser = commands
               \This option can be given multiple times."
           ]
         pure C.Env{ envCC = cc, envFlags = opts ++ concatMap words opts', envVerbose = True }
+      compileGradual <- gradualSwitch
       compileInputs <- inPathArgs
       pure $ compile Compile{..}
 
@@ -133,6 +149,13 @@ actionParser = commands
         [ Opts.metavar "SRC-FILES"
         , Opts.help "Read the input from SRC-FILES, uses STDIN if no path is given."
         ]
+
+    gradualSwitch :: Opts.Parser Bool
+    gradualSwitch = Opts.switch $ mconcat
+      [ Opts.long "gradual"
+      , Opts.short 'g'
+      , Opts.help "Use gradual typing"
+      ]
 
 actionParserInfo :: Opts.ParserInfo (Action ())
 actionParserInfo = Opts.info (actionParser <**> Opts.helper) $ mconcat
@@ -150,18 +173,20 @@ main = do
   action <- Opts.customExecParser prefs actionParserInfo
   runTerminalSize action
 
-typecheck :: [FilePath] -> Action ()
-typecheck inputs = do
+typecheck :: TypecheckOpts -> Action ()
+typecheck Typecheck{ typecheckInputs = inputs, typecheckGradual = gradual } = do
+  let tcOptions = T.Options {..}
   decls <- parseInput inputs
-  liftIO case T.typecheck decls of
+  liftIO case T.typecheck tcOptions decls of
     Right _ -> putStrLn "Good!"
     Left err -> putStrLn $ "Error: " ++ err
 
-interpret :: [FilePath] -> Action ()
-interpret inputs = do
+interpret :: InterpreterOpts -> Action ()
+interpret Interpreter{ interpreterInputs = inputs, interpreterGradual = gradual } = do
+  let tcOptions = T.Options {..}
   res <- try $ do
     decls <- parseInput inputs
-    case T.typecheck decls of
+    case T.typecheck tcOptions decls of
       Right a -> pure a
       Left err -> fail $ "Error: " ++ err
     liftIO $ I.interpret decls
@@ -204,7 +229,8 @@ generate Compile{..} writeOutput = do
   let addSig' (ident, typ) = (Syntax.DSig ident Many typ :)
   let addSig = maybe id addSig' ((,) <$> compileMainId <*> compileMainSig)
   decls <- addSig <$> parseInput compileInputs
-  either msgFatal (liftIO . writeOutput) (T.typecheck decls >> C.generate compileMainId decls)
+  let tcOptions = T.Options{ gradual = compileGradual }
+  either msgFatal (liftIO . writeOutput) (T.typecheck tcOptions decls >> C.generate compileMainId decls)
 
 parseInput :: [FilePath] -> Action [Syntax.Decl]
 parseInput fps = do
