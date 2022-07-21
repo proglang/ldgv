@@ -4,7 +4,7 @@
 module TCSubtyping where
 
 import Control.Applicative
-import Control.Monad (ap)
+import Control.Monad (ap, unless)
 import Control.Monad.Reader (local)
 import Data.List (nub, sort)
 import Data.Set (Set)
@@ -25,6 +25,12 @@ type TCM a = TC.M ReadOnly Caches [Constraint] a
 
 data ReadOnly =
   ReadOnly { kenv :: KEnv, gradual :: Bool }
+
+failUnlessGradual :: String -> TCM ()
+failUnlessGradual msg = do
+  gflag <- fmap gradual TC.mget
+  unless gflag $
+    TC.mfail (msg ++ " [use flag --gradual to enable]")
 
 mlocal :: TIdent -> KEnvEntry -> TCM a -> TCM a
 mlocal tname k m = local update m
@@ -163,11 +169,16 @@ unfold tenv (TCase val cases)
       unfold tenv ty
 unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
   let caselabels = map fst cases
+  -- only consider reachable cases
+  tvalUnfolded <- unfold tenv tval
+  let checkedLabels = case tvalUnfolded of
+        TLab labels -> filter (`elem` labels) caselabels -- sequence in caselabels must be preserved
+        _ -> caselabels
   -- check if cast is type correct
   (_, tyx) <- varlookup x tenv
   kx <- subtype tenv tyx tvar
   kl <- subtype tenv tval (TLab caselabels)
-  results <- mapM (\(lll, tyl) -> unfold (("*unfold*", (Many, TEqn val (Cast (Lit $ LLab lll) (TLab caselabels) tvar) tvar)) : tenv) tyl) cases
+  results <- mapM (\(lll, tyl) -> unfold (("*unfold*", (Many, TEqn val (Cast (Lit $ LLab lll) (TLab caselabels) tvar) tvar)) : tenv) tyl) (filter ((`elem` checkedLabels) . fst) cases)
 
   case commonGrounds results of
     Just (GFun m) -> do
@@ -176,8 +187,8 @@ unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
           farg TDyn = TDyn
           fres (TFun _ z targ tres) = subst z (Var xarg) tres
           fres TDyn = TDyn
-          targcases = zip caselabels $ map farg results
-          trescases = zip caselabels $ map fres results
+          targcases = zip checkedLabels $ map farg results
+          trescases = zip checkedLabels $ map fres results
       return $ TFun m xarg (TCase val targcases) (TCase val trescases)
     Just (GPair) -> do
       let xarg = freshvar x (fv t0) -- fill this
@@ -185,8 +196,8 @@ unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
           farg TDyn = TDyn
           fres (TPair z targ tres) = subst z (Var xarg) tres
           fres TDyn = TDyn
-          targcases = zip caselabels $ map farg results
-          trescases = zip caselabels $ map fres results
+          targcases = zip checkedLabels $ map farg results
+          trescases = zip checkedLabels $ map fres results
       return $ TPair xarg (TCase val targcases) (TCase val trescases)
     Just GDyn -> do
       return TDyn           -- all cases dynamic - eta reduce the case
@@ -486,6 +497,11 @@ subtype' tenv (TRecv sx sin sout) (TRecv tx tin tout) =
                      (subst tx (Var nx) tout)
      return Kssn
 
+subtype' tenv (TCase val cases) ty2
+  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
+  do ty1 <- lablookup lll cases
+     subtype tenv ty1 ty2
+
 -- resolve type identifiers (TName) before actual subtyping
 subtype' tenv (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) tyy2 = do
   (t1,_) <- kindLookup tv1
@@ -496,22 +512,13 @@ subtype' tenv (TCase (Cast x (TName _ tv) t2) cases) tyy2 =
 subtype' tenv (TCase (Cast x t1 (TName _ tv)) cases) tyy2 =
   kindLookup tv >>= \(t2,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
 -- subtyping for casts with case on the left side: case (x:D=>L) {...} <: B
-subtype' tenv (TCase (Cast (Var x) t1 (TLab ls2)) cases) tyy2 =
-  case lookup x tenv of
-    Just (_,TLab [l]) -> do
-      t <- lablookup l cases
-      subtype tenv t tyy2
-    _ -> do
-      let ls' = case t1 of
-            TDyn    -> ls2
-            TLab ls -> filter (`elem` ls) ls2
-            _       -> []
-          subtypeCast l = do
-            let tenv' = (x,(Many,TLab [l])) : tenv
-            cty <- lablookup l cases
-            subtype tenv' cty tyy2
-      results <- mapM subtypeCast ls'
-      return $ foldr1 klub results
+subtype' tenv (TCase (Cast (Var x) t1 (TLab ls2)) cases) tyy2 = do
+  let subtypeCast lab = do
+        let tenv' = ("*lab-sub*", (Many, TEqn (Var x) (Cast (Lit (LLab lab)) (TLab ls2) t1) t1)) : tenv
+        cty <- lablookup lab cases
+        subtype tenv' cty tyy2
+  results <- mapM subtypeCast ls2
+  return $ foldr1 klub results
 
 -- resolve type identifiers (TName) before actual subtyping
 subtype' tenv tyy1 (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) = do
@@ -540,10 +547,6 @@ subtype' tenv tyy1 (TCase (Cast (Var x) t1 (TLab ls2)) cases) =
       results <- mapM subtypeCast ls'
       return $ foldr1 klub results
 
-subtype' tenv (TCase val cases) ty2
-  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
-  do ty1 <- lablookup lll cases
-     subtype tenv ty1 ty2
 subtype' tenv (TCase val@(Var x) cases) ty2 =
   do (lty, labs) <- varlookupLabel x tenv
      results <- mapM (\lll -> lablookup lll cases >>= \ty1 ->
@@ -701,5 +704,5 @@ commonHead e@(Var z) tyz cases = do
     then fail ("too many segtypes/freevars: " ++ pshow (segtypes, segt1') )
     else do
     return (e', segt1', map snd renamedpairs)
-
+commonHead e@(Cast _ _ _) tyz cases = Nothing
 
