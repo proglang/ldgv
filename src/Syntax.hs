@@ -66,7 +66,7 @@ data Type
   | TName Bool TIdent -- the bool indicates whether the type needs to be dualized
   | TLab [String]
   | TFun Multiplicity Ident Type Type
-  | TPair Multiplicity Ident Type Type
+  | TPair Ident Type Type
   | TSend Ident Type Type
   | TRecv Ident Type Type
   | TCase Exp [(String, Type)]
@@ -93,7 +93,7 @@ data Constraint = Type :<: Type
 instance Show Constraint where
   show (t1 :<: t2) = show t1 ++ " :<: " ++ show t2
 
-data SegType = SegSend | SegRecv | SegFun Multiplicity | SegPair Multiplicity
+data SegType = SegSend | SegRecv | SegFun Multiplicity | SegPair
   deriving (Show, Eq)
 
 data TypeSegment = Seg { segType :: SegType
@@ -104,14 +104,14 @@ data TypeSegment = Seg { segType :: SegType
 
 headSeg :: Type -> Maybe (TypeSegment, Type)
 headSeg (TFun m x ty1 ty2) = Just (Seg (SegFun m) x ty1, ty2)
-headSeg (TPair m x ty1 ty2) = Just (Seg (SegPair m) x ty1, ty2)
+headSeg (TPair x ty1 ty2) = Just (Seg (SegPair) x ty1, ty2)
 headSeg (TSend x ty1 ty2) = Just (Seg SegSend x ty1, ty2)
 headSeg (TRecv x ty1 ty2) = Just (Seg SegRecv x ty1, ty2)
 headSeg ty = Nothing
 
 segFun :: TypeSegment -> Type -> Type
 segFun (Seg (SegFun m) x ty1) = TFun m x ty1
-segFun (Seg (SegPair m) x ty1) = TPair m x ty1
+segFun (Seg (SegPair) x ty1) = TPair x ty1
 segFun (Seg SegSend x ty1) = TSend x ty1
 segFun (Seg SegRecv x ty1) = TRecv x ty1
 
@@ -185,7 +185,7 @@ instance Freevars Type where
   fv (TVar b tv) = Set.empty
   fv (TLab labs) = Set.empty
   fv (TFun m x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
-  fv (TPair m x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv (TPair x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
   fv (TSend x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
   fv (TRecv x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
   fv (TCase e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
@@ -247,11 +247,11 @@ instance Substitution Type where
       TFun m z (subst x exp ty1) ty2
     else
       TFun m z (subst x exp ty1) (subst x exp ty2)
-  subst x exp (TPair m z ty1 ty2) =
+  subst x exp (TPair z ty1 ty2) =
     if x == z then
-      TPair m z (subst x exp ty1) ty2
+      TPair z (subst x exp ty1) ty2
     else
-      TPair m z (subst x exp ty1) (subst x exp ty2)
+      TPair z (subst x exp ty1) (subst x exp ty2)
   subst x exp (TSend z ty1 ty2) =
     if x == z then
       TSend z (subst x exp ty1) ty2
@@ -316,8 +316,8 @@ single x tyx ty =
               | otherwise -> ty
     TFun m y t1 t2 ->
       TFun m y (single x tyx t1) (if x==y then t2 else single x tyx t2)
-    TPair m y t1 t2 ->
-      TPair m y (single x tyx t1) (if x==y then t2 else single x tyx t2)
+    TPair y t1 t2 ->
+      TPair y (single x tyx t1) (if x==y then t2 else single x tyx t2)
     TSend y t1 t2 ->
       TSend y (single x tyx t1) (if x==y then t2 else single x tyx t2)
     TRecv y t1 t2 ->
@@ -365,8 +365,8 @@ instance Eq Type where
       m == n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
       z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
-  TPair m x t1 t2 == TPair n y s1 s2 =
-      m == n && t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
+  TPair x t1 t2 == TPair y s1 s2 =
+      t1 == s1 && subst x (Var z) t2 == subst y (Var z) s2
     where
       z = freshvar x $ Set.delete x (fv t2) <> Set.delete y (fv s2)
   TSend x t1 t2 == TSend y s1 s2 =
@@ -424,7 +424,7 @@ tsubst tn tyn ty = ts ty
           TNatRec e (ts tz) ti (if ti == tn then tsu else ts tsu)
         TLab _ -> ty
         TFun m x t1 t2 -> TFun m x (ts t1) (ts t2)
-        TPair m x t1 t2 -> TPair m x (ts t1) (ts t2)
+        TPair x t1 t2 -> TPair x (ts t1) (ts t2)
         TSend x t1 t2 -> TSend x (ts t1) (ts t2)
         TRecv x t1 t2 -> TRecv x (ts t1) (ts t2)
         TCase e cases -> TCase e (map (second ts) cases)

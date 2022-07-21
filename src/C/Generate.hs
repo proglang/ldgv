@@ -347,7 +347,7 @@ explainExpression ty0 v0 =
         TDouble -> formatted "Double %.6f" $ access TagDouble v
         TString -> formatted "String %s" $ access TagString v
         TLab _ -> formatted "Label %s" $ access TagLabel v
-        TPair _ _ t1 t2 ->
+        TPair _ t1 t2 ->
           let (v1, v2) = accessPair v in
           mconcat
             [ literal "<"

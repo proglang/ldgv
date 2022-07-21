@@ -33,7 +33,7 @@ instance Pretty TypeSegment where
   pretty (Seg SegSend x t) = pretty "!" <> ptyped x t
   pretty (Seg SegRecv x t) = pretty "?" <> ptyped x t
   pretty (Seg (SegFun m) x t) = pretty "Pi" <> pretty m <> ptyped x t
-  pretty (Seg (SegPair m) x t) = pretty "Sg" <> pretty m <> ptyped x t
+  pretty (Seg (SegPair) x t) = pretty "Sg" <> ptyped x t
 
 
 plab :: String -> Doc ann
@@ -62,8 +62,8 @@ instance Pretty Type where
       f str rest = comma <+> plab str <> rest
   pretty (TFun m id t1 t2) =
     pretty m <> ptyped id t1 <+> pretty "->" <+> pretty t2
-  pretty (TPair m id t1 t2) =
-    brackets (pretty m <> pretty id <+> colon <+> pretty t1 <> comma <+> pretty t2)
+  pretty (TPair id t1 t2) =
+    brackets (pretty id <+> colon <+> pretty t1 <> comma <+> pretty t2)
   pretty (TSend id t1 t2) =
     pretty "!" <> ptyped id t1 <+> pretty t2
   pretty (TRecv id t1 t2) =
@@ -181,7 +181,7 @@ instance Pretty GType where
         strs = tail ll
         f str rest = comma <+> plab str <> rest
     GFunc s -> pretty "Π(" <+> pretty s <+> pretty ":★)★"
-    GPair s -> pretty "Σ(" <+> pretty s <+> pretty ":★)★"
+    GPair -> pretty "Σ(" <+> pretty ":★)★"
     GNat -> pretty "Nat"
     GNatLeq n -> pretty "Nat(" <+> pretty n <+> pretty ")"
     GInt -> pretty "Int"

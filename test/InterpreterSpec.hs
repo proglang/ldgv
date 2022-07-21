@@ -148,8 +148,8 @@ spec = do
             (Pair MMany "x"
               (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)
               (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
-            (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
-            (TPair MMany "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
+            (TPair "x" (TName False "Bool") (TName False "Bool"))
+            (TPair "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
           Nothing]
     it "interprets cast of boolean pair from Bool to MaybeBool" $
       [ boolType
@@ -159,8 +159,8 @@ spec = do
           (Pair MMany "x"
             (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)
             (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
-          (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
-          (TPair MMany "x" (TName False "MaybeBool") (TName False "MaybeBool")))
+          (TPair "x" (TName False "Bool") (TName False "Bool"))
+          (TPair "x" (TName False "MaybeBool") (TName False "MaybeBool")))
         Nothing]
       `shouldInterpretTo`
       VPair (VDynCast (VLabel "'T") (GLabel (labelsFromList ["'T", "'F"]))) (VLabel "'T")

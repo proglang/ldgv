@@ -150,15 +150,15 @@ unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
           targcases = zip caselabels $ map farg results
           trescases = zip caselabels $ map fres results
       return $ TFun m xarg (TCase val targcases) (TCase val trescases)
-    Just (GPair m) -> do
+    Just (GPair) -> do
       let xarg = freshvar x (fv t0) -- fill this
-          farg (TPair _ z targ tres) = targ
+          farg (TPair z targ tres) = targ
           farg TDyn = TDyn
-          fres (TPair _ z targ tres) = subst z (Var xarg) tres
+          fres (TPair z targ tres) = subst z (Var xarg) tres
           fres TDyn = TDyn
           targcases = zip caselabels $ map farg results
           trescases = zip caselabels $ map fres results
-      return $ TPair m xarg (TCase val targcases) (TCase val trescases)
+      return $ TPair xarg (TCase val targcases) (TCase val trescases)
     Just GDyn -> do
       return TDyn           -- all cases dynamic - eta reduce the case
     _ ->
@@ -188,15 +188,15 @@ unfold tenv t0@(TCase val@(Var x) cases) = do
           targcases = zip caselabels $ map farg results
           trescases = zip caselabels $ map fres results
       return $ TFun m xarg (TCase val targcases) (TCase val trescases)
-    Just (GPair m) -> do
+    Just (GPair) -> do
       let xarg = freshvar x (fv t0) -- fill this
-          farg (TPair _ z targ tres) = targ
+          farg (TPair z targ tres) = targ
           farg TDyn = TDyn
-          fres (TPair _ z targ tres) = subst z (Var xarg) tres
+          fres (TPair z targ tres) = subst z (Var xarg) tres
           fres TDyn = TDyn
           targcases = zip caselabels $ map farg results
           trescases = zip caselabels $ map fres results
-      return $ TPair m xarg (TCase val targcases) (TCase val trescases)
+      return $ TPair xarg (TCase val targcases) (TCase val trescases)
     Just GDyn -> do
       return TDyn           -- all cases dynamic - eta reduce the case
     _ ->
@@ -216,7 +216,7 @@ unfold tenv (TNatRec e1 tz1 tv1 ts1)
 unfold tenv ty =
   return ty
 
-data GHead = GDyn | GLab | GUnit | GInt | GNat | GDouble | GString | GFun Multiplicity | GPair Multiplicity | GSend | GRecv
+data GHead = GDyn | GLab | GUnit | GInt | GNat | GDouble | GString | GFun Multiplicity | GPair | GSend | GRecv
   deriving (Eq)
 
 commonGround :: Type -> Maybe GHead
@@ -234,7 +234,7 @@ commonGround (TAbs _ _ _) = Nothing
 commonGround (TName _ _) = Nothing
 commonGround (TLab _) = Just GLab
 commonGround (TFun m _ _ _) = Just (GFun m)
-commonGround (TPair m _ _ _) = Just (GPair m)
+commonGround (TPair _ _ _) = Just (GPair)
 commonGround (TSend _ _ _) = Just GSend
 commonGround (TRecv _ _ _) = Just GRecv
 commonGround (TCase _ _ ) = Nothing
@@ -286,13 +286,13 @@ eqvtype' tenv s@(TFun sm sx sin sout) t@(TFun tm tx tin tout) =
                      (subst sx (Var nx) sout)
                      (subst tx (Var nx) tout)
      if sm == tm then return $ kindof tm else TC.mfail (pshow s ++ " <: " ++ pshow t)
-eqvtype' tenv s@(TPair sm sx sin sout) t@(TPair tm tx tin tout) =
+eqvtype' tenv s@(TPair sx sin sout) t@(TPair tx tin tout) =
   let nx = "zz" ++ show (length tenv) in
   do kin <- eqvtype tenv sin tin
      kout <- eqvtype ((nx, (demote (mult kin), sin)) : tenv)
                      (subst sx (Var nx) sout)
                      (subst tx (Var nx) tout)
-     if sm == tm then return $ kindof tm else TC.mfail (pshow s ++ " <: " ++ pshow t)
+     return $ klub kin kout
 eqvtype' tenv (TSend sx sin sout) (TSend tx tin tout) =
   let nx = "zz" ++ show (length tenv) in
   do kin <- eqvtype tenv tin sin
@@ -435,13 +435,13 @@ subtype' tenv s@(TFun sm sx sin sout) t@(TFun tm tx tin tout) =
                      (subst sx (Var nx) sout)
                      (subst tx (Var nx) tout)
      if sm <= tm then return $ kindof tm else TC.mfail (pshow s ++ " <: " ++ pshow t)
-subtype' tenv s@(TPair sm sx sin sout) t@(TPair tm tx tin tout) =
+subtype' tenv s@(TPair sx sin sout) t@(TPair tx tin tout) =
   let nx = "zz" ++ show (length tenv) in
   do kin <- subtype tenv sin tin
      kout <- subtype ((nx, (demote (mult kin), sin)) : tenv)
                      (subst sx (Var nx) sout)
                      (subst tx (Var nx) tout)
-     if sm <= tm then return $ kindof tm else TC.mfail (pshow s ++ " <: " ++ pshow t)
+     return $ klub kin kout
 subtype' tenv (TSend sx sin sout) (TSend tx tin tout) =
   let nx = "zz" ++ show (length tenv) in
   do kin <- subtype tenv tin sin

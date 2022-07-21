@@ -34,8 +34,8 @@ spec = do
           (Pair MMany "x"
             (Cast (Lit (LLab "'T")) (TName False "Bool") TDyn)
             (Case (Cast (Var "x") TDyn (TName False "Bool")) [("'T",Lit (LLab "'T")),("'F",Lit (LLab "'F"))]))
-          (TPair MMany "x" (TName False "Bool") (TName False "Bool"))
-          (TPair MMany "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
+          (TPair "x" (TName False "Bool") (TName False "Bool"))
+          (TPair "x" (TName False "OnlyTrue") (TName False "OnlyTrue")))
         Nothing
     it "example term (2) from section 5.1 does fail when typechecking subtyping" $
       "(x: Unit) -> Int <: (x: *) -> case (x: * => Bool) {'T: Int, 'F: Bool}"

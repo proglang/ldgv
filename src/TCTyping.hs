@@ -38,11 +38,11 @@ kiSynth te (TFun m x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
   (k2, m2) <- kiSynth ((x, (demote m1, ty1)) : te) ty2
   return (kindof m, m)
-kiSynth te ty@(TPair m x ty1 ty2) = do
+kiSynth te ty@(TPair x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
   (k2, m2) <- kiSynth ((x, (demote m1, ty1)) : te) ty2
   let mout = max m1 m2
-  if mout <= m then return (kindof mout, mout) else TC.mfail ("kiSynth " ++ pshow ty)
+  return (kindof mout, mout)
 kiSynth te (TSend x ty1 ty2) = do
   (k1, m1) <- kiSynth te ty1
   m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
@@ -149,7 +149,7 @@ tySynth te e =
     (ki1, mu1) <- kiSynth (demoteTE te) ty1
     (ty2, te2) <- tySynth ((x', (demote mu1, ty1')) : te1) e2'
     (ki2, mu2) <- kiSynth ((x', (demote mu1, ty1')) : demoteTE te) ty2
-    strengthen e (TPair mul x' ty1' ty2, te2)
+    strengthen e (TPair x' ty1' ty2, te2)
 
   Pair mul x e1 e2 -> do
     let x' = freshvar x $ fv e1 <> Set.delete x (fv e2)
@@ -167,12 +167,12 @@ tySynth te e =
         _ ->
           tySynth ((x', (demote mu1, ty1)) : te1) e2'
     (ki2, mu2) <- kiSynth ((x', (demote mu1, ty1)) : demoteTE te) ty2
-    strengthen e (TPair mul x' ty1 ty2, te2)
+    strengthen e (TPair x' ty1 ty2, te2)
   LetPair x y e1 e2 -> D.trace ("Entering " ++ pshow e) $ do
     (tp, te1) <- tySynth te e1
     tpu <- unfold te1 tp
     case tpu of
-      TPair mp z ty1 ty2 -> do
+      TPair z ty1 ty2 -> do
         let ty2' = subst z (Var x) ty2
         (ki1, mu1) <- kiSynth (demoteTE te) ty1
         (ki2, mu2) <- kiSynth ((x, (demote mu1, ty1)) : demoteTE te) ty2'
@@ -196,7 +196,7 @@ tySynth te e =
     (tp, te1) <- tySynth te e1
     tpu <- unfold te1 tp
     case tpu of
-      TPair mp z ty1 ty2 -> do
+      TPair z ty1 ty2 -> do
         (ki1, mu1) <- kiSynth (demoteTE te) ty1
         (ki2, mu2) <- kiSynth ((z, (demote mu1, ty1)) : demoteTE te) ty2
         case mu2 of
@@ -210,7 +210,7 @@ tySynth te e =
     (tp, te1) <- tySynth te e1
     tpu <- unfold te1 tp
     case tpu of
-      TPair mp z ty1 ty2 -> do
+      TPair z ty1 ty2 -> do
         (ki1, mu1) <- kiSynth (demoteTE te) ty1
         let ty2' = subst z (Fst e1) ty1
         (ki2, mu2) <- kiSynth (demoteTE te) ty2'
@@ -226,7 +226,7 @@ tySynth te e =
     return (TUnit, te1)
   New ty -> do
     kiCheck (demoteTE te) ty Kssn
-    return (TPair MOne "" ty (dualof ty), te)
+    return (TPair "" ty (dualof ty), te)
   Send e1 -> do
     (ts, te1) <- tySynth te e1
     tsu <- unfold te1 ts
@@ -242,9 +242,9 @@ tySynth te e =
     tru <- unfold te1 tr
     case tru of
       TRecv x ty1 ty2 ->
-        return (TPair MOne x ty1 ty2, te1)
+        return (TPair x ty1 ty2, te1)
       TDyn ->
-        return (TPair MOne "d" TDyn TDyn, te1)
+        return (TPair "d" TDyn TDyn, te1)
       _ ->
         TC.mfail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
   Case e1 cases

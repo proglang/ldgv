@@ -190,12 +190,13 @@ ATyp : Unit                           { TUnit }
     | '*'                             { TDyn }
     | tid                             { TName False $1 }
     | '{' Labs '}'                    { TLab $2 }
-    | '[' Mul var ':' Typ ',' Typ ']' { TPair $2 $3 $5 $7 }
-    | '[' Mul Typ ',' Typ ']'         { TPair $2 "#*" $3 $5 }
+    | '[' Mul var ':' Typ ',' Typ ']' { TPair $3 $5 $7 }
+    | '[' Mul Typ ',' Typ ']'         { TPair "#*" $3 $5 }
     | '{{' Exp '=' Exp ':' Typ '}}'   { TEqn $2 $4 $6 }
     | '(' Typ ')'                     { $2 }
 
 Typ : ATyp                                    { $1 }
+    | ATyp Mul '->' Typ                       { TFun $2 "#!" $1 $4 }
     | '(' var ':' Typ ')' Mul '->' Typ        { TFun $6 $2 $4 $8 }
     | '!' '(' var ':' Typ ')' Typ             { TSend $3 $5 $7 }
     | '?' '(' var ':' Typ ')' Typ             { TRecv $3 $5 $7 }

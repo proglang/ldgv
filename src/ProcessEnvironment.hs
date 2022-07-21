@@ -92,7 +92,7 @@ data GType
   = GUnit
   | GLabel LabelType
   | GFunc Multiplicity -- Π(x: *) *
-  | GPair Multiplicity -- Σ(x: *) *
+  | GPair -- Σ(x: *) *
   | GNat
   | GNatLeq Integer
   | GInt
@@ -104,7 +104,7 @@ instance Subtypeable GType where
   isSubtypeOf GUnit GUnit = True
   isSubtypeOf (GLabel ls1) (GLabel ls2) = ls1 `Set.isSubsetOf` ls2
   isSubtypeOf (GFunc _) (GFunc _) = True
-  isSubtypeOf (GPair _) (GPair _) = True
+  isSubtypeOf (GPair) (GPair) = True
   isSubtypeOf GNat GNat = True
   isSubtypeOf (GNatLeq _) GNat = True
   isSubtypeOf (GNatLeq n1) (GNatLeq n2) = n1 <= n2

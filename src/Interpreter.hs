@@ -231,8 +231,8 @@ evalType = \case
   TLab ls -> return $ NFGType $ GLabel $ labelsFromList ls
   TFun  m _ TDyn TDyn -> return $ NFGType $ GFunc m
   TFun  m s t1 t2 -> ask >>= \env -> return $ NFFunc $ FuncType env s t1 t2
-  TPair m _ TDyn TDyn -> return $ NFGType $ GPair m
-  TPair m s t1 t2 -> ask >>= \env -> return $ NFPair $ FuncType env s t1 t2
+  TPair _ TDyn TDyn -> return $ NFGType $ GPair
+  TPair s t1 t2 -> ask >>= \env -> return $ NFPair $ FuncType env s t1 t2
   TCase exp labels -> interpret' exp >>= \(VLabel l) ->
     let entry = find (\(l', _) -> l == l') labels
     in maybe (return NFBot) (evalType . snd) entry
@@ -273,8 +273,9 @@ reduceCast' v NFDyn t = do
 reduceCast' v (NFGType gt1) (NFGType gt2) = if gt1 `isSubtypeOf` gt2 then Just v else Nothing
 reduceCast' _ _ _ = Nothing
 
+--- PT: this is weird
 toNFPair :: NFType -> NFType
-toNFPair (NFGType (GPair m)) = NFPair (FuncType [] "x" TDyn TDyn)
+toNFPair (NFGType (GPair)) = NFPair (FuncType [] "x" TDyn TDyn)
 toNFPair t = t
 
 reducePairCast :: Value -> NFType -> NFType -> IO (Maybe Value)
@@ -295,13 +296,13 @@ reducePairCast _ _ _ = return Nothing
 
 equalsType :: NFType -> GType -> Bool
 equalsType (NFFunc (FuncType _ _ TDyn TDyn)) (GFunc _) = True
-equalsType (NFPair (FuncType _ _ TDyn TDyn)) (GPair _) = True
+equalsType (NFPair (FuncType _ _ TDyn TDyn)) (GPair) = True
 equalsType (NFGType gt1) gt2 = gt1 == gt2
 equalsType _ _ = False
 
 matchType :: NFType -> Maybe GType
 matchType = \case
   NFFunc (FuncType _ _ _ _) -> Just $ GFunc MMany
-  NFPair (FuncType _ _ _ _) -> Just $ GPair MMany
+  NFPair (FuncType _ _ _ _) -> Just $ GPair
   NFGType gt -> Just gt
   _ -> Nothing
