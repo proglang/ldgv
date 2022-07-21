@@ -17,12 +17,10 @@ import TCSubtyping
 import qualified TCXMonad as TC
 import qualified TCSubtyping as TC
 
--- type TCM a = TC.M KEnv a
-
 -- kind synthesis
 kiSynth :: TEnv -> Type -> TCM (Kind, Multiplicity)
 kiSynth te (TName b tn) = do
-  kentry <- TC.mlookup tn
+  kentry <- TC.kindLookup tn
   let k = keKind kentry
   return (k, mult k)
 kiSynth te TUnit = return (Kunit, MMany)
@@ -69,7 +67,7 @@ kiSynth te (TNatRec e1 tz y ts) = do
   (kz, mz) <- kiSynth te tz
   TC.mlocal y (TName False y, kz) (kiSynth te ts)
 kiSynth te (TVar b v) = do
-  kentry <- TC.mlookup v
+  kentry <- TC.kindLookup v
   let k = keKind kentry
   return (k, mult k)
 kiSynth te ty =

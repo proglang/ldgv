@@ -5,6 +5,7 @@ module TCSubtyping where
 
 import Control.Applicative
 import Control.Monad (ap)
+import Control.Monad.Reader (local)
 import Data.List (nub, sort)
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -20,11 +21,25 @@ type Cache = [(Type, Type)]
 data Caches = Caches { subCache :: Cache, eqvCache :: Cache }
      deriving Show
 
-type TCM a = TC.M KEnv Caches [Constraint] a
+type TCM a = TC.M ReadOnly Caches [Constraint] a
 
-mlookup :: (Monoid w, Eq ident, Show ident) => ident -> TC.M [(ident, bind)] s w bind
-mlookup tname = do
-  tnames <- TC.mget
+data ReadOnly =
+  ReadOnly { kenv :: KEnv, gradual :: Bool }
+
+mlocal :: TIdent -> KEnvEntry -> TCM a -> TCM a
+mlocal tname k m = local update m
+  where
+    update :: ReadOnly -> ReadOnly
+    update r = r { kenv = (tname, k) : kenv r }
+
+kenvGet :: TCM KEnv
+kenvGet = do
+  ReadOnly { kenv = kenv } <- TC.mget
+  return kenv
+
+kindLookup :: TIdent -> TCM KEnvEntry
+kindLookup tname = do
+  tnames <- kenvGet
   case lookup tname tnames of
     Nothing ->
       TC.mfail ("No type binding for " ++ show tname)
@@ -111,7 +126,7 @@ varlookupNat x tenv = do
 -- expose top-level type constructor
 unfold :: TEnv -> Type -> TCM Type
 unfold tenv (TName b tn) = do
-  kentry <- mlookup tn
+  kentry <- kindLookup tn
   unfold tenv $ cdualof b $ keType kentry -- was: return $
 unfold tenv (TCase val cases)
   | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = do
@@ -243,7 +258,7 @@ lubGround _ _ = Nothing
 -- type equivalence
 eqvtype' :: TEnv -> Type -> Type -> TCM Kind
 eqvtype' tenv ty1 ty2@(TName b tn) = do
-  kentry <- mlookup tn
+  kentry <- kindLookup tn
   let ty2 = cdualof b $ keType kentry
   let ki2 = keKind kentry
   let centry = (ty1, ty2)
@@ -253,7 +268,7 @@ eqvtype' tenv ty1 ty2@(TName b tn) = do
     else
     eqvtype tenv ty1 ty2
 eqvtype' tenv (TName b tn) ty2 = do
-  kentry <- mlookup tn
+  kentry <- kindLookup tn
   let ty1 = cdualof b $ keType kentry
   eqvtype tenv ty1 ty2
 eqvtype' tenv TDyn _ = return Kunit
@@ -395,12 +410,12 @@ complete xs [] ty =
 -- subtyping
 subtype' :: TEnv -> Type -> Type -> TCM Kind
 subtype' tenv ty1 ty2@(TVar b tv) = do
-  kentry <- mlookup tv
+  kentry <- kindLookup tv
   D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
 subtype' tenv ty1@(TVar b tv) ty2 = do
-  kentry <- mlookup tv
+  kentry <- kindLookup tv
   D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
@@ -444,13 +459,13 @@ subtype' tenv (TRecv sx sin sout) (TRecv tx tin tout) =
 
 -- resolve type identifiers (TName) before actual subtyping
 subtype' tenv (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) tyy2 = do
-  (t1,_) <- mlookup tv1
-  (t2,_) <- mlookup tv2
+  (t1,_) <- kindLookup tv1
+  (t2,_) <- kindLookup tv2
   subtype tenv (TCase (Cast x t1 t2) cases) tyy2
 subtype' tenv (TCase (Cast x (TName _ tv) t2) cases) tyy2 =
-  mlookup tv >>= \(t1,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
+  kindLookup tv >>= \(t1,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
 subtype' tenv (TCase (Cast x t1 (TName _ tv)) cases) tyy2 =
-  mlookup tv >>= \(t2,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
+  kindLookup tv >>= \(t2,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
 -- subtyping for casts with case on the left side: case (x:D=>L) {...} <: B
 subtype' tenv (TCase (Cast (Var x) t1 (TLab ls2)) cases) tyy2 =
   case lookup x tenv of
@@ -471,13 +486,13 @@ subtype' tenv (TCase (Cast (Var x) t1 (TLab ls2)) cases) tyy2 =
 
 -- resolve type identifiers (TName) before actual subtyping
 subtype' tenv tyy1 (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) = do
-  (t1,_) <- mlookup tv1
-  (t2,_) <- mlookup tv2
+  (t1,_) <- kindLookup tv1
+  (t2,_) <- kindLookup tv2
   subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
 subtype' tenv tyy1 (TCase (Cast x (TName _ tv) t2) cases) =
-  mlookup tv >>= \(t1,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
+  kindLookup tv >>= \(t1,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
 subtype' tenv tyy1 (TCase (Cast x t1 (TName _ tv)) cases) =
-  mlookup tv >>= \(t2,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
+  kindLookup tv >>= \(t2,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
 -- subtyping for casts with case on the right side: A <: case (x:D=>L) {...}
 subtype' tenv tyy1 (TCase (Cast (Var x) t1 (TLab ls2)) cases) =
   case lookup x tenv of
@@ -582,7 +597,7 @@ subtype' tenv ty1 ty2@(TNatRec val@(Var n) tz tv ts) =
      -- unfolding may lead to nontermination
 
 subtype' tenv ty1 ty2@(TName b tn) = do
-  kentry <- mlookup tn
+  kentry <- kindLookup tn
   let ty2 = cdualof b $ keType kentry
   let ki2 = keKind kentry
   let centry = (ty1, ty2)
@@ -592,7 +607,7 @@ subtype' tenv ty1 ty2@(TName b tn) = do
     else
     subtype tenv ty1 ty2
 subtype' tenv (TName b tn) ty2 = do
-  kentry <- mlookup tn
+  kentry <- kindLookup tn
   let ty1 = cdualof b $ keType kentry
   subtype tenv ty1 ty2
 

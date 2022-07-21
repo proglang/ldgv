@@ -34,11 +34,11 @@ exec tcOptions seendIds tenv kenv (cmd:cmds) = execCmd cmd
     execCmd :: G.Decl -> Either String ()
     execCmd (G.DSub ty1 ty2) = do
       C.traceM "--- subtyping ---"
-      void $ runTC (TS.subtype tenv ty1 ty2) kenv
+      void $ runTC tcOptions (TS.subtype tenv ty1 ty2) kenv
       exec tcOptions seendIds tenv kenv cmds
     execCmd (G.DEqv ty1 ty2) = do
       C.traceM "--- equivalence ---"
-      void $ runTC (TS.eqvtype tenv ty1 ty2) kenv
+      void $ runTC tcOptions (TS.eqvtype tenv ty1 ty2) kenv
       exec tcOptions seendIds tenv kenv cmds
     execCmd (G.DSubst x e1 e2) = do
       C.traceShowM $ G.subst x e1 e2
@@ -60,17 +60,17 @@ exec tcOptions seendIds tenv kenv (cmd:cmds) = execCmd cmd
       (tenv', cmds') <- case (Map.lookup f seendIds, mty) of
         (Nothing, Nothing) -> do
           -- Synthesize the type of the definition.
-          (ty, _) <- runTC (TT.tySynthUnfold tenv e') kenv
+          (ty, _) <- runTC tcOptions (TT.tySynthUnfold tenv e') kenv
           return ((f, (K.Many, ty)) : tenv, cmds)
         (Nothing, Just ty) -> do
           -- Check the definition against the given type.
           let fty = buildty ty binds
               tenv' = (f, (K.Many, fty)) : tenv
-          void $ runTC (TT.tyCheck tenv' e' fty) kenv
+          void $ runTC tcOptions (TT.tyCheck tenv' e' fty) kenv
           return (tenv', cmds)
         (Just (SeenSig sigTy), _) -> do
           -- Check the definition against the signatures type.
-          void $ runTC (TT.tyCheck tenv e' sigTy) kenv
+          void $ runTC tcOptions (TT.tyCheck tenv e' sigTy) kenv
           -- If mty is given, check type equivalence between it and sigTy
           -- next.
           let eqv rty = G.DEqv sigTy (buildty rty binds)
@@ -83,13 +83,14 @@ exec tcOptions seendIds tenv kenv (cmd:cmds) = execCmd cmd
       -- TODO: in general, we need to wait with this check until all types are declared
       let kenv' = (tid, (ty, k)):kenv
       -- C.printDebug (Ty.kiCheck tenv ty k)
-      runTC (TT.kiCheck tenv ty k) kenv'
+      runTC tcOptions (TT.kiCheck tenv ty k) kenv'
       exec tcOptions seendIds tenv kenv' cmds
     execCmd (G.DAssume _ _) = do
       exec tcOptions seendIds tenv kenv cmds
 
-runTC :: (PS.Pretty a, PS.Pretty w) => TC.M r TS.Caches w a -> r -> Either String a
-runTC m kenv =
-  case fst $ TC.runM m kenv TS.initCaches of
+runTC :: (PS.Pretty a, PS.Pretty w) => Options -> TC.M TS.ReadOnly TS.Caches w a -> G.KEnv -> Either String a
+runTC tcOptions m kenv =
+  let mReadOnly = TS.ReadOnly { TS.kenv = kenv, TS.gradual = gradual tcOptions } in
+  case fst $ TC.runM m mReadOnly TS.initCaches of
     Left err -> throwError err
     Right res -> fst res <$ traceSuccess res

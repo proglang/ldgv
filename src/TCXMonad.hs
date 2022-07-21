@@ -1,6 +1,6 @@
 module TCXMonad (
   M, runM,
-  mget, mstate, mupdate, mlocal, mfail, tell, listen, censor
+  mget, mstate, mupdate, mfail, tell, listen, censor
   ) where
 
 import Control.Monad.Reader
@@ -30,5 +30,3 @@ mupdate g = do
 mfail :: Monoid w => String -> M r s w a
 mfail = throwError
 
-mlocal :: Monoid w => ident -> bind -> M [(ident, bind)] s w a -> M [(ident, bind)] s w a
-mlocal tname k m = local ((tname, k):) m
