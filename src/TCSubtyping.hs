@@ -60,31 +60,60 @@ subCacheLookup centry = do
   return (centry `elem` subCache caches)
   -- could also check in eqvCache!
 
+-- consider only relevant equation after last binding for name
+-- first priority: find an equation which is not an indirection
+findEqn :: Ident -> TEnv -> Maybe (Exp, Type)
+findEqn name [] = Nothing
+findEqn name ((x, entry) : _) | x == name = Nothing
+findEqn name ((_, (Many, TEqn (Var x) (Var y) ty)) : rest) = findEqn name rest
+findEqn name ((_, (Many, TEqn (Var x) val ty)) : rest) = Just (val, ty)
+findEqn name (_ : rest) = findEqn name rest
+
+-- find all indirections for name in current scope
+findInd :: Ident -> TEnv -> [Ident]
+findInd name [] = []
+findInd name ((x, entry) : _ ) | x == name = []
+findInd name ((_, (Many, TEqn (Var x) (Var y) ty)) : rest) | x == name = y : findInd name rest
+findInd name (_ : rest) = findInd name rest
+
 -- value equivalence
 valueEquiv' :: TEnv -> Exp -> Maybe (Exp, Type)
 valueEquiv' tenv (Lit (LLab name)) = Just (Lit $ LLab name, TLab [name])
 valueEquiv' tenv (Lit (LNat v)) = Just (Lit $ LNat v, TNat)
 valueEquiv' tenv (Var name) =
-  -- consider only relevant equation after last binding for name
-  let relevantTenv = takeWhile ((/= name) . fst) tenv
-      eqnEnv = [ (name, (val, ty))
-               | (_, (Many, TEqn (Var name) val ty)) <- relevantTenv] in
-  do (e, t) <- lookup name eqnEnv
-     case e of
-       Lit (LLab _) -> return (e, t)
-       Lit (LNat _) -> return (e, t)
-       Succ _ -> return (e, t)
-       Var x -> valueEquiv tenv e
+  -- TODO: this is still more complicated...
+  -- in case of an indirection (i.e., equation x == y), we need to continue searching for y
+  -- starting from the position of the equation because y may be shadowed at the top-level
+
+  findEqn name tenv
+  <|>
+  -- TODO: this is not quite right if there is a rebinding of y after the indirection
+  -- essentially, we have to skip over such rebindings, first
+  (let f :: Ident -> Maybe (Exp, Type) -> Maybe (Exp, Type)
+       f y m = valueEquiv tenv (Var y) <|> m
+   in foldr f Nothing (findInd name tenv))
   <|>
   do (_, TSingle y) <- lookup name tenv
      valueEquiv tenv (Var y)
+valueEquiv' tenv (Cast (Var name) tname tlabel@(TLab labels)) =
+  do (e, t)  <- findEqn name tenv
+     case e of
+       Cast (e'@(Lit (LLab lab))) _ _ | lab `elem` labels -> return (e', tlabel)
+       _ -> Nothing
+  <|>
+  (let f :: Ident -> Maybe (Exp, Type) -> Maybe (Exp, Type)
+       f y m = valueEquiv tenv (Cast (Var y) tname tlabel) <|> m
+   in foldr f Nothing (findInd name tenv))
+  <|>
+  do (_, TSingle y) <- lookup name tenv
+     valueEquiv tenv (Cast (Var y) tname tlabel)
 valueEquiv' tenv _ =
   Nothing
 
 valueEquiv :: TEnv -> Exp -> Maybe (Exp, Type)
 valueEquiv tenv exp =
   let r = valueEquiv' tenv exp in
-    D.trace ("valueEquiv " ++ pshow tenv ++ " " ++ pshow exp ++ " = " ++ pshow r) r
+    D.traceOnly "valueEquiv" (pshow tenv ++ " " ++ pshow exp ++ " = " ++ pshow r) r
 
 lablookup :: Monoid w => String -> [(String, Type)] -> TC.M r s w Type
 lablookup lll cases =
@@ -411,12 +440,12 @@ complete xs [] ty =
 subtype' :: TEnv -> Type -> Type -> TCM Kind
 subtype' tenv ty1 ty2@(TVar b tv) = do
   kentry <- kindLookup tv
-  D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
+  D.traceOnlyM "Subtype constraint" (pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
 subtype' tenv ty1@(TVar b tv) ty2 = do
   kentry <- kindLookup tv
-  D.traceM ("Subtype constraint: " ++ pshow ty1 ++ " <: " ++ pshow ty2)
+  D.traceOnlyM "Subtype constraint" (pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
 subtype' tenv TDyn _ = return Kunit
@@ -626,9 +655,9 @@ subtype' tenv ty1@(TSingle z1) ty2 = do
 subtype' tenv t1 t2 = TC.mfail ("Subtyping fails to establish " ++ pshow t1 ++ " <: " ++ pshow t2)
 
 subtype tenv t1 t2 = do
-  D.traceM ("Entering subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
+  D.traceOnlyM "subtype" ("Entering " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
   r <- subtype' tenv t1 t2
-  return $ D.trace ("subtype " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ show r) r
+  return $ D.traceOnly "subtype" (pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ") = " ++ show r) r
 
 -- smart constructor that drops the case if all branches are equal (eta reduction)
 tcase :: Exp -> Type -> [(String, Type)] -> Type

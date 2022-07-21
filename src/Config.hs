@@ -5,6 +5,9 @@ import qualified Debug.Trace as D
 import PrettySyntax (Pretty, pshow)
 import Control.Monad.IO.Class
 
+selected :: String -> Bool
+selected ident = ident `elem` ["valueEquiv", "subtype"]
+
 data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)
 
@@ -15,6 +18,16 @@ debugLevel = DebugNone
 trace :: String -> a -> a
 trace s a | debugLevel > DebugNone = D.trace s a
           | otherwise = a
+
+traceOnly :: String -> String -> a -> a
+traceOnly ident s a
+  | selected ident = D.trace (ident ++ ": " ++ s) a
+  | otherwise = a
+
+traceOnlyM :: Applicative f => String -> String -> f ()
+traceOnlyM ident s
+  | selected ident = D.traceM (ident ++ ": " ++ s)
+  | otherwise = pure ()
 
 traceM :: Applicative f => String -> f ()
 traceM s | debugLevel > DebugNone = D.traceM s

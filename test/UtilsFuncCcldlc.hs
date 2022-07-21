@@ -34,7 +34,10 @@ f1' = Lam MMany "x" (TName False "Bool")
     [("'T",Math (Add (Lit (LNat 17)) (Cast (Var "y") TDyn TInt)))
     ,("'F",App (Var "not") (Cast (Var "y") TDyn (TName False "Bool")))]))
 
--- val f2' = 𝜆(x: *) 𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool}) case (x: * => Bool) {'T: 17+y, 'F: not y}
+-- val f2' =
+--   𝜆(x: *)
+--   𝜆(y: case (x: * => Bool) {'T: Int, 'F: Bool})
+--   case (x: * => Bool) {'T: 17+y, 'F: not y}
 f2' = Lam MMany "x" TDyn
   (Lam MMany "y"
     (TCase (Cast (Var "x") TDyn (TName False "Bool")) [("'T",TInt),("'F",TName False "Bool")])
@@ -43,7 +46,10 @@ f2' = Lam MMany "x" TDyn
 -- type Direction : ~un = {'L, 'R}
 directionType = DType "Direction" MMany Kun (TLab ["'L","'R"])
 
--- val f3 = 𝜆(x: Bool) 𝜆(y: *) 𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+-- val f3 =
+--   𝜆(x: Bool)
+--   𝜆(y: *)
+--   𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
 --            case (y: * => case x {'T: Direction, 'F: Bool}) {'T: y, 'F: not y, 'L: z, 'R: not z}
 f3 = Lam MMany "x" (TName False "Bool")
   (Lam MMany "y" TDyn
