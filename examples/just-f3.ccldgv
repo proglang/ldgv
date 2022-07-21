@@ -1,0 +1,41 @@
+-- Examples from section 2 of the paper "Label Dependent Lambda Calculus and Gradual Typing.pdf" (2021)
+-- Also used in unit tests in tests/UtilsFuncCcldlc.hs
+
+type Bool : ~un = {'T, 'F}
+
+val not : (b: Bool) -> Bool
+val not   (b: Bool) = (case b {'T: 'F, 'F: 'T})
+
+
+-- Conversion from * to case type
+type Direction : ~un = {'L, 'R}
+
+-- -- Good!
+-- val f3'true =
+--     𝜆(y: *)
+--       𝜆(z: case (y: * => Direction) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+--         case (y: * => Direction)
+-- 	     {'T: (y : * => Bool), 'F: not (y : * => Bool), 'L: z, 'R: not z}
+
+-- Good!
+-- val f3'false =
+--     𝜆(y: *)
+--       𝜆(z: case (y: * => Bool) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+--         case (y: * => Bool)
+-- 	     {'T: (y : * => Direction), 'F: not (y : * => Bool), 'L: z, 'R: not z}
+
+
+
+--val f3 :
+--  (x: Bool)
+--    -> (y: *)
+--      -> (z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+--        -> case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool}
+
+val f3' =
+  𝜆(x: Bool)
+    𝜆(y: *)
+      𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+        case (y: * => case x {'T: Direction, 'F: Bool})
+	     {'T: (y : * => Bool), 'F: not (y : * => Bool), 'L: z, 'R: not z}
+

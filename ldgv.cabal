@@ -35,6 +35,8 @@ extra-doc-files:
     examples/tserver.ldgv
     examples/casts.ccldgv
     examples/depcast.ccldgv
+    examples/just-f2.ccldgv
+    examples/just-f3.ccldgv
     examples/mymap.gldgv
     examples/person.gldgv
     examples/example-inputs.txt
