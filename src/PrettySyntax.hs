@@ -40,6 +40,12 @@ plab :: String -> Doc ann
 plab = pretty
   -- pretty "'" <> -- seem built into the lab string
 
+ptyped' :: Ident -> Type -> Doc ann
+ptyped' ('#':_) t1 =
+  pretty t1
+ptyped' id t1 =
+  parens (pretty id <+> colon <+> pretty t1)
+
 ptyped :: Ident -> Type -> Doc ann
 ptyped ('#':_) t1 =
   pretty t1 <> dot
@@ -61,7 +67,7 @@ instance Pretty Type where
     where
       f str rest = comma <+> plab str <> rest
   pretty (TFun m id t1 t2) =
-    pretty m <> ptyped id t1 <+> pretty "->" <+> pretty t2
+    pretty m <> ptyped' id t1 <+> pretty "->" <+> pretty t2
   pretty (TPair id t1 t2) =
     brackets (pretty id <+> colon <+> pretty t1 <> comma <+> pretty t2)
   pretty (TSend id t1 t2) =
@@ -127,7 +133,7 @@ instance Pretty Exp where
     pretty "natrec" <+> pretty e <+>
     braces (pretty ez <> comma <+>
            pretty x <> dot <+>
-           pretty t <> dot <+> ptyped y tyy <> dot <+> pretty es)
+           pretty t <> dot <+> ptyped y tyy <+> pretty es)
   pretty (NewNatRec f n a ty ezero n1 esucc) =
     pretty "new_natrec" <+>
     parens (pretty f <> colon <> pretty n <> dot <> pretty a <> pretty ty) <+>
