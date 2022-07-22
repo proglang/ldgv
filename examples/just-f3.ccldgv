@@ -3,8 +3,8 @@
 
 type Bool : ~un = {'T, 'F}
 
-val not : (b: Bool) -> Bool
-val not   (b: Bool) = (case b {'T: 'F, 'F: 'T})
+val not : Bool -> Bool
+-- val not   (b: Bool) = (case b {'T: 'F, 'F: 'T})
 
 
 -- Conversion from * to case type
@@ -32,10 +32,24 @@ type Direction : ~un = {'L, 'R}
 --      -> (z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
 --        -> case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool}
 
+-- Good!
+-- val f3'castexpanded =
+--   𝜆(x: Bool)
+--     𝜆(y: *)
+--       𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
+--         case x {'T:
+--           case (y: * => Direction)
+-- 	     {'T: (y : * => Bool), 'F: not (y : * => Bool), 'L: z, 'R: not z} ,
+-- 	        'F:
+--           case (y: * => Bool)
+-- 	     {'T: (y : * => Bool), 'F: not (y : * => Bool), 'L: z, 'R: not z}
+-- 	}
+
+-- original: still failing...
+
 val f3' =
   𝜆(x: Bool)
     𝜆(y: *)
       𝜆(z: case (y: * => case x {'T: Direction, 'F: Bool}) {'T: Direction, 'F: Bool, 'L: Bool, 'R: Bool})
         case (y: * => case x {'T: Direction, 'F: Bool})
 	     {'T: (y : * => Bool), 'F: not (y : * => Bool), 'L: z, 'R: not z}
-
