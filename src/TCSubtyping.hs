@@ -1,12 +1,13 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# LANGUAGE LambdaCase #-}
 
 module TCSubtyping where
 
 import Control.Applicative
-import Control.Monad (ap, unless)
+import Control.Monad (ap, unless, foldM)
 import Control.Monad.Reader (local)
-import Data.List (nub, sort)
+import Data.List (nub, sort, union)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Config as D
@@ -72,7 +73,7 @@ findEqn :: Ident -> TEnv -> Maybe (Exp, Type)
 findEqn name [] = Nothing
 findEqn name ((x, entry) : _) | x == name = Nothing
 findEqn name ((_, (Many, TEqn (Var x) (Var y) ty)) : rest) = findEqn name rest
-findEqn name ((_, (Many, TEqn (Var x) val ty)) : rest) = Just (val, ty)
+findEqn name ((_, (Many, TEqn (Var x) val ty)) : rest) | x == name = Just (val, ty)
 findEqn name (_ : rest) = findEqn name rest
 
 -- find all indirections for name in current scope
@@ -119,7 +120,39 @@ valueEquiv' tenv _ =
 valueEquiv :: TEnv -> Exp -> Maybe (Exp, Type)
 valueEquiv tenv exp =
   let r = valueEquiv' tenv exp in
-    D.traceOnly "valueEquiv" (pshow tenv ++ " " ++ pshow exp ++ " = " ++ pshow r) r
+  let pshow_r = case pshow r of {"" -> "NOTHING"; s -> s} in
+    D.traceOnly "valueEquiv" (pshow tenv ++ " " ++ pshow exp ++ " = " ++ pshow_r) r
+
+-- don't assume that the RHS of a cast is a label type
+-- execute the casts during type checking
+valueEquivM' :: TEnv -> Exp -> TCM (Maybe (Exp, Type))
+valueEquivM' tenv = \case
+  e@(Lit lit) ->
+    pure $ Just (e, tySynthLit lit)
+  e@(Var name) ->
+    let mEqn = findEqn name tenv
+        lInd = findInd name tenv
+        f m y = fmap (m <|>) $ valueEquivM tenv (Var y)
+    in  foldM f mEqn lInd
+      -- TODO: treat singletons
+  e@(Cast (Var name) tname tout) ->
+    let mEqn = findEqn name tenv
+        lInd = findInd name tenv
+        f m y = fmap (m <|>) $ valueEquivM tenv (Var y)
+    in  do results <- foldM f mEqn lInd
+           case results of
+             Just (Cast (e'@(Lit (LLab lab))) _ _, _) -> do
+               _ <- subtype tenv (TLab [lab]) tout
+               pure $ Just (e', tout)
+             _ ->
+               pure $ Nothing
+
+valueEquivM :: TEnv -> Exp -> TCM (Maybe (Exp, Type))
+valueEquivM tenv exp = do
+  r <- valueEquivM' tenv exp
+  let pshow_r = case pshow r of {"" -> "NOTHING"; s -> s}
+  D.traceOnlyM "valueEquiv" ("M " ++ pshow tenv ++ " " ++ pshow exp ++ " = " ++ pshow_r)
+  pure r
 
 lablookup :: Monoid w => String -> [(String, Type)] -> TC.M r s w Type
 lablookup lll cases =
@@ -157,6 +190,42 @@ varlookupNat x tenv = do
       return ()
     _ ->
       TC.mfail ("Label type expected, got " ++ pshow lty)
+
+tySynthLit :: Literal -> Type
+tySynthLit = \case
+  LInt _ -> TInt
+  LNat _ -> TNat
+  LDouble _ -> TDouble
+  LString _ -> TString
+  LLab l -> TLab [l]
+  LUnit  -> TUnit
+
+-- compute a least upper bound for a type, where a label type is expected
+tyBound :: TEnv -> Type -> TCM Type
+tyBound te = \case
+  TDyn ->
+    pure TDyn
+  TName b tn -> do
+    kentry <- kindLookup tn
+    tyBound te $ cdualof b $ keType kentry
+  TLab lbs ->
+    pure $ TLab lbs
+  TCase val cases ->
+    case valueEquiv te val of
+      Just (Lit (LLab lll), TLab _) -> do
+        ty <- lablookup lll cases
+        tyBound te ty
+      _ -> do -- overapproximate because we don't propagate val = l into the branches
+        tys <- mapM (tyBound te . snd) cases
+        let tlub (TLab ls1) (TLab ls2) = TLab (union ls1 ls2)
+            tlub _          _          = TDyn
+        pure $ foldr1 tlub tys
+  TSingle x -> do
+    (_, tyx) <- varlookup x te
+    tyBound te tyx
+  _ ->
+    pure TDyn
+
 
 -- expose top-level type constructor
 unfold :: TEnv -> Type -> TCM Type
@@ -497,73 +566,24 @@ subtype' tenv (TRecv sx sin sout) (TRecv tx tin tout) =
                      (subst tx (Var nx) tout)
      return Kssn
 
-subtype' tenv (TCase val cases) ty2
-  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
-  do ty1 <- lablookup lll cases
-     subtype tenv ty1 ty2
+subtype' tenv (TCase val cases) ty2 = do
+  mVal <- valueEquivM tenv val
+  case mVal of
+    Just (Lit (LLab lll), _) -> do
+      ty1 <- lablookup lll cases
+      subtype tenv ty1 ty2
+    _ ->
+      subtype'casel tenv (TCase val cases) ty2
 
--- resolve type identifiers (TName) before actual subtyping
-subtype' tenv (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) tyy2 = do
-  (t1,_) <- kindLookup tv1
-  (t2,_) <- kindLookup tv2
-  subtype tenv (TCase (Cast x t1 t2) cases) tyy2
-subtype' tenv (TCase (Cast x (TName _ tv) t2) cases) tyy2 =
-  kindLookup tv >>= \(t1,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
-subtype' tenv (TCase (Cast x t1 (TName _ tv)) cases) tyy2 =
-  kindLookup tv >>= \(t2,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
--- subtyping for casts with case on the left side: case (x:D=>L) {...} <: B
-subtype' tenv (TCase (Cast (Var x) t1 (TLab ls2)) cases) tyy2 = do
-  let subtypeCast lab = do
-        let tenv' = ("*lab-sub*", (Many, TEqn (Var x) (Cast (Lit (LLab lab)) (TLab ls2) t1) t1)) : tenv
-        cty <- lablookup lab cases
-        subtype tenv' cty tyy2
-  results <- mapM subtypeCast ls2
-  return $ foldr1 klub results
+subtype' tenv ty1 (TCase val cases) = do
+  mVal <- valueEquivM tenv val
+  case mVal of
+    Just (Lit (LLab lll), _) -> do
+      ty2 <- lablookup lll cases
+      subtype tenv ty1 ty2
+    _ ->
+      subtype'caser tenv ty1 (TCase val cases)
 
--- resolve type identifiers (TName) before actual subtyping
-subtype' tenv tyy1 (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) = do
-  (t1,_) <- kindLookup tv1
-  (t2,_) <- kindLookup tv2
-  subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
-subtype' tenv tyy1 (TCase (Cast x (TName _ tv) t2) cases) =
-  kindLookup tv >>= \(t1,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
-subtype' tenv tyy1 (TCase (Cast x t1 (TName _ tv)) cases) =
-  kindLookup tv >>= \(t2,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
--- subtyping for casts with case on the right side: A <: case (x:D=>L) {...}
-subtype' tenv tyy1 (TCase (Cast (Var x) t1 (TLab ls2)) cases) =
-  case lookup x tenv of
-    Just (_,TLab [l]) -> do
-      t <- lablookup l cases
-      subtype tenv tyy1 t
-    _ -> do
-      let ls' = case t1 of
-            TDyn    -> ls2
-            TLab ls -> filter (`elem` ls) ls2
-            _       -> []
-          subtypeCast l = do
-            let tenv' = (x,(Many,TLab [l])) : tenv
-            cty <- lablookup l cases
-            subtype tenv' tyy1 cty
-      results <- mapM subtypeCast ls'
-      return $ foldr1 klub results
-
-subtype' tenv (TCase val@(Var x) cases) ty2 =
-  do (lty, labs) <- varlookupLabel x tenv
-     results <- mapM (\lll -> lablookup lll cases >>= \ty1 ->
-                              subtype (("*lft*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
-                     labs
-     return $ foldr1 klub results
-
-subtype' tenv ty1 (TCase val cases)
-  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val =
-  do ty2 <- lablookup lll cases
-     subtype tenv ty1 ty2
-subtype' tenv ty1 (TCase val@(Var x) cases) =
-  do (lty, labs) <- varlookupLabel x tenv
-     results <- mapM (\lll -> lablookup lll cases >>= \ty2 ->
-                              subtype (("*rgt*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
-                     labs
-     return $ foldr1 klub results
 
 -- workzone
 subtype' tenv ty1@(TNatRec e1 tz1 tv1 ts1) ty2
@@ -657,6 +677,70 @@ subtype' tenv ty1@(TSingle z1) ty2 = do
 -- catchall
 subtype' tenv t1 t2 = TC.mfail ("Subtyping fails to establish " ++ pshow t1 ++ " <: " ++ pshow t2)
 
+subtype'casel :: TEnv -> Type -> Type -> TCM Kind
+-- resolve type identifiers (TName) before actual subtyping
+subtype'casel tenv (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) tyy2 = do
+  (t1,_) <- kindLookup tv1
+  (t2,_) <- kindLookup tv2
+  subtype tenv (TCase (Cast x t1 t2) cases) tyy2
+subtype'casel tenv (TCase (Cast x (TName _ tv) t2) cases) tyy2 =
+  kindLookup tv >>= \(t1,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
+subtype'casel tenv (TCase (Cast x t1 (TName _ tv)) cases) tyy2 =
+  kindLookup tv >>= \(t2,_) -> subtype tenv (TCase (Cast x t1 t2) cases) tyy2
+-- subtyping for casts with case on the left side: case (x:D=>L) {...} <: B
+subtype'casel tenv (TCase (Cast (Var x) t1 (TLab ls2)) cases) tyy2 = do
+  let subtypeCast lab = do
+        let tenv' = ("*lab-sub*", (Many, TEqn (Var x) (Cast (Lit (LLab lab)) (TLab ls2) t1) t1)) : tenv
+        cty <- lablookup lab cases
+        subtype tenv' cty tyy2
+  results <- mapM subtypeCast ls2
+  return $ foldr1 klub results
+subtype'casel tenv (TCase val@(Var x) cases) ty2 =
+  do (lty, labs) <- varlookupLabel x tenv
+     results <- mapM (\lll -> lablookup lll cases >>= \ty1 ->
+                              subtype (("*lft*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
+                     labs
+     return $ foldr1 klub results
+subtype'casel tenv t1 t2 = TC.mfail ("Subtyping (case left) fails to establish " ++ pshow t1 ++ " <: " ++ pshow t2)
+
+subtype'caser :: TEnv -> Type -> Type -> TCM Kind
+-- resolve type identifiers (TName) before actual subtyping
+subtype'caser tenv tyy1 (TCase (Cast x (TName _ tv1) (TName _ tv2)) cases) = do
+  (t1,_) <- kindLookup tv1
+  (t2,_) <- kindLookup tv2
+  subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
+subtype'caser tenv tyy1 (TCase (Cast x (TName _ tv) t2) cases) =
+  kindLookup tv >>= \(t1,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
+subtype'caser tenv tyy1 (TCase (Cast x t1 (TName _ tv)) cases) =
+  kindLookup tv >>= \(t2,_) -> subtype tenv tyy1 (TCase (Cast x t1 t2) cases)
+-- subtyping for casts with case on the right side: A <: case (x:D=>L) {...}
+subtype'caser tenv tyy1 (TCase (Cast (Var x) t1 (TLab ls2)) cases) =
+  case lookup x tenv of
+    Just (_,TLab [l]) -> do
+      t <- lablookup l cases
+      subtype tenv tyy1 t
+    _ -> do
+      let ls' = case t1 of
+            TDyn    -> ls2
+            TLab ls -> filter (`elem` ls) ls2
+            _       -> []
+          subtypeCast l = do
+            let tenv' = (x,(Many,TLab [l])) : tenv
+            cty <- lablookup l cases
+            subtype tenv' tyy1 cty
+      results <- mapM subtypeCast ls'
+      return $ foldr1 klub results
+
+subtype'caser tenv ty1 (TCase val@(Var x) cases) =
+  do (lty, labs) <- varlookupLabel x tenv
+     results <- mapM (\lll -> lablookup lll cases >>= \ty2 ->
+                              subtype (("*rgt*", (Many, TEqn val (Lit $ LLab lll) lty)) : tenv) ty1 ty2)
+                     labs
+     return $ foldr1 klub results
+subtype'caser tenv ty1 ty2 =
+  TC.mfail ("Subtyping (case right) fails to establish " ++ pshow ty1 ++ " <: " ++ pshow ty2)
+
+subtype :: TEnv -> Type -> Type -> TCM Kind
 subtype tenv t1 t2 = do
   D.traceOnlyM "subtype" ("Entering " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
   r <- subtype' tenv t1 t2
@@ -705,4 +789,3 @@ commonHead e@(Var z) tyz cases = do
     else do
     return (e', segt1', map snd renamedpairs)
 commonHead e@(Cast _ _ _) tyz cases = Nothing
-

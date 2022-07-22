@@ -262,18 +262,21 @@ tySynth te e =
         TC.mfail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
 
   Case e1 cases -> do
-    (t1, te1) <- tySynthUnfold te e1
-    when (t1 == TDyn) $
-      TC.failUnlessGradual "case on value of type dynamic not allowed - implementation restriction"
-    case valueEquiv (demoteTE te) e1 of
+    D.traceOnlyM "tysynth" (pshow e)
+    (t1, te1) <- tySynth te e1
+    tbound <- tyBound (demoteTE te) t1
+    when (tbound == TDyn) $
+      TC.failUnlessGradual "case on value with dynamic type bound not allowed - implementation restriction"
+    mEquiv <- valueEquivM (demoteTE te) e1
+    case mEquiv of
       Just (Lit (LLab lab), TLab labels) -> do
         elab <- maybe (TC.mfail ("No case for label " ++ show lab)) return $ lookup lab cases
         tySynth te elab
       Nothing -> do
-        D.traceOnlyM "subtype" ("case header has type " ++ pshow t1)
+        D.traceOnlyM "tysynth" ("case header has type " ++ pshow t1)
         let labels = map fst cases
             tlabels = TLab labels
-            checked = case t1 of
+            checked = case tbound of
               TLab labs -> labs
               _ -> labels
             tChecked = TLab checked
@@ -341,15 +344,6 @@ tySynth te e =
 
 tySynthCast :: TEnv -> Exp -> Type -> Type -> TCM (Type, TEnv)
 tySynthCast te e t1 t2 = (,) t2 <$> tyCheck te e t1
-
-tySynthLit :: Literal -> Type
-tySynthLit = \case
-  LInt _ -> TInt
-  LNat _ -> TNat
-  LDouble _ -> TDouble
-  LString _ -> TString
-  LLab l -> TLab [l]
-  LUnit  -> TUnit
 
 tySynthMath :: TEnv -> MathOp Exp -> TCM (Type, TEnv)
 tySynthMath te m = do
