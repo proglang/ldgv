@@ -81,12 +81,6 @@ kiCheck te ty ki = do
      then return ()
      else TC.mfail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1)
 
--- unrestricted strengthening of top entry
--- strengthenTop :: Exp -> TEnv -> TCM TEnv
--- strengthenTop e ((_, (Zero, _)) : te) = return te
--- strengthenTop e ((_, (Many, _)) : te) = return te
--- strengthenTop e ((x, (One, _)) : te) = TC.mfail ("Linear variable " ++ x ++ " not used in " ++ pshow e)
-
 -- unrestricted strengthening of top entry + expanding singleton in return type if needed
 strengthen :: Exp -> (Type, TEnv) -> TCM (Type, TEnv)
 strengthen e (ty, (x, (mm, tyx)) : te) =
@@ -94,8 +88,6 @@ strengthen e (ty, (x, (mm, tyx)) : te) =
     TC.mfail ("Linear variable " ++ x ++ " not used in " ++ pshow e)
   else
     return (single x tyx ty, te)
-
-teinfo (n, (m, _)) = (n,m)
 
 -- type synthesis and unfolding
 tySynthUnfold :: TEnv -> Exp -> TCM (Type, TEnv)
