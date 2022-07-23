@@ -123,8 +123,19 @@ tySynth te e =
     return (tyx, te')
   Lam mm x tyx e1 -> do
     (kix, mx) <- kiSynth (demoteTE te) tyx
-    (ty, te1) <- tySynth ((x, (inject mx, tyx)) : te) e1
-    strengthen e (TFun mm x tyx ty, te1)
+    tyxBound <- tyBound (demoteTE te) tyx
+    let foundCaseInTypeBeforeCaseInTerm = findCaseOnVar x e1
+        tebody = (x, (inject mx, tyx)) : te
+    D.traceOnlyM "tysynth" ("implicit case for " ++ pshow e ++ ": " ++ pshow  (tyxBound, foundCaseInTypeBeforeCaseInTerm))
+    case (tyxBound, foundCaseInTypeBeforeCaseInTerm) of
+      (TLab labs, True) -> do -- insert an implicit case
+        ty_te_s <- mapM (\lab -> tySynth (("*lam*", (Many, TEqn (Var x) (Lit $ LLab lab) tyxBound)) : tebody) e1 >>= strengthen e1) labs
+        ty' <- tcaseM (demoteTE tebody) (Var x) tyxBound (zip labs $ map fst ty_te_s)
+        te' <- tenvJoinN (map snd ty_te_s)
+        strengthen e (TFun mm x tyx ty', te')
+      _ -> do
+        (ty, te1) <- tySynth tebody e1
+        strengthen e (TFun mm x tyx ty, te1)
   App e1 e2 -> do
     (tf, te1) <- tySynth te e1
     tfu <- unfold te1 tf
@@ -361,3 +372,86 @@ tenvEntryJoin :: TEnvEntry -> TEnvEntry -> TCM TEnvEntry
 tenvEntryJoin e1 e2
   | e1 == e2 = return e1
 tenvEntryJoin e1 e2 = TC.mfail ("Unmatched environment entries " ++ show e1 ++ " and " ++ show e2)
+
+-- findCaseOnVar x e
+-- does e contain a case on x in a type, before it cases on x not in the expression?
+findCaseOnVar :: Ident -> Exp -> Bool
+findCaseOnVar x = \case
+  Let y e1 e2 ->
+    findCaseOnVar x e1 || x /= y && findCaseOnVar x e2
+  Math mo ->
+    foldr (\e b -> findCaseOnVar x e || b) False mo
+  Lit _ ->
+    False
+  Succ e1 ->
+    findCaseOnVar x e1
+  NatRec e0 e1 y ti z tz e2 ->
+    findTCaseOnVar x tz ||
+    findCaseOnVar x e0 || findCaseOnVar x e1 || x /= y && x /= z && findCaseOnVar x e2
+  NewNatRec f y ti ty e1 z e2 ->
+    findTCaseOnVar x ty ||
+    x /= f && x /= y && (findCaseOnVar x e1 || x /= z && findCaseOnVar x e2)
+  Var _ ->
+    False
+  Lam _ y ty e1 ->
+    findTCaseOnVar x ty ||
+    x /= y && findCaseOnVar x e1
+  Rec f y e1 e2 ->
+    x /= f && x /= y && (findCaseOnVar x e1 || findCaseOnVar x e2)
+  App e1 e2 ->
+    findCaseOnVar x e1 || findCaseOnVar x e2
+  Pair _ y e1 e2 ->
+    findCaseOnVar x e1 || x /= y && findCaseOnVar x e2
+  LetPair y z e1 e2 ->
+    findCaseOnVar x e1 || x /= y && x /= z && findCaseOnVar x e2
+  Fst e1 ->
+    findCaseOnVar x e1
+  Snd e1 ->
+    findCaseOnVar x e1
+  Fork e1 ->
+    findCaseOnVar x e1
+  New t ->
+    findTCaseOnVar x t
+  Send e1 ->
+    findCaseOnVar x e1
+  Recv e1 ->
+    findCaseOnVar x e1
+  Case e1 cases ->
+    case e1 of
+      Var y | x == y -> False
+      _ -> foldr (||) (findCaseOnVar x e1) (map (findCaseOnVar x . snd) cases)
+  Cast e1 t1 t2 ->
+    findTCaseOnVar x t1 || findTCaseOnVar x t2 || findCaseOnVar x e1
+
+findTCaseOnVar :: Ident -> Type -> Bool
+findTCaseOnVar x = \case
+  TUnit -> False
+  TInt -> False
+  TDouble -> False
+  TBot -> False
+  TDyn -> False
+  TNat -> False
+  TString -> False
+  TNatLeq _ -> False
+  TNatRec val ty ti tyz ->
+    case val of
+      Var y | x == y -> True
+      _ -> findTCaseOnVar x ty || findTCaseOnVar x tyz
+  TVar _ _ -> False
+  TAbs _ _ _ -> False
+  TName _ _ -> False
+  TLab _ -> False
+  TFun _ y ty1 ty2 ->
+    findTCaseOnVar x ty1 || x /= y && findTCaseOnVar x ty2
+  TPair y ty1 ty2 ->
+    findTCaseOnVar x ty1 || x /= y && findTCaseOnVar x ty2
+  TSend y ty1 ty2 ->
+    findTCaseOnVar x ty1 || x /= y && findTCaseOnVar x ty2
+  TRecv y ty1 ty2 ->
+    findTCaseOnVar x ty1 || x /= y && findTCaseOnVar x ty2
+  TCase val tcases ->
+    case val of
+      Var y | x == y -> True
+      _ -> foldr (||) (findCaseOnVar x val) (map (findTCaseOnVar x . snd) tcases)
+  TEqn _ _ _ -> False
+  TSingle _ -> False
