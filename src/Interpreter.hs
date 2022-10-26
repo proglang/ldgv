@@ -135,11 +135,11 @@ eval = \case
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan
     return $ VPair (VChan r w) (VChan w r)
-  Send e -> VSend <$> interpret' e
+  Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
     interpret' e >>= \v@(VChan c _) -> do
       val <- liftIO $ Chan.readChan c
-      liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan "
+      liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
       return $ VPair val v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   e -> throw $ NotImplementedException e

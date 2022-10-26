@@ -12,8 +12,8 @@ data DebugLevel = DebugNone | DebugAll
   deriving (Eq, Ord, Show)
 
 debugLevel :: DebugLevel
---debugLevel = DebugAll
-debugLevel = DebugNone
+debugLevel = DebugAll
+-- debugLevel = DebugNone
 
 trace :: String -> a -> a
 trace s a | debugLevel > DebugNone = D.trace s a
