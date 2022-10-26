@@ -252,6 +252,9 @@ parseFile mpath = do
   (name, src) <- liftIO $ case mpath of
     Nothing -> ("<stdin>",) <$> getContents
     Just fp -> (fp,) <$> readFile fp
+    
+  -- Print declarations for debug
+  msgInfo . show $ parseDecls src
 
   case parseDecls src of
     Left err -> Nothing <$ formatMsg MsgError (Just name) err
