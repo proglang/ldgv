@@ -39,7 +39,7 @@ data Value
   | VString String
   -- we have two channels, one for reading and one for writing to the other
   -- end, so we do not read our own written values
-  | VChan (C.Chan Value) (C.Chan Value)
+  | VChan (C.Chan String) (C.Chan String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
   | VType S.Type

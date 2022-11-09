@@ -22,6 +22,9 @@ import Control.Applicative ((<|>))
 import Control.Exception
 import Kinds (Multiplicity(..))
 
+import qualified ValueParsing.ValueTokens as VT
+import qualified ValueParsing.ValueGrammar as VG
+
 data InterpreterException
   = MathException String
   | LookupException String
@@ -31,6 +34,7 @@ data InterpreterException
   | RecursorNotNatException
   | NotImplementedException Exp
   | TypeNotImplementedException Type
+  | DeserializationException String
   deriving Eq
 
 instance Show InterpreterException where
@@ -43,6 +47,7 @@ instance Show InterpreterException where
     RecursorNotNatException -> "Recursor only works on natural numbers"
     (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
     (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
+    (DeserializationException err) -> "DeserializationException: " ++ err
 
 instance Exception InterpreterException
 
@@ -138,9 +143,16 @@ eval = \case
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
     interpret' e >>= \v@(VChan c _) -> do
-      val <- liftIO $ Chan.readChan c
-      liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
-      return $ VPair val v
+      -- case ((flip VT.runAlex VG.parseValues) (head (liftIO $ Chan.readChan c))) of
+      -- clo <- liftIO $ Chan.readChan c
+      chanString <- liftIO $ Chan.readChan c
+
+      case VT.runAlex chanString VG.parseValues of
+        Left err -> throw $ DeserializationException err
+        Right val ->
+          -- Translate Value Strings back into Values
+          -- liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan" -- , over expression " ++ show e
+          return $ VPair val v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   e -> throw $ NotImplementedException e
 
@@ -175,7 +187,8 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
-interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c w) >> return v
+interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c (show w)) >> return v
+-- Convert the Values to Strings
 interpretApp e _ _ = throw $ ApplicationException e
 
 interpretLit :: Literal -> Value
