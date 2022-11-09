@@ -143,15 +143,12 @@ eval = \case
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
     interpret' e >>= \v@(VChan c _) -> do
-      -- case ((flip VT.runAlex VG.parseValues) (head (liftIO $ Chan.readChan c))) of
-      -- clo <- liftIO $ Chan.readChan c
       chanString <- liftIO $ Chan.readChan c
-
       case VT.runAlex chanString VG.parseValues of
+        -- Translate Value Strings back into Values
         Left err -> throw $ DeserializationException err
-        Right val ->
-          -- Translate Value Strings back into Values
-          -- liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan" -- , over expression " ++ show e
+        Right val -> do
+          liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
           return $ VPair val v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   e -> throw $ NotImplementedException e
