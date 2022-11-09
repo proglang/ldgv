@@ -30,6 +30,9 @@ data FuncType = FuncType PEnv String S.Type S.Type
 instance Show FuncType where
   show (FuncType _ s t1 t2) = "FuncType " ++ show s ++ " " ++ show t1 ++ " " ++ show t2
 
+
+type ValueRepr = String
+
 -- | (Unit, Label, Int, Values of self-declared Data Types), Channels
 data Value
   = VUnit
@@ -39,7 +42,7 @@ data Value
   | VString String
   -- we have two channels, one for reading and one for writing to the other
   -- end, so we do not read our own written values
-  | VChan (C.Chan String) (C.Chan String)
+  | VChan (C.Chan ValueRepr) (C.Chan ValueRepr)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
   | VType S.Type
