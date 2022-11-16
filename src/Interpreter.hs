@@ -21,6 +21,7 @@ import Control.Monad.Reader as R
 import Control.Applicative ((<|>))
 import Control.Exception
 import Kinds (Multiplicity(..))
+import qualified SerializeValues as SV
 
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
@@ -184,7 +185,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
-interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c (show w)) >> return v
+interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c (SV.serialize w)) >> return v
 -- Convert the Values to Strings
 interpretApp e _ _ = throw $ ApplicationException e
 
