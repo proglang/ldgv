@@ -104,6 +104,7 @@ import qualified ValueParsing.ValueTokens as T
     sstringexparray { T _ T.SStringExpArray }
     sstringtypearray { T _ T.SStringTypeArray }
     sstringarray  { T _ T.SStringArray }
+    svaluesarray  { T _ T.SValuesArray }
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -162,7 +163,7 @@ Values : vunit { VUnit }
        | vint '(' int ')' {VInt $3}
        | vdouble '(' double ')' {VDouble $3}
        | vstring '(' String ')' {VString $3 }
---       | vchan {VChan "" "" }
+--       | vchan '(' SValuesArray ')' '(' SValuesArray ')' {VChan $3 $6}
        | vsend '(' Values ')' {VSend $3}
        | vpair '(' Values ')' '(' Values ')' {VPair $3 $6}
        | vtype '(' Type ')' {VType $3}
@@ -275,6 +276,12 @@ SStringExpElements : SStringExpElement ',' SStringExpElements {$1 : $3}
                     | {- empty -} {[]}
 
 SStringExpElement : '(' '(' String ')' '(' Exp ')' ')'  {($3, $6)}
+
+SValuesArray : svaluesarray '[' SValuesElements ']' {$3}
+
+SValuesElements : Values ',' SValuesElements {$1 : $3}
+                | Values {[$1]}
+                | {- empty -} {[]}
 
 LabelType : slabeltype '{' SStringElements '}' {$3}
 

@@ -121,6 +121,7 @@ tokens :-
   "SStringExpArray"                     { tok $ const SStringExpArray }
   "SStringTypeArray"                    { tok $ const SStringTypeArray }
   "SStringArray"                        { tok $ const SStringArray }
+  "SValuesArray"                          { tok $ const SValuesArray }
 
   "Double:" $digit+ "." $digit+                   { tok $ Double . read . (drop 7) }
   "Int:" $digit+                               { tok $ Int . read . (drop 4)}
@@ -227,6 +228,7 @@ data Token
   | SStringExpArray
   | SStringTypeArray
   | SStringArray
+  | SValuesArray
 
   | String String
   | Int Int

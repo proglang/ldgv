@@ -19,7 +19,7 @@ instance Serializable Value where
       VInt i -> "VInt (" ++ serialize i ++ ")"
       VDouble d -> "VDouble (" ++ serialize d ++ ")"
       VString s -> "VString (" ++ serialize s ++ ")"
-      VChan _ _ -> "VChan"
+--      VChan c1 c2 -> "VChan (" ++ serialize c1 ++ ") (" ++ serialize c2 ++ ")"
       VSend v -> "VSend (" ++ serialize v ++ ")"
       VPair a b -> "VPair (" ++ serialize a ++ ") (" ++ serialize b ++ ")"
       VType t -> "VType (" ++ serialize t ++ ")"
@@ -156,6 +156,9 @@ instance {-# OVERLAPPING #-} Serializable [(String, Type)] where
 
 instance {-# OVERLAPPING #-} Serializable [String] where
   serialize arr = "SStringArray [" ++ serializeElements arr ++ "]"
+
+instance {-# OVERLAPPING #-}Serializable [Value] where
+  serialize arr = "SValuesArray [" ++ serializeElements arr ++ "]"
 
 serializeElements :: Serializable a => [a] -> String
 serializeElements [] = ""
