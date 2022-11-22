@@ -42,6 +42,8 @@ tokens :-
   new                                   { tok $ const New }
   send                                  { tok $ const Send }
   recv                                  { tok $ const Recv }
+  create                                { tok $ const Create }
+  connect                               { tok $ const Connect }
 
   -- for Binary Session Types; obsolete for Label Dependent ones
   select                                { tok $ const Select }
@@ -96,6 +98,8 @@ data Token =
         New             |
         Send            |
         Recv            |
+        Create          |
+        Connect         |
 
         -- for Binary Session Types; obsolete for Label Dependent ones
         Select          |

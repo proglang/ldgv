@@ -36,6 +36,8 @@ import qualified Parsing.Tokens as T
     new     { T _ T.New }
     send    { T _ T.Send }
     recv    { T _ T.Recv }
+    create  { T _ T.Create }
+    connect { T _ T.Connect }
 
     -- for Binary Session Types; obsolete for Label Dependent ones
     select  { T _ T.Select }
@@ -91,7 +93,7 @@ import qualified Parsing.Tokens as T
 %nonassoc '>' '<'
 %left '+' '-' NEG POS
 %left '*' '/'
-%left send recv
+%left send recv connect create
 %nonassoc APP
 
 
@@ -166,7 +168,9 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | fork Exp              { Fork $2 }
     | send Exp %prec send   { Send $2 }
     | recv Exp %prec recv   { Recv $2 }
-    | Exp Exp  %prec APP    { App $1 $2 }
+    | create Exp Typ %prec create       { Create $2 $3 }
+    | connect Exp Exp Typ %prec connect { Connect $2 $3 $4 }
+    | Exp Exp  %prec APP  { App $1 $2 }
 
 Labs : lab          { [$1] }
      | lab ',' Labs { $1 : $3 }

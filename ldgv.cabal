@@ -65,6 +65,8 @@ library
       Examples
       Interpreter
       Kinds
+      Networking.Client
+      Networking.Server
       Parsing
       Parsing.Grammar
       Parsing.Tokens

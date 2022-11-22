@@ -32,6 +32,9 @@ data Exp = Let Ident Exp Exp
          | Recv Exp
          | Case Exp [(String, Exp)]
          | Cast Exp Type Type
+         -- New types
+         | Create Exp Type -- Create Port Type
+         | Connect Exp Exp Type -- Connect URL Port Type
   deriving (Show,Eq)
 
 data MathOp e
