@@ -241,6 +241,13 @@ tySynth te e =
   New ty -> do
     kiCheck (demoteTE te) ty Kssn
     return (TPair "" ty (dualof ty), te)
+  -- I've got no real clue of what I am doing here hope it kind of works
+  Create e1 ty -> do
+    kiCheck (demoteTE te) ty Kssn
+    return (ty, te)
+  Connect e1 e2 ty -> do
+    kiCheck (demoteTE te) ty Kssn
+    return (ty, te)
   Send e1 -> do
     (ts, te1) <- tySynth te e1
     tsu <- unfold te1 ts

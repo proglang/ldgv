@@ -25,6 +25,10 @@ import qualified SerializeValues as SV
 
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
+import qualified Networking.Server as NS
+
+import Network.Run.TCP
+import qualified Networking.Server as NS
 
 data InterpreterException
   = MathException String
@@ -144,14 +148,22 @@ eval = \case
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
     interpret' e >>= \v@(VChan c _) -> do
-      chanString <- liftIO $ Chan.readChan c
-      case VT.runAlex chanString VG.parseValues of
-        -- Translate Value Strings back into Values
-        Left err -> throw $ DeserializationException err
-        Right val -> do
-          liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
-          return $ VPair val v
+      val <- liftIO $ Chan.readChan c
+      liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
+      return $ VPair val v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
+  Create e t -> do
+    interpret' e >>= \(VInt port) -> do
+      r <- liftIO Chan.newChan
+      w <- liftIO Chan.newChan
+      liftIO $ runTCPServer Nothing (show port) (NS.communicate r w)
+      return $ VChan r w
+  Connect e1 e2 t -> do
+    interpret' e1 >>= \(VString address) -> interpret' e2 >>= \(VInt port) -> do
+      r <- liftIO Chan.newChan
+      w <- liftIO Chan.newChan
+      liftIO $ runTCPClient address (show port) (NS.communicate r w)
+      return $ VChan r w
   e -> throw $ NotImplementedException e
 
 -- Exp is only used for blame
@@ -185,8 +197,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
-interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c (SV.serialize w)) >> return v
--- Convert the Values to Strings
+interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c w) >> return v
 interpretApp e _ _ = throw $ ApplicationException e
 
 interpretLit :: Literal -> Value

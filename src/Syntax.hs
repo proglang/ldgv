@@ -168,6 +168,8 @@ instance Freevars Exp where
   fv (New ty) = fv ty
   fv (Send e1) = fv e1
   fv (Recv e1) = fv e1
+  fv (Create e1 ty) = fv e1 <> fv ty
+  fv (Connect e1 e2 ty) = fv e1 <> fv e2 <> fv ty
   fv (Case e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
   fv (Cast e t1 t2) = fv e
   fv (Succ e) = fv e
@@ -234,6 +236,8 @@ instance Substitution Exp where
     sb (New t) = New t
     sb (Send e1) = Send (sb e1)
     sb (Recv e1) = Recv (sb e1)
+    sb (Create e1 t) = Create (sb e1) t
+    sb (Connect e1 e2 t) = Connect (sb e1) (sb e2) t
     sb (Succ e1) = Succ (sb e1)
     sb (NatRec e ez y t z tyz es) =
       NatRec (sb e) (sb ez) y t z (subst x exp tyz) (if x /= y && x /= z then sb es else es)

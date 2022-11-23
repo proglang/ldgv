@@ -99,6 +99,8 @@ library
     , filepath
     , lens
     , mtl
+    , network
+    , network-run
     , prettyprinter
     , text
     , transformers
