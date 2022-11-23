@@ -66,6 +66,7 @@ library
       Interpreter
       Kinds
       Networking.Client
+      Networking.Common
       Networking.Server
       Parsing
       Parsing.Grammar

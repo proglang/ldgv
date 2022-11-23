@@ -25,7 +25,7 @@ import qualified SerializeValues as SV
 
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
-import qualified Networking.Server as NS
+import qualified Networking.Common as NC
 
 import Network.Run.TCP
 import qualified Networking.Server as NS
@@ -164,7 +164,7 @@ eval = \case
     val <- interpret' e
     case val of
       VInt port -> do 
-        liftIO $ forkIO $ runTCPServer Nothing (show port) (NS.communicate r w)
+        liftIO $ forkIO $ runTCPServer Nothing (show port) (NC.communicate r w)
         liftIO $ C.traceIO "Server created"
       _ -> throw $ NotAnExpectedValueException "VInt" val
     return $ VChan r w
@@ -179,7 +179,7 @@ eval = \case
         portVal <- interpret' e2
         case portVal of
           VInt port -> do
-            liftIO $ forkIO $ runTCPClient address (show port) (NS.communicate r w)
+            liftIO $ forkIO $ runTCPClient address (show port) (NC.communicate r w)
             liftIO $ C.traceIO "Client connected"
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
