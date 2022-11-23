@@ -30,6 +30,8 @@ import qualified Networking.Server as NS
 import Network.Run.TCP
 import qualified Networking.Server as NS
 
+import Control.Concurrent
+
 data InterpreterException
   = MathException String
   | LookupException String
@@ -167,7 +169,7 @@ eval = \case
     w <- liftIO Chan.newChan
     liftIO $ C.traceIO "Client trying to connect"
     -- liftIO $ runTCPClient address (show port) (NS.communicate r w)
-    liftIO $ forkIO $ runTCPClient "localhost" "4242" (NS.communicate r w)
+    liftIO $ forkIO $ runTCPClient "127.0.0.1" "4242" (NS.communicate r w)
     liftIO $ C.traceIO "Client connected"
     return $ VChan r w
   e -> throw $ NotImplementedException e
@@ -203,7 +205,10 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
-interpretApp _ (VSend v@(VChan _ c)) w = liftIO (Chan.writeChan c w) >> return v
+interpretApp _ (VSend v@(VChan _ c)) w = do 
+  liftIO (Chan.writeChan c w)
+  liftIO $ threadDelay 1000000 -- give send thread time to send
+  return v
 interpretApp e _ _ = throw $ ApplicationException e
 
 interpretLit :: Literal -> Value
