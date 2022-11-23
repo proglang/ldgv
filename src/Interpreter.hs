@@ -172,7 +172,7 @@ eval = \case
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan
     liftIO $ C.traceIO "Client trying to connect"
-    
+
     addressVal <- interpret' e1
     case addressVal of
       VString address -> do 
@@ -219,7 +219,8 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
     R.local (const env') (interpret' es)
 interpretApp _ (VSend v@(VChan _ c)) w = do 
   liftIO (Chan.writeChan c w)
-  liftIO $ threadDelay 1000000 -- give send thread time to send
+  liftIO $ threadDelay 100000 -- give send thread time to send
+  -- I obviously need to remove this ugly hack
   return v
 interpretApp e _ _ = throw $ ApplicationException e
 
