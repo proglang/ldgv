@@ -42,6 +42,7 @@ data InterpreterException
   | NotImplementedException Exp
   | TypeNotImplementedException Type
   | DeserializationException String
+  | NotAnExpectedValueException String Value
   deriving Eq
 
 instance Show InterpreterException where
@@ -55,6 +56,7 @@ instance Show InterpreterException where
     (NotImplementedException exp) -> "NotImplementedException: " ++ pshow exp
     (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
     (DeserializationException err) -> "DeserializationException: " ++ err
+    (NotAnExpectedValueException expected val) -> "NotAnExpectedValueException: This expresion: (" ++ pshow val ++ ") is not of type: " ++ expected
 
 instance Exception InterpreterException
 
@@ -156,21 +158,31 @@ eval = \case
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   Create e t -> do
     liftIO $ C.traceIO "Creating server!"
-    -- interpret' e >>= \(VInt port) -> do
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan
-    -- liftIO $ runTCPServer Nothing (show port) (NS.communicate r w)
-    liftIO $ forkIO $ runTCPServer Nothing "4242" (NS.communicate r w)
-    liftIO $ C.traceIO "Server created"
+
+    val <- interpret' e
+    case val of
+      VInt port -> do 
+        liftIO $ forkIO $ runTCPServer Nothing (show port) (NS.communicate r w)
+        liftIO $ C.traceIO "Server created"
+      _ -> throw $ NotAnExpectedValueException "VInt" val
     return $ VChan r w
   Connect e1 e2 t -> do
-    -- interpret' e1 >>= \(VString address) -> interpret' e2 >>= \(VInt port) -> do
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan
     liftIO $ C.traceIO "Client trying to connect"
-    -- liftIO $ runTCPClient address (show port) (NS.communicate r w)
-    liftIO $ forkIO $ runTCPClient "127.0.0.1" "4242" (NS.communicate r w)
-    liftIO $ C.traceIO "Client connected"
+    
+    addressVal <- interpret' e1
+    case addressVal of
+      VString address -> do 
+        portVal <- interpret' e2
+        case portVal of
+          VInt port -> do
+            liftIO $ forkIO $ runTCPClient address (show port) (NS.communicate r w)
+            liftIO $ C.traceIO "Client connected"
+          _ -> throw $ NotAnExpectedValueException "VInt" portVal
+      _ -> throw $ NotAnExpectedValueException "VString" addressVal
     return $ VChan r w
   e -> throw $ NotImplementedException e
 
