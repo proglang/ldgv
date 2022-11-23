@@ -24,11 +24,13 @@ communicate read write socket = do
     where
         sendWritten write handle = do
             message <- readChan write
+            putStrLn $ "Sending message:" ++ SV.serialize message
             hPutStrLn handle (SV.serialize message ++" ")
             sendWritten write handle
 
         recieveReadable read handle = do
             message <- hGetLine handle
+            putStrLn $ "Recieved message:" ++ message
             case VT.runAlex message VG.parseValues of
                 Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
                 Right deserial -> writeChan read deserial

@@ -124,7 +124,7 @@ instance Pretty Exp where
   pretty (Send e) = pretty "send" <+> pretty e
   pretty (Recv e) = pretty "recv" <+> pretty e
   pretty (Create i t) = pretty "create" <+> pretty i
-  pretty (Connect a i t) = pretty "create" <+> pretty a <+> pretty i <+> pretty t
+  pretty (Connect a i t) = pretty "connect" <+> pretty a <+> pretty i <+> pretty t
   pretty (Case e ses) =
     pcase e ses
   pretty (Cast e t1 t2) =

@@ -153,17 +153,23 @@ eval = \case
       return $ VPair val v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   Create e t -> do
-    interpret' e >>= \(VInt port) -> do
-      r <- liftIO Chan.newChan
-      w <- liftIO Chan.newChan
-      liftIO $ runTCPServer Nothing (show port) (NS.communicate r w)
-      return $ VChan r w
+    liftIO $ C.traceIO "Creating server!"
+    -- interpret' e >>= \(VInt port) -> do
+    r <- liftIO Chan.newChan
+    w <- liftIO Chan.newChan
+    -- liftIO $ runTCPServer Nothing (show port) (NS.communicate r w)
+    liftIO $ forkIO $ runTCPServer Nothing "4242" (NS.communicate r w)
+    liftIO $ C.traceIO "Server created"
+    return $ VChan r w
   Connect e1 e2 t -> do
-    interpret' e1 >>= \(VString address) -> interpret' e2 >>= \(VInt port) -> do
-      r <- liftIO Chan.newChan
-      w <- liftIO Chan.newChan
-      liftIO $ runTCPClient address (show port) (NS.communicate r w)
-      return $ VChan r w
+    -- interpret' e1 >>= \(VString address) -> interpret' e2 >>= \(VInt port) -> do
+    r <- liftIO Chan.newChan
+    w <- liftIO Chan.newChan
+    liftIO $ C.traceIO "Client trying to connect"
+    -- liftIO $ runTCPClient address (show port) (NS.communicate r w)
+    liftIO $ forkIO $ runTCPClient "localhost" "4242" (NS.communicate r w)
+    liftIO $ C.traceIO "Client connected"
+    return $ VChan r w
   e -> throw $ NotImplementedException e
 
 -- Exp is only used for blame
