@@ -55,7 +55,8 @@ data Value
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,α,Π(x:A)A') => (ρ,α,Π(x:B)B'))
   | VRec PEnv String String Exp Exp
   | VNewNatRec PEnv String String String Type Exp String Exp
-  | VServerSocket (MVar.MVar Socket)
+  -- | VServerSocket (MVar.MVar Socket)
+  | VServerSocket Socket
   deriving Eq
 
 instance Show Value where

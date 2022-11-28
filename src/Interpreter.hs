@@ -13,6 +13,7 @@ import Syntax
 import PrettySyntax
 import qualified Control.Concurrent.Chan as Chan
 import qualified Control.Concurrent.MVar as MVar
+import Network.Socket
 import Control.Concurrent (forkIO)
 import Data.Foldable (find)
 import Data.Maybe (fromJust)
@@ -163,10 +164,23 @@ eval = \case
     val <- interpret' e
     case val of
       VInt port -> do 
-        mvar <- liftIO MVar.newEmptyMVar
-        liftIO $ forkIO $ runTCPServer Nothing (show port) (NC.getSocket mvar)
+        -- mvar <- liftIO MVar.newEmptyMVar
+        sock <- liftIO $ socket AF_INET Stream 0
+        liftIO $ setSocketOption sock ReuseAddr 1
+        -- bind sock (SockAddrInet 4242 iNADDR_ANY)
+        -- let portNumber = read (show port) :: PortNumber
+        -- liftIO $ bind sock (SockAddrInet portNumber 0x0100007f)  -- Yay terrible hacks to get code that should be simple working, what a day to be alive
+        let hints = defaultHints {
+                addrFlags = [AI_PASSIVE]
+              , addrSocketType = Stream
+              }
+        addrInfo <- liftIO $ getAddrInfo (Just hints) Nothing $ Just $ show port
+        
+        liftIO $ bind sock $ addrAddress $ head addrInfo
+        liftIO $ listen sock 2
         liftIO $ C.traceIO "Server created"
-        return $ VServerSocket mvar
+        -- return $ VServerSocket mvar
+        return $ VServerSocket sock
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
   Accept e t -> do
@@ -176,10 +190,11 @@ eval = \case
 
     val <- interpret' e
     case val of
-      VServerSocket socketMVar -> do 
-        socket <- liftIO $ MVar.readMVar socketMVar
+      VServerSocket socketRaw -> do 
+        -- socket <- liftIO $ MVar.readMVar socketMVar
+        socket <- liftIO $ accept socketRaw
         liftIO $ C.traceIO "Aquired socket"
-        liftIO $ forkIO $ NC.communicate r w socket
+        liftIO $ forkIO $ NC.communicate r w $ fst socket
         liftIO $ C.traceIO "Client accepted"
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
     return $ VChan r w
