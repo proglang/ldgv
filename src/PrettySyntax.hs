@@ -60,6 +60,7 @@ instance Pretty Type where
   pretty TDyn = pretty "★"
   pretty TDouble = pretty "Double"
   pretty TString = pretty "String"
+  pretty TServerSocket  = pretty "ServerSocket"
     -- the bool indicates whether the type needs to be dualized
   pretty (TName b s) = (if b then pretty "~" else mempty) <> pretty s
   pretty (TVar b s) = (if b then pretty "~" else mempty) <> brackets (pretty s)
@@ -123,8 +124,9 @@ instance Pretty Exp where
   pretty (New t) = pretty "new" <+> pretty t
   pretty (Send e) = pretty "send" <+> pretty e
   pretty (Recv e) = pretty "recv" <+> pretty e
-  pretty (Create i t) = pretty "create" <+> pretty i
+  pretty (Create i) = pretty "create" <+> pretty i
   pretty (Connect a i t) = pretty "connect" <+> pretty a <+> pretty i <+> pretty t
+  pretty (Accept s t) = pretty "accept" <+> pretty s <+> pretty t
   pretty (Case e ses) =
     pcase e ses
   pretty (Cast e t1 t2) =
@@ -175,6 +177,7 @@ instance Pretty Value where
     VFuncCast v ft1 ft2 -> pretty "(" <+> pretty v <+> pretty " : " <+> pretty ft1 <+> pretty " ⇒ " <+> pretty ft2 <+> pretty ")"
     VRec {} -> pretty "VRec"
     VNewNatRec {} -> pretty "VNewNatRec"
+    VServerSocket s -> pretty "VServerSocket"
 
 instance Pretty FuncType where
   pretty (FuncType _ s t1 t2) = pretty "Π(" <+> pretty s <+> pretty ":" <+> pretty t1 <+> pretty ")" <+> pretty t2

@@ -3,10 +3,13 @@
 module ProcessEnvironment where
 import Syntax as S
 import Control.Concurrent.Chan as C
+import Control.Concurrent.MVar as MVar
 import Control.Monad.Reader as T
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Kinds (Multiplicity(..))
+
+import Network.Socket
 
 -- | the interpretation monad
 type InterpretM a = T.ReaderT PEnv IO a
@@ -52,6 +55,7 @@ data Value
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,α,Π(x:A)A') => (ρ,α,Π(x:B)B'))
   | VRec PEnv String String Exp Exp
   | VNewNatRec PEnv String String String Type Exp String Exp
+  | VServerSocket (MVar.MVar Socket)
   deriving Eq
 
 instance Show Value where
@@ -70,6 +74,7 @@ instance Show Value where
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
     VRec env f x e1 e0 -> "VRec " ++ " " ++ f ++ " " ++ x ++ " " ++ show e1 ++ " " ++ show e0
     VNewNatRec env f n tid ty ez x es -> "VNewNatRec " ++ f ++ n ++ tid ++ show ty ++ show ez ++ x ++ show es
+    VServerSocket _ -> "VServerSocket"
 
 class Subtypeable t where
   isSubtypeOf :: t -> t -> Bool

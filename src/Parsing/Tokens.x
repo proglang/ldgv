@@ -44,6 +44,7 @@ tokens :-
   recv                                  { tok $ const Recv }
   create                                { tok $ const Create }
   connect                               { tok $ const Connect }
+  accept                                { tok $ const Accept }
 
   -- for Binary Session Types; obsolete for Label Dependent ones
   select                                { tok $ const Select }
@@ -100,6 +101,7 @@ data Token =
         Recv            |
         Create          |
         Connect         |
+        Accept          | 
 
         -- for Binary Session Types; obsolete for Label Dependent ones
         Select          |

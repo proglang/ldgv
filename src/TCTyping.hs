@@ -70,6 +70,7 @@ kiSynth te (TVar b v) = do
   kentry <- TC.kindLookup v
   let k = keKind kentry
   return (k, mult k)
+kiSynth te TServerSocket  = return (Kun, MMany)
 kiSynth te ty =
   TC.mfail ("kiSynth fails on " ++ pshow ty)
 
@@ -242,10 +243,12 @@ tySynth te e =
     kiCheck (demoteTE te) ty Kssn
     return (TPair "" ty (dualof ty), te)
   -- I've got no real clue of what I am doing here hope it kind of works
-  Create e1 ty -> do
+  Create e1 -> do
+    return (TServerSocket, te)
+  Connect e1 e2 ty -> do
     kiCheck (demoteTE te) ty Kssn
     return (ty, te)
-  Connect e1 e2 ty -> do
+  Accept e1 ty -> do
     kiCheck (demoteTE te) ty Kssn
     return (ty, te)
   Send e1 -> do

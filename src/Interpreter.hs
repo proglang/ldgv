@@ -12,6 +12,7 @@ import qualified Config as C
 import Syntax
 import PrettySyntax
 import qualified Control.Concurrent.Chan as Chan
+import qualified Control.Concurrent.MVar as MVar
 import Control.Concurrent (forkIO)
 import Data.Foldable (find)
 import Data.Maybe (fromJust)
@@ -156,18 +157,33 @@ eval = \case
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
       return $ VPair val v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
-  Create e t -> do
+  Create e -> do
     liftIO $ C.traceIO "Creating server!"
+
+    val <- interpret' e
+    case val of
+      VInt port -> do 
+        mvar <- liftIO MVar.newEmptyMVar
+        liftIO $ forkIO $ runTCPServer Nothing (show port) (NC.getSocket mvar)
+        liftIO $ C.traceIO "Server created"
+        return $ VServerSocket mvar
+      _ -> throw $ NotAnExpectedValueException "VInt" val
+
+  Accept e t -> do
+    liftIO $ C.traceIO "Accepting new client!"
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan
 
     val <- interpret' e
     case val of
-      VInt port -> do 
-        liftIO $ forkIO $ runTCPServer Nothing (show port) (NC.communicate r w)
-        liftIO $ C.traceIO "Server created"
-      _ -> throw $ NotAnExpectedValueException "VInt" val
+      VServerSocket socketMVar -> do 
+        socket <- liftIO $ MVar.readMVar socketMVar
+        liftIO $ C.traceIO "Aquired socket"
+        liftIO $ forkIO $ NC.communicate r w socket
+        liftIO $ C.traceIO "Client accepted"
+      _ -> throw $ NotAnExpectedValueException "VServerSocket" val
     return $ VChan r w
+
   Connect e1 e2 t -> do
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan

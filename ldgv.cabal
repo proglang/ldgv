@@ -67,6 +67,9 @@ library
       Kinds
       Networking.Client
       Networking.Common
+      Networking.DirectionalConnection
+      Networking.Messages
+      Networking.NetworkConnection
       Networking.Server
       Parsing
       Parsing.Grammar

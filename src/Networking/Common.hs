@@ -8,6 +8,7 @@ import Control.Concurrent
 import GHC.IO.Handle
 import System.IO
 import qualified Control.Concurrent.Chan as Chan
+import qualified Control.Concurrent.MVar as MVar
 import ProcessEnvironment
 
 
@@ -36,3 +37,9 @@ communicate read write socket = do
                 Right deserial -> writeChan read deserial
             recieveReadable read handle
 
+
+getSocket :: MVar.MVar Socket -> Socket -> IO ()
+getSocket mvar socket = do
+    putStrLn "Trying to send socket"
+    MVar.putMVar mvar socket
+    putStrLn "Sent socket"
