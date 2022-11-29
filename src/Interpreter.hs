@@ -195,10 +195,12 @@ eval = \case
         -- socket <- liftIO $ MVar.readMVar socketMVar
         socket <- liftIO $ accept socketRaw
         liftIO $ C.traceIO "Aquired socket"
-        liftIO $ forkIO $ NC.communicate r w $ fst socket
+        handle <- liftIO $ NC.getHandle $ fst socket
+        liftIO $ forkIO $ NC.recieveMessages r handle
+        -- liftIO $ forkIO $ NC.communicate r w $ fst socket
         liftIO $ C.traceIO "Client accepted"
+        return $ VChan r w $ Just handle
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
-    return $ VChan r w Nothing
 
   Connect e1 e2 t -> do
     r <- liftIO Chan.newChan
@@ -223,11 +225,13 @@ eval = \case
             addrInfo <- liftIO $ getAddrInfo (Just hints) (Just address) $ Just $ show port
             clientsocket <- liftIO $ openSocket $ head addrInfo 
             liftIO $ connect clientsocket $ addrAddress $ head addrInfo
-            liftIO $ forkIO $ NC.communicate r w clientsocket
+            -- liftIO $ forkIO $ NC.communicate r w clientsocket
+            handle <- liftIO $ NC.getHandle clientsocket
+            liftIO $ forkIO $ NC.recieveMessages r handle
             liftIO $ C.traceIO "Client connected"
+            return $ VChan r w $ Just handle
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
-    return $ VChan r w Nothing
     where
       openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
   e -> throw $ NotImplementedException e
@@ -268,7 +272,7 @@ interpretApp _ (VSend v@(VChan _ c handle)) w = do
   case handle of
     Nothing -> pure ()
     Just hdl -> liftIO $ NC.sendMessage w hdl
-  liftIO $ threadDelay 100000 -- give send thread time to send
+  -- liftIO $ threadDelay 100000 -- give send thread time to send
   -- I obviously need to remove this ugly hack
   return v
 interpretApp e _ _ = throw $ ApplicationException e
