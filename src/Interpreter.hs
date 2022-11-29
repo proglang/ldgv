@@ -14,6 +14,7 @@ import PrettySyntax
 import qualified Control.Concurrent.Chan as Chan
 import qualified Control.Concurrent.MVar as MVar
 import Network.Socket
+-- import qualified Network.Socket as NSocket
 import Control.Concurrent (forkIO)
 import Data.Foldable (find)
 import Data.Maybe (fromJust)
@@ -210,11 +211,25 @@ eval = \case
         portVal <- interpret' e2
         case portVal of
           VInt port -> do
-            liftIO $ forkIO $ runTCPClient address (show port) (NC.communicate r w)
+            -- socketmvar <- liftIO newEmptyMVar 
+            -- liftIO $ forkIO $ runTCPClient address (show port) $ putMVar socketmvar
+            -- socket <- liftIO $ readMVar socketmvar
+            -- liftIO $ forkIO $ NC.communicate r w socket
+            -- liftIO $ forkIO $ runTCPClient address (show port) (NC.communicate r w)
+            let hints = defaultHints {
+                addrFlags = []
+              , addrSocketType = Stream
+            }
+            addrInfo <- liftIO $ getAddrInfo (Just hints) (Just address) $ Just $ show port
+            clientsocket <- liftIO $ openSocket $ head addrInfo 
+            liftIO $ connect clientsocket $ addrAddress $ head addrInfo
+            liftIO $ forkIO $ NC.communicate r w clientsocket
             liftIO $ C.traceIO "Client connected"
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
     return $ VChan r w
+    where
+      openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
   e -> throw $ NotImplementedException e
 
 -- Exp is only used for blame
