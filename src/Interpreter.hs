@@ -151,10 +151,10 @@ eval = \case
   New t -> do
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan
-    return $ VPair (VChan r w) (VChan w r)
+    return $ VPair (VChan r w Nothing) (VChan w r Nothing)
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
-    interpret' e >>= \v@(VChan c _) -> do
+    interpret' e >>= \v@(VChan c _ _) -> do
       val <- liftIO $ Chan.readChan c
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
       return $ VPair val v
@@ -198,7 +198,7 @@ eval = \case
         liftIO $ forkIO $ NC.communicate r w $ fst socket
         liftIO $ C.traceIO "Client accepted"
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
-    return $ VChan r w
+    return $ VChan r w Nothing
 
   Connect e1 e2 t -> do
     r <- liftIO Chan.newChan
@@ -227,7 +227,7 @@ eval = \case
             liftIO $ C.traceIO "Client connected"
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
-    return $ VChan r w
+    return $ VChan r w Nothing
     where
       openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
   e -> throw $ NotImplementedException e
@@ -263,8 +263,11 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
-interpretApp _ (VSend v@(VChan _ c)) w = do 
+interpretApp _ (VSend v@(VChan _ c handle)) w = do 
   liftIO (Chan.writeChan c w)
+  case handle of
+    Nothing -> pure ()
+    Just hdl -> liftIO $ NC.sendMessage w hdl
   liftIO $ threadDelay 100000 -- give send thread time to send
   -- I obviously need to remove this ugly hack
   return v

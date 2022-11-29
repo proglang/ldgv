@@ -2,6 +2,7 @@
 
 module ProcessEnvironment where
 import Syntax as S
+import GHC.IO.Handle
 import Control.Concurrent.Chan as C
 import Control.Concurrent.MVar as MVar
 import Control.Monad.Reader as T
@@ -45,7 +46,7 @@ data Value
   | VString String
   -- we have two channels, one for reading and one for writing to the other
   -- end, so we do not read our own written values
-  | VChan (C.Chan Value) (C.Chan Value)
+  | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle)
 --  | VChan (C.Chan Value) (C.Chan Value)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
@@ -66,7 +67,7 @@ instance Show Value where
     VInt i -> "VInt " ++ show i
     VDouble d -> "VDouble " ++ show d
     VString s -> "VString \"" ++ show s ++ "\""
-    VChan _ _ -> "VChan"
+    VChan {} -> "VChan"
     VSend v -> "VSend (" ++ show v ++ ")"
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
     VType t -> "VType " ++ show t

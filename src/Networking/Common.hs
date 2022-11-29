@@ -38,6 +38,29 @@ communicate read write socket = do
             recieveReadable read handle
 
 
+sendMessage :: Value -> Handle -> IO ()
+sendMessage value handle = do
+    putStrLn $ "Sending message:" ++ SV.serialize value
+    hPutStrLn handle (SV.serialize value ++" ")
+
+
+recieveMessages :: Chan.Chan Value -> Handle -> IO ()
+recieveMessages chan handle = do
+    message <- hGetLine handle
+    putStrLn $ "Recieved message:" ++ message
+    case VT.runAlex message VG.parseValues of
+        Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
+        Right deserial -> writeChan chan deserial
+    recieveMessages chan handle
+
+
+getHandle :: Socket -> IO Handle
+getHandle socket = do
+    hdl <- socketToHandle socket ReadWriteMode
+    hSetBuffering hdl NoBuffering
+    return hdl
+
+
 getSocket :: MVar.MVar Socket -> Socket -> IO ()
 getSocket mvar socket = do
     putStrLn "Trying to send socket"
