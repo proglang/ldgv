@@ -11,11 +11,12 @@ import qualified Control.Concurrent.Chan as Chan
 import qualified Control.Concurrent.MVar as MVar
 import ProcessEnvironment
 
+import qualified Networking.Serialize as NSerialize 
 
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
-import qualified SerializeValues as SV
 
+{-
 -- communicate :: Chan.Chan Value -> Chan.Chan Value -> Socket -> IO ()
 communicate read write socket = do
     hdl <- socketToHandle socket ReadWriteMode
@@ -36,12 +37,13 @@ communicate read write socket = do
                 Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
                 Right deserial -> writeChan read deserial
             recieveReadable read handle
-
+-}
 
 sendMessage :: Value -> Handle -> IO ()
 sendMessage value handle = do
-    putStrLn $ "Sending message:" ++ SV.serialize value
-    hPutStrLn handle (SV.serialize value ++" ")
+    serializedValue <- NSerialize.serialize value
+    putStrLn $ "Sending message:" ++ serializedValue
+    hPutStrLn handle (serializedValue ++" ")
 
 
 recieveMessages :: Chan.Chan Value -> Handle -> IO ()

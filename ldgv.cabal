@@ -70,7 +70,9 @@ library
       Networking.DirectionalConnection
       Networking.Messages
       Networking.NetworkConnection
+      Networking.Serialize
       Networking.Server
+      Networking.UserID
       Parsing
       Parsing.Grammar
       Parsing.Tokens
@@ -106,6 +108,7 @@ library
     , network
     , network-run
     , prettyprinter
+    , random
     , text
     , transformers
     , typed-process

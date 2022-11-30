@@ -272,8 +272,6 @@ interpretApp _ (VSend v@(VChan _ c handle)) w = do
   case handle of
     Nothing -> pure ()
     Just hdl -> liftIO $ NC.sendMessage w hdl
-  -- liftIO $ threadDelay 100000 -- give send thread time to send
-  -- I obviously need to remove this ugly hack
   return v
 interpretApp e _ _ = throw $ ApplicationException e
 

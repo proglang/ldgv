@@ -62,6 +62,7 @@ library:
   - validation-selective
   - network
   - network-run
+  - random
 
 tests:
   ldgv-test:
