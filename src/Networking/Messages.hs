@@ -6,8 +6,9 @@ type Partner = String
 type Hostname = String
 type Port = Int
 
-data Message 
-    = NewValue Partner Value
-    | SyncIncomming Partner [Value]
+data Messages
+    = Introduce Partner
+    | NewValue Partner Value
+    | SyncIncoming Partner [Value]
     | RequestSync Partner
     | ChangePartnerAddress Partner Hostname Port 

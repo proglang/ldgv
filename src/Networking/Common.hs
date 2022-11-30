@@ -4,8 +4,11 @@ import qualified Control.Exception as E
 import qualified Data.ByteString.Char8 as C
 import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Control.Concurrent
 import GHC.IO.Handle
+import Control.Monad.IO.Class
 import System.IO
 import qualified Control.Concurrent.Chan as Chan
 import qualified Control.Concurrent.MVar as MVar
@@ -38,6 +41,11 @@ communicate read write socket = do
                 Right deserial -> writeChan read deserial
             recieveReadable read handle
 -}
+
+userIDToHandle :: MVar.MVar (Map.Map String Handle) -> String -> IO (Maybe Handle)
+userIDToHandle mvar userid = do
+    useridmap <- readMVar mvar
+    return $ Map.lookup userid useridmap
 
 sendMessage :: Value -> Handle -> IO ()
 sendMessage value handle = do

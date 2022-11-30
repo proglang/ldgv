@@ -123,6 +123,12 @@ tokens :-
   "SStringArray"                        { tok $ const SStringArray }
   "SValuesArray"                          { tok $ const SValuesArray }
 
+  "NIntroduce"                          { tok $ const NIntroduce }
+  "NNewValue"                           { tok $ const NNewValue }
+  "NSyncIncoming"                       { tok $ const NSyncIncoming }
+  "NRequestSync"                        { tok $ const NRequestSync }
+  "NChangePartnerAddress"               { tok $ const NChangePartnerAddress }
+
   "Double:" $digit+ "." $digit+                   { tok $ Double . read . (drop 7) }
   "Int:" $digit+                               { tok $ Int . read . (drop 4)}
   "Integer:" $digit+                               { tok $ Integer . read . (drop 8)}
@@ -229,6 +235,12 @@ data Token
   | SStringTypeArray
   | SStringArray
   | SValuesArray
+
+  | NIntroduce
+  | NNewValue
+  | NSyncIncoming
+  | NRequestSync
+  | NChangePartnerAddress
 
   | String String
   | Int Int

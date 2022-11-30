@@ -10,6 +10,7 @@ import Syntax
 import ProcessEnvironment
 import ValueParsing.ValueTokens (T(..))
 import qualified ValueParsing.ValueTokens as T
+import Networking.Messages
 }
 
 %monad { T.Alex }
@@ -21,6 +22,7 @@ import qualified ValueParsing.ValueTokens as T
 --%name parseType  Typ
 
 %name parseValues Values
+%name parseMessages Messages
 -- %name parseSStringTypeElement SStringTypeElement
 -- %name parseSStringTypeElements SStringTypeElements
 -- %name parseSStringTypeArray SStringTypeArray
@@ -105,6 +107,12 @@ import qualified ValueParsing.ValueTokens as T
     sstringtypearray { T _ T.SStringTypeArray }
     sstringarray  { T _ T.SStringArray }
     svaluesarray  { T _ T.SValuesArray }
+
+    nintroduce    { T _ T.NIntroduce }
+    nnewvalue     { T _ T.NNewValue }
+    nsyncincoming { T _ T.NSyncIncoming }
+    nrequestsync  { T _ T.NRequestSync }
+    nchangepartneraddress {T _ T.NChangePartnerAddress }
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -246,6 +254,13 @@ GType : gunit {GUnit}
       | gint {GInt}
       | gdouble {GDouble}
       | gstring {GString}
+
+Messages : nintroduce '(' String ')' {Introduce $3}
+         | nnewvalue '(' String ')''(' Values ')' {NewValue $3 $6}
+         | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
+         | nrequestsync '(' String ')' {RequestSync $3}
+         | nchangepartneraddress '(' String ')' '(' String ')' '(' int ')' {ChangePartnerAddress $3 $6 $9}
+
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}
 

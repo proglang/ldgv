@@ -46,7 +46,8 @@ data Value
   | VString String
   -- we have two channels, one for reading and one for writing to the other
   -- end, so we do not read our own written values
-  | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle)
+  | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle) (Maybe SockAddr) (Maybe String) (Maybe String)
+  --        Read Chan       Write Chan    Handle of Con   Address of other  other Userid  own UserID
 --  | VChan (C.Chan Value) (C.Chan Value)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values

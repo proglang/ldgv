@@ -151,10 +151,10 @@ eval = \case
   New t -> do
     r <- liftIO Chan.newChan
     w <- liftIO Chan.newChan
-    return $ VPair (VChan r w Nothing) (VChan w r Nothing)
+    return $ VPair (VChan r w Nothing Nothing Nothing Nothing) (VChan w r Nothing Nothing Nothing Nothing)
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
-    interpret' e >>= \v@(VChan c _ _) -> do
+    interpret' e >>= \v@(VChan c _ _ _ _ _) -> do
       val <- liftIO $ Chan.readChan c
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
       return $ VPair val v
@@ -199,7 +199,7 @@ eval = \case
         liftIO $ forkIO $ NC.recieveMessages r handle
         -- liftIO $ forkIO $ NC.communicate r w $ fst socket
         liftIO $ C.traceIO "Client accepted"
-        return $ VChan r w $ Just handle
+        return $ VChan r w (Just handle) (Just $ snd socket) Nothing Nothing
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e1 e2 t -> do
@@ -229,7 +229,7 @@ eval = \case
             handle <- liftIO $ NC.getHandle clientsocket
             liftIO $ forkIO $ NC.recieveMessages r handle
             liftIO $ C.traceIO "Client connected"
-            return $ VChan r w $ Just handle
+            return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) Nothing Nothing
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
     where
@@ -267,7 +267,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
-interpretApp _ (VSend v@(VChan _ c handle)) w = do 
+interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do 
   liftIO (Chan.writeChan c w)
   case handle of
     Nothing -> pure ()

@@ -13,6 +13,7 @@ import Foreign.C (eNODEV, e2BIG)
 import Control.Concurrent (getChanContents)
 import Control.Exception
 import ProcessEnvironment
+import Networking.Messages
 
 
 newtype SerializationException = UnserializableException String
@@ -27,6 +28,14 @@ instance Exception SerializationException
 
 class Serializable a where
   serialize :: a -> IO String
+
+instance Serializable Messages where
+    serialize = \case
+        Introduce p -> serializeLabeledEntry "NIntroduce" p
+        NewValue p v -> serializeLabeledEntryMulti "NNewValue" p $ sLast v
+        SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
+        RequestSync p -> serializeLabeledEntry "NRequestSync" p
+        ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
 
 instance Serializable Value where
   serialize = \case
