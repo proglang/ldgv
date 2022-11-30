@@ -2,6 +2,7 @@
 module Networking.Server where
 
 import qualified Control.Concurrent.MVar as MVar
+import qualified Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Control.Monad.IO.Class
 import Data.Map
@@ -42,18 +43,19 @@ createServer port = do
     MVar.putMVar mvar empty
     return mvar
 
-acceptClients :: MVar.MVar (Map String (Handle, SockAddr)) -> Socket -> IO ()
-acceptClients mvar socket = do
+acceptClients :: MVar.MVar (Map String (Handle, SockAddr)) -> Chan.Chan String -> Socket -> IO ()
+acceptClients mvar chan socket = do
     clientsocket <- accept socket
-    forkIO $ acceptClient mvar clientsocket
-    acceptClients mvar socket
+    forkIO $ acceptClient mvar chan clientsocket
+    acceptClients mvar chan socket
 
 
-acceptClient :: MVar.MVar (Map String (Handle, SockAddr)) -> (Socket, SockAddr) -> IO ()
-acceptClient mvar clientsocket = do
+acceptClient :: MVar.MVar (Map String (Handle, SockAddr)) -> Chan.Chan String -> (Socket, SockAddr) -> IO ()
+acceptClient mvar chan clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
     userid <- waitForIntroduction hdl
     MVar.modifyMVar_ mvar (return . insert userid (hdl, snd clientsocket))
+    Chan.writeChan chan userid
 
 waitForIntroduction :: Handle -> IO String
 waitForIntroduction handle = do
