@@ -15,6 +15,7 @@ import qualified Control.Concurrent.MVar as MVar
 import ProcessEnvironment
 
 import qualified Networking.Serialize as NSerialize 
+import Networking.Messages
 
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
@@ -42,10 +43,48 @@ communicate read write socket = do
             recieveReadable read handle
 -}
 
-userIDToHandle :: MVar.MVar (Map.Map String Handle) -> String -> IO (Maybe Handle)
+-- This waits until the handle is found
+userIDToHandle :: MVar.MVar (Map.Map String Handle) -> String -> IO Handle
 userIDToHandle mvar userid = do
     useridmap <- readMVar mvar
-    return $ Map.lookup userid useridmap
+    case Map.lookup userid useridmap of
+        Just handle -> return handle
+        Nothing -> userIDToHandle mvar userid
+
+sendMessageID :: Value -> MVar.MVar (Map.Map String Handle) -> String -> IO ()
+sendMessageID value handlemapmvar userid = do
+    serializedValue <- NSerialize.serialize $ NewValue userid value
+    putStrLn $ "Sending message:" ++ serializedValue
+    handle <- userIDToHandle handlemapmvar userid
+    hPutStrLn handle  (serializedValue ++ " ")
+
+    {-
+    maybehandle <- userIDToHandle handlemapmvar userid
+    case maybehandle of
+        Just handle -> hPutStrLn handle  (serializedValue ++" ")
+        Nothing -> putStrLn $ "Error " ++ userid ++ " not found while trying to recieve messages"
+    -}
+
+recieveMessagesID :: Chan.Chan Value -> MVar.MVar (Map.Map String Handle) -> String -> IO ()
+recieveMessagesID chan mvar userid = do
+    handle <- userIDToHandle mvar userid
+    message <- hGetLine handle
+    putStrLn $ "Recieved message:" ++ message
+    case VT.runAlex message VG.parseValues of
+        Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
+        Right deserial -> writeChan chan deserial
+    {-
+    case maybehandle of
+        Just handle -> do
+            message <- hGetLine handle
+            putStrLn $ "Recieved message:" ++ message
+            case VT.runAlex message VG.parseValues of
+                Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
+                Right deserial -> writeChan chan deserial
+        Nothing -> putStrLn $ "Error " ++ userid ++ " not found while trying to recieve messages"
+    -}
+    recieveMessagesID chan mvar userid
+
 
 sendMessage :: Value -> Handle -> IO ()
 sendMessage value handle = do

@@ -1,5 +1,5 @@
 {
-module ValueParsing.ValueGrammar (parseValues) where
+module ValueParsing.ValueGrammar (parseValues, parseMessages) where
 
 import Control.Monad
 import qualified Data.List as List
