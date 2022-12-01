@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Networking.Common where
 
 import qualified Control.Exception as E
@@ -16,6 +18,7 @@ import ProcessEnvironment
 
 import qualified Networking.Serialize as NSerialize 
 import Networking.Messages
+import Control.Exception
 
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
@@ -44,6 +47,16 @@ communicate read write socket = do
 -}
 
 
+newtype ServerException = NoIntroductionException String
+    deriving Eq
+
+instance Show ServerException where
+    show = \case
+        NoIntroductionException s -> "Partner didn't introduce itself, but sent: " ++ s
+
+instance Exception ServerException
+
+
 -- Hangs if no valid client id is provided
 getConnectionInfo :: MVar.MVar (Map String ConnectionInfo) -> String -> IO ConnectionInfo
 getConnectionInfo mvar user = do
@@ -57,7 +70,7 @@ userIDToHandle :: MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO Hand
 userIDToHandle mvar userid = do
     useridmap <- readMVar mvar
     case Map.lookup userid useridmap of
-        Just connectioninfo -> return $ handle connectioninfo
+        Just connectioninfo -> return $ ProcessEnvironment.handle connectioninfo
         Nothing -> userIDToHandle mvar userid
 
 sendMessageID :: Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()
@@ -125,3 +138,17 @@ getSocket mvar socket = do
     putStrLn "Trying to send socket"
     MVar.putMVar mvar socket
     putStrLn "Sent socket"
+
+waitForServerIntroduction :: Handle -> IO String
+waitForServerIntroduction handle = do
+    message <- hGetLine handle
+    case VT.runAlex message VG.parseMessages of
+        Left err -> do 
+            putStrLn $ "Error during server introduction: "++err
+            throw $ NoIntroductionException message
+        Right deserial -> case deserial of
+            Introduce partner -> do
+                return partner
+            _ -> do 
+                putStrLn $ "Error during server introduction, wrong message: "++ message
+                throw $ NoIntroductionException message

@@ -171,10 +171,10 @@ eval = \case
     case val of
       VInt port -> do 
         -- mvar <- liftIO MVar.newEmptyMVar
-        (mvar, chan) <- liftIO $ NS.createServer port
+        (mvar, chan, serverid) <- liftIO $ NS.createServer port
         liftIO $ C.traceIO "Server created"
         -- return $ VServerSocket mvar
-        return $ VServerSocket mvar chan
+        return $ VServerSocket mvar chan serverid
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
   Accept e t -> do
@@ -182,12 +182,12 @@ eval = \case
 
     val <- interpret' e
     case val of
-      VServerSocket mvar chan -> do 
+      VServerSocket mvar chan serverid -> do 
         -- socket <- liftIO $ MVar.readMVar socketMVar
         newuser <- liftIO $ Chan.readChan chan
         clientuser <- liftIO $ NC.getConnectionInfo mvar newuser
         liftIO $ C.traceIO "Client accepted"
-        return $ VChan (readChannel clientuser) (writeChannel clientuser) (Just $ ProcessEnvironment.handle clientuser ) (Just $ addr clientuser ) (Just newuser) Nothing
+        return $ VChan (readChannel clientuser) (writeChannel clientuser) (Just $ ProcessEnvironment.handle clientuser ) (Just $ addr clientuser ) (Just newuser) $ Just serverid
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e1 e2 t -> do
@@ -215,11 +215,16 @@ eval = \case
             liftIO $ connect clientsocket $ addrAddress $ head addrInfo
             -- liftIO $ forkIO $ NC.communicate r w clientsocket
             handle <- liftIO $ NC.getHandle clientsocket
-            liftIO $ forkIO $ NC.recieveMessages r handle
             liftIO $ C.traceIO "Client connected"
             ownuserid <- liftIO $ UserID.newRandomUserID
             liftIO $ NC.sendMessage (Messages.Introduce ownuserid) handle 
-            return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) Nothing $ Just ownuserid
+
+            -- Wait for answer from the server
+            serverid <- liftIO $ NC.waitForServerIntroduction handle
+
+            -- Hockup automatic message recieving
+            liftIO $ forkIO $ NC.recieveMessages r handle
+            return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) (Just serverid) $ Just ownuserid
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
     where

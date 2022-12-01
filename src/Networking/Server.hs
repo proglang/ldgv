@@ -14,22 +14,26 @@ import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.Common as NC
 import qualified Networking.Serialize as NSerialize
+import qualified Networking.UserID as UserID
 import ProcessEnvironment
 
 import Control.Exception
+import qualified Networking.UserID as UserID
+import qualified Networking.Messages as Messages
 
-newtype ServerException = NoIntroductionException String
+{-newtype ServerException = NoIntroductionException String
     deriving Eq
 
 instance Show ServerException where
     show = \case
         NoIntroductionException s -> "Client didn't introduce itself, but sent: " ++ s
 
-instance Exception ServerException
+instance Exception ServerException-}
 
 
-createServer :: Int -> IO (MVar.MVar (Map String ConnectionInfo), Chan.Chan String)
+createServer :: Int -> IO (MVar.MVar (Map String ConnectionInfo), Chan.Chan String, String)
 createServer port = do
+    serverid <- UserID.newRandomUserID
     sock <- liftIO $ socket AF_INET Stream 0
     liftIO $ setSocketOption sock ReuseAddr 1
     let hints = defaultHints {
@@ -43,35 +47,37 @@ createServer port = do
     mvar <- MVar.newEmptyMVar
     MVar.putMVar mvar empty
     chan <- Chan.newChan
-    forkIO $ acceptClients mvar chan sock
-    return (mvar, chan)
+    forkIO $ acceptClients mvar chan sock serverid
+    return (mvar, chan, serverid)
 
-acceptClients :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> Socket -> IO ()
-acceptClients mvar chan socket = do
+acceptClients :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> Socket -> String-> IO ()
+acceptClients mvar chan socket serverid = do
     clientsocket <- accept socket
-    forkIO $ acceptClient mvar chan clientsocket
-    acceptClients mvar chan socket
+    forkIO $ acceptClient mvar chan clientsocket serverid
+    acceptClients mvar chan socket serverid
 
 
-acceptClient :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> (Socket, SockAddr) -> IO ()
-acceptClient mvar chan clientsocket = do
+acceptClient :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> (Socket, SockAddr) -> String -> IO ()
+acceptClient mvar chan clientsocket serverid = do
     hdl <- NC.getHandle $ fst clientsocket
-    userid <- waitForIntroduction hdl
+    userid <- waitForIntroduction hdl serverid
     r <- Chan.newChan
     w <- Chan.newChan
     MVar.modifyMVar_ mvar (return . insert userid (ConnectionInfo hdl (snd clientsocket) r w))
     forkIO $ NC.recieveMessagesID r mvar userid
     Chan.writeChan chan userid
 
-waitForIntroduction :: Handle -> IO String
-waitForIntroduction handle = do
+waitForIntroduction :: Handle -> String -> IO String
+waitForIntroduction handle serverid = do
     message <- hGetLine handle
     case VT.runAlex message VG.parseMessages of
         Left err -> do 
             putStrLn $ "Error during client introduction: "++err
-            throw $ NoIntroductionException message
+            throw $ NC.NoIntroductionException message
         Right deserial -> case deserial of
-            Introduce partner -> return partner
+            Introduce partner -> do
+                NC.sendMessage (Messages.Introduce serverid) handle
+                return partner
             _ -> do 
                 putStrLn $ "Error during client introduction, wrong message: "++ message
-                throw $ NoIntroductionException message
+                throw $ NC.NoIntroductionException message

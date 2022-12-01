@@ -61,7 +61,8 @@ data Value
   | VNewNatRec PEnv String String String Type Exp String Exp
   -- | VServerSocket (MVar.MVar Socket)
   -- | VServerSocket Socket
-  | VServerSocket (MVar.MVar (Map.Map String ConnectionInfo)) (C.Chan String)
+  | VServerSocket (MVar.MVar (Map.Map String ConnectionInfo)) (C.Chan String) String
+                                                                              -- This is the server id
   deriving Eq
 
 data ConnectionInfo = ConnectionInfo {handle :: Handle, addr :: SockAddr, readChannel :: C.Chan Value, writeChannel :: C.Chan Value}
@@ -82,7 +83,7 @@ instance Show Value where
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
     VRec env f x e1 e0 -> "VRec " ++ " " ++ f ++ " " ++ x ++ " " ++ show e1 ++ " " ++ show e0
     VNewNatRec env f n tid ty ez x es -> "VNewNatRec " ++ f ++ n ++ tid ++ show ty ++ show ez ++ x ++ show es
-    VServerSocket _ _-> "VServerSocket"
+    VServerSocket {} -> "VServerSocket"
 
 class Subtypeable t where
   isSubtypeOf :: t -> t -> Bool
