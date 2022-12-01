@@ -33,7 +33,12 @@ import qualified Networking.Common as NC
 import Network.Run.TCP
 import qualified Networking.Server as NS
 
+import Networking.UserID as UserID
+
 import Control.Concurrent
+import qualified Networking.UserID as UserID
+
+import qualified Networking.Messages as Messages
 
 data InterpreterException
   = MathException String
@@ -166,40 +171,23 @@ eval = \case
     case val of
       VInt port -> do 
         -- mvar <- liftIO MVar.newEmptyMVar
-        sock <- liftIO $ socket AF_INET Stream 0
-        liftIO $ setSocketOption sock ReuseAddr 1
-        -- bind sock (SockAddrInet 4242 iNADDR_ANY)
-        -- let portNumber = read (show port) :: PortNumber
-        -- liftIO $ bind sock (SockAddrInet portNumber 0x0100007f)  -- Yay terrible hacks to get code that should be simple working, what a day to be alive
-        let hints = defaultHints {
-                addrFlags = [AI_PASSIVE]
-              , addrSocketType = Stream
-              }
-        addrInfo <- liftIO $ getAddrInfo (Just hints) Nothing $ Just $ show port
-        
-        liftIO $ bind sock $ addrAddress $ head addrInfo
-        liftIO $ listen sock 2
+        (mvar, chan) <- liftIO $ NS.createServer port
         liftIO $ C.traceIO "Server created"
         -- return $ VServerSocket mvar
-        return $ VServerSocket sock
+        return $ VServerSocket mvar chan
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
   Accept e t -> do
     liftIO $ C.traceIO "Accepting new client!"
-    r <- liftIO Chan.newChan
-    w <- liftIO Chan.newChan
 
     val <- interpret' e
     case val of
-      VServerSocket socketRaw -> do 
+      VServerSocket mvar chan -> do 
         -- socket <- liftIO $ MVar.readMVar socketMVar
-        socket <- liftIO $ accept socketRaw
-        liftIO $ C.traceIO "Aquired socket"
-        handle <- liftIO $ NC.getHandle $ fst socket
-        liftIO $ forkIO $ NC.recieveMessages r handle
-        -- liftIO $ forkIO $ NC.communicate r w $ fst socket
+        newuser <- liftIO $ Chan.readChan chan
+        clientuser <- liftIO $ NC.getConnectionInfo mvar newuser
         liftIO $ C.traceIO "Client accepted"
-        return $ VChan r w (Just handle) (Just $ snd socket) Nothing Nothing
+        return $ VChan (readChannel clientuser) (writeChannel clientuser) (Just $ ProcessEnvironment.handle clientuser ) (Just $ addr clientuser ) (Just newuser) Nothing
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e1 e2 t -> do
@@ -229,7 +217,9 @@ eval = \case
             handle <- liftIO $ NC.getHandle clientsocket
             liftIO $ forkIO $ NC.recieveMessages r handle
             liftIO $ C.traceIO "Client connected"
-            return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) Nothing Nothing
+            ownuserid <- liftIO $ UserID.newRandomUserID
+            liftIO $ NC.sendMessage (Messages.Introduce ownuserid) handle 
+            return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) Nothing $ Just ownuserid
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
     where

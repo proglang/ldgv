@@ -7,10 +7,12 @@ import Control.Concurrent.Chan as C
 import Control.Concurrent.MVar as MVar
 import Control.Monad.Reader as T
 import Data.Set (Set)
+import Data.Map as Map
 import qualified Data.Set as Set
 import Kinds (Multiplicity(..))
 
 import Network.Socket
+-- import qualified Networking.Common as NC
 
 -- | the interpretation monad
 type InterpretM a = T.ReaderT PEnv IO a
@@ -58,8 +60,11 @@ data Value
   | VRec PEnv String String Exp Exp
   | VNewNatRec PEnv String String String Type Exp String Exp
   -- | VServerSocket (MVar.MVar Socket)
-  | VServerSocket Socket
+  -- | VServerSocket Socket
+  | VServerSocket (MVar.MVar (Map.Map String ConnectionInfo)) (C.Chan String)
   deriving Eq
+
+data ConnectionInfo = ConnectionInfo {handle :: Handle, addr :: SockAddr, readChannel :: C.Chan Value, writeChannel :: C.Chan Value}
 
 instance Show Value where
   show = \case
@@ -77,7 +82,7 @@ instance Show Value where
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
     VRec env f x e1 e0 -> "VRec " ++ " " ++ f ++ " " ++ x ++ " " ++ show e1 ++ " " ++ show e0
     VNewNatRec env f n tid ty ez x es -> "VNewNatRec " ++ f ++ n ++ tid ++ show ty ++ show ez ++ x ++ show es
-    VServerSocket _ -> "VServerSocket"
+    VServerSocket _ _-> "VServerSocket"
 
 class Subtypeable t where
   isSubtypeOf :: t -> t -> Bool

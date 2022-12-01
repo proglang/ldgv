@@ -14,6 +14,7 @@ import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.Common as NC
 import qualified Networking.Serialize as NSerialize
+import ProcessEnvironment
 
 import Control.Exception
 
@@ -27,7 +28,7 @@ instance Show ServerException where
 instance Exception ServerException
 
 
-createServer :: Int -> IO (MVar.MVar (Map String Handle))
+createServer :: Int -> IO (MVar.MVar (Map String ConnectionInfo), Chan.Chan String)
 createServer port = do
     sock <- liftIO $ socket AF_INET Stream 0
     liftIO $ setSocketOption sock ReuseAddr 1
@@ -41,20 +42,25 @@ createServer port = do
     liftIO $ listen sock 2
     mvar <- MVar.newEmptyMVar
     MVar.putMVar mvar empty
-    return mvar
+    chan <- Chan.newChan
+    forkIO $ acceptClients mvar chan sock
+    return (mvar, chan)
 
-acceptClients :: MVar.MVar (Map String (Handle, SockAddr)) -> Chan.Chan String -> Socket -> IO ()
+acceptClients :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> Socket -> IO ()
 acceptClients mvar chan socket = do
     clientsocket <- accept socket
     forkIO $ acceptClient mvar chan clientsocket
     acceptClients mvar chan socket
 
 
-acceptClient :: MVar.MVar (Map String (Handle, SockAddr)) -> Chan.Chan String -> (Socket, SockAddr) -> IO ()
+acceptClient :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> (Socket, SockAddr) -> IO ()
 acceptClient mvar chan clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
     userid <- waitForIntroduction hdl
-    MVar.modifyMVar_ mvar (return . insert userid (hdl, snd clientsocket))
+    r <- Chan.newChan
+    w <- Chan.newChan
+    MVar.modifyMVar_ mvar (return . insert userid (ConnectionInfo hdl (snd clientsocket) r w))
+    forkIO $ NC.recieveMessagesID r mvar userid
     Chan.writeChan chan userid
 
 waitForIntroduction :: Handle -> IO String

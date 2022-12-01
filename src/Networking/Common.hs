@@ -43,15 +43,24 @@ communicate read write socket = do
             recieveReadable read handle
 -}
 
+
+-- Hangs if no valid client id is provided
+getConnectionInfo :: MVar.MVar (Map String ConnectionInfo) -> String -> IO ConnectionInfo
+getConnectionInfo mvar user = do
+    dict <- MVar.readMVar mvar
+    case Map.lookup user dict of
+        Nothing -> getConnectionInfo mvar user
+        Just clientinfo -> return clientinfo
+
 -- This waits until the handle is found
-userIDToHandle :: MVar.MVar (Map.Map String Handle) -> String -> IO Handle
+userIDToHandle :: MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO Handle
 userIDToHandle mvar userid = do
     useridmap <- readMVar mvar
     case Map.lookup userid useridmap of
-        Just handle -> return handle
+        Just connectioninfo -> return $ handle connectioninfo
         Nothing -> userIDToHandle mvar userid
 
-sendMessageID :: Value -> MVar.MVar (Map.Map String Handle) -> String -> IO ()
+sendMessageID :: Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()
 sendMessageID value handlemapmvar userid = do
     serializedValue <- NSerialize.serialize $ NewValue userid value
     putStrLn $ "Sending message:" ++ serializedValue
@@ -65,7 +74,7 @@ sendMessageID value handlemapmvar userid = do
         Nothing -> putStrLn $ "Error " ++ userid ++ " not found while trying to recieve messages"
     -}
 
-recieveMessagesID :: Chan.Chan Value -> MVar.MVar (Map.Map String Handle) -> String -> IO ()
+recieveMessagesID :: Chan.Chan Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()
 recieveMessagesID chan mvar userid = do
     handle <- userIDToHandle mvar userid
     message <- hGetLine handle
@@ -86,11 +95,12 @@ recieveMessagesID chan mvar userid = do
     recieveMessagesID chan mvar userid
 
 
-sendMessage :: Value -> Handle -> IO ()
+sendMessage :: NSerialize.Serializable a => a -> Handle -> IO ()
 sendMessage value handle = do
     serializedValue <- NSerialize.serialize value
     putStrLn $ "Sending message:" ++ serializedValue
     hPutStrLn handle (serializedValue ++" ")
+
 
 
 recieveMessages :: Chan.Chan Value -> Handle -> IO ()

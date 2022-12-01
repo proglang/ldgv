@@ -177,7 +177,7 @@ instance Pretty Value where
     VFuncCast v ft1 ft2 -> pretty "(" <+> pretty v <+> pretty " : " <+> pretty ft1 <+> pretty " ⇒ " <+> pretty ft2 <+> pretty ")"
     VRec {} -> pretty "VRec"
     VNewNatRec {} -> pretty "VNewNatRec"
-    VServerSocket s -> pretty "VServerSocket"
+    VServerSocket _ _-> pretty "VServerSocket"
 
 instance Pretty FuncType where
   pretty (FuncType _ s t1 t2) = pretty "Π(" <+> pretty s <+> pretty ":" <+> pretty t1 <+> pretty ")" <+> pretty t2
