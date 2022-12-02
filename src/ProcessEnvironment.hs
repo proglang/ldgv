@@ -11,6 +11,8 @@ import Data.Map as Map
 import qualified Data.Set as Set
 import Kinds (Multiplicity(..))
 
+import Networking.DirectionalConnection
+
 import Network.Socket
 -- import qualified Networking.Common as NC
 
@@ -67,7 +69,11 @@ data Value
 
 data ConnectionInfo = ConnectionInfo {ciHandle :: Handle, ciAddr :: SockAddr, ciReadChannel :: C.Chan Value, ciWriteChannel :: C.Chan Value}
 
---data CommunicationChannel = CommunicationChannel {}
+data CommunicationChannel = CommunicationChannel {ccRead :: DirectionalConnection Value, ccWrite :: DirectionalConnection Value, ccPartnerUserID :: Maybe String, ccOwnUserID :: Maybe String, ccPartnerAddress :: Maybe SockAddr, ccChannelState :: ChannelState}
+
+data ChannelState = Connected {csConInfoMap :: MVar.MVar (Map.Map String ConnectionInfo)}
+                  | Disconnected
+
 
 instance Show Value where
   show = \case
