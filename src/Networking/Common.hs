@@ -70,7 +70,7 @@ userIDToHandle :: MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO Hand
 userIDToHandle mvar userid = do
     useridmap <- readMVar mvar
     case Map.lookup userid useridmap of
-        Just connectioninfo -> return $ ProcessEnvironment.handle connectioninfo
+        Just connectioninfo -> return $ ciHandle connectioninfo
         Nothing -> userIDToHandle mvar userid
 
 sendMessageID :: Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()

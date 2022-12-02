@@ -188,7 +188,7 @@ eval = \case
         newuser <- liftIO $ Chan.readChan chan
         clientuser <- liftIO $ NC.getConnectionInfo mvar newuser
         liftIO $ C.traceIO "Client accepted"
-        return $ VChan (readChannel clientuser) (writeChannel clientuser) (Just $ ProcessEnvironment.handle clientuser ) (Just $ addr clientuser ) (Just newuser) $ Just serverid
+        return $ VChan (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just $ ciHandle clientuser ) (Just $ ciAddr clientuser ) (Just newuser) $ Just serverid
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e1 e2 t -> do

@@ -65,7 +65,9 @@ data Value
                                                                               -- This is the server id
   deriving Eq
 
-data ConnectionInfo = ConnectionInfo {handle :: Handle, addr :: SockAddr, readChannel :: C.Chan Value, writeChannel :: C.Chan Value}
+data ConnectionInfo = ConnectionInfo {ciHandle :: Handle, ciAddr :: SockAddr, ciReadChannel :: C.Chan Value, ciWriteChannel :: C.Chan Value}
+
+--data CommunicationChannel = CommunicationChannel {}
 
 instance Show Value where
   show = \case
