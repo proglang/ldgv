@@ -18,6 +18,7 @@ import Network.Socket
 import Control.Concurrent (forkIO)
 import Data.Foldable (find)
 import Data.Maybe (fromJust)
+import qualified Data.Map as Map
 import ProcessEnvironment
 import qualified Control.Monad as M
 import Control.Monad.Reader as R
@@ -169,7 +170,7 @@ eval = \case
 
     val <- interpret' e
     case val of
-      VInt port -> do 
+      VInt port -> do
         -- mvar <- liftIO MVar.newEmptyMVar
         (mvar, chan, serverid) <- liftIO $ NS.createServer port
         liftIO $ C.traceIO "Server created"
@@ -182,7 +183,7 @@ eval = \case
 
     val <- interpret' e
     case val of
-      VServerSocket mvar chan serverid -> do 
+      VServerSocket mvar chan serverid -> do
         -- socket <- liftIO $ MVar.readMVar socketMVar
         newuser <- liftIO $ Chan.readChan chan
         clientuser <- liftIO $ NC.getConnectionInfo mvar newuser
@@ -197,7 +198,7 @@ eval = \case
 
     addressVal <- interpret' e1
     case addressVal of
-      VString address -> do 
+      VString address -> do
         portVal <- interpret' e2
         case portVal of
           VInt port -> do
@@ -211,19 +212,23 @@ eval = \case
               , addrSocketType = Stream
             }
             addrInfo <- liftIO $ getAddrInfo (Just hints) (Just address) $ Just $ show port
-            clientsocket <- liftIO $ openSocket $ head addrInfo 
+            clientsocket <- liftIO $ openSocket $ head addrInfo
             liftIO $ connect clientsocket $ addrAddress $ head addrInfo
             -- liftIO $ forkIO $ NC.communicate r w clientsocket
             handle <- liftIO $ NC.getHandle clientsocket
             liftIO $ C.traceIO "Client connected"
-            ownuserid <- liftIO $ UserID.newRandomUserID
-            liftIO $ NC.sendMessage (Messages.Introduce ownuserid) handle 
+            ownuserid <- liftIO UserID.newRandomUserID
+            liftIO $ NC.sendMessage (Messages.Introduce ownuserid) handle
 
             -- Wait for answer from the server
             serverid <- liftIO $ NC.waitForServerIntroduction handle
 
             -- Hockup automatic message recieving
-            liftIO $ forkIO $ NC.recieveMessages r handle
+            mvar <- liftIO MVar.newEmptyMVar
+            liftIO $ MVar.putMVar mvar (Map.fromList [(serverid, ConnectionInfo handle (addrAddress $ head addrInfo) r w )])
+            liftIO $ forkIO $ NC.recieveMessagesID r mvar serverid
+
+
             return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) (Just serverid) $ Just ownuserid
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
@@ -262,7 +267,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
-interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do 
+interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
   liftIO (Chan.writeChan c w)
   case handle of
     Nothing -> pure ()
