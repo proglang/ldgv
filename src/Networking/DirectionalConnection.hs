@@ -1,4 +1,4 @@
-module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, writeMessage, allMessages, readUnreadMessage) where
+module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, writeMessage, allMessages, readUnreadMessage, readUnreadMessageMaybe) where
 
 import Control.Concurrent.MVar
 
@@ -25,11 +25,18 @@ writeMessage connection message = do
 allMessages :: DirectionalConnection a -> IO [a]
 allMessages connection = readMVar (messages connection)
 
-readUnreadMessage :: DirectionalConnection a -> IO a
-readUnreadMessage connection = modifyMVar (messagesUnreadStart connection) (\i -> do 
+readUnreadMessageMaybe :: DirectionalConnection a -> IO (Maybe a)
+readUnreadMessageMaybe connection = modifyMVar (messagesUnreadStart connection) (\i -> do 
     messagesBind <- allMessages connection
-    return ((i+1), (messagesBind!!i))
+    if length messagesBind == i then return (i, Nothing) else return ((i+1), Just (messagesBind!!i))
     )
+    
+readUnreadMessage :: DirectionalConnection a -> IO a
+readUnreadMessage connection = do 
+    maybeval <- readUnreadMessageMaybe connection
+    case maybeval of
+        Nothing -> readUnreadMessage connection
+        Just val -> return val
 
 
 test = do
@@ -39,3 +46,5 @@ test = do
     allMessages mycon >>= print
     readUnreadMessage mycon >>= print
     allMessages mycon >>= print
+    readUnreadMessage mycon >>= print
+    readUnreadMessage mycon >>= print
