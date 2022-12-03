@@ -40,6 +40,9 @@ import Control.Concurrent
 import qualified Networking.UserID as UserID
 
 import qualified Networking.Messages as Messages
+import qualified Networking.DirectionalConnection as DC
+import ProcessEnvironment (CommunicationChannel(CommunicationChannel, ccChannelState, ccPartnerUserID), ConnectionInfo (ciReadChannel, ciWriteChannel))
+import qualified Control.Concurrent as MVar
 
 data InterpreterException
   = MathException String
@@ -155,13 +158,23 @@ eval = \case
       C.traceIO "Ran a forked operation")
     return VUnit
   New t -> do
-    r <- liftIO Chan.newChan
-    w <- liftIO Chan.newChan
-    return $ VPair (VChan r w Nothing Nothing Nothing Nothing) (VChan w r Nothing Nothing Nothing Nothing)
+    -- r <- liftIO Chan.newChan
+    -- w <- liftIO Chan.newChan
+    -- return $ VPair (VChan r w Nothing Nothing Nothing Nothing) (VChan w r Nothing Nothing Nothing Nothing)
+    r <- liftIO DC.newConnection
+    w <- liftIO DC.newConnection
+    channelstate1 <- liftIO MVar.newEmptyMVar
+    liftIO $ MVar.putMVar channelstate1 Emulated
+    channelstate2 <- liftIO MVar.newEmptyMVar
+    liftIO $ MVar.putMVar channelstate2 Emulated 
+    return $ VPair (VChan (CommunicationChannel r w Nothing Nothing Nothing channelstate1)) (VChan (CommunicationChannel w r Nothing Nothing Nothing channelstate2))
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
-    interpret' e >>= \v@(VChan c _ _ _ _ _) -> do
-      val <- liftIO $ Chan.readChan c
+    interpret' e >>= \v@(VChan ci) -> do
+      let dcRead = ccRead ci
+
+      -- val <- liftIO $ Chan.readChan c
+      val <- liftIO $ DC.readUnreadMessage dcRead
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
       return $ VPair val v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
@@ -188,12 +201,15 @@ eval = \case
         newuser <- liftIO $ Chan.readChan chan
         clientuser <- liftIO $ NC.getConnectionInfo mvar newuser
         liftIO $ C.traceIO "Client accepted"
-        return $ VChan (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just $ ciHandle clientuser ) (Just $ ciAddr clientuser ) (Just newuser) $ Just serverid
+        -- return $ VChan (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just $ ciHandle clientuser ) (Just $ ciAddr clientuser ) (Just newuser) $ Just serverid
+        channelstate <- liftIO MVar.newEmptyMVar
+        liftIO $ MVar.putMVar channelstate $ Connected mvar 
+        return $ VChan $ CommunicationChannel (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just newuser) (Just serverid) (Just $ ciAddr clientuser ) channelstate
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e1 e2 t -> do
-    r <- liftIO Chan.newChan
-    w <- liftIO Chan.newChan
+    r <- liftIO DC.newConnection
+    w <- liftIO DC.newConnection
     liftIO $ C.traceIO "Client trying to connect"
 
     addressVal <- interpret' e1
@@ -229,7 +245,11 @@ eval = \case
             liftIO $ forkIO $ NC.recieveMessagesID r mvar serverid
 
 
-            return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) (Just serverid) $ Just ownuserid
+            -- return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) (Just serverid) $ Just ownuserid
+            channelstate <- liftIO MVar.newEmptyMVar
+            liftIO $ MVar.putMVar channelstate $ Connected mvar 
+
+            return $ VChan $ CommunicationChannel r w (Just serverid) (Just ownuserid) (Just $ addrAddress $ head addrInfo) channelstate
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
     where
@@ -267,11 +287,17 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
-interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
-  liftIO (Chan.writeChan c w)
-  case handle of
-    Nothing -> pure ()
-    Just hdl -> liftIO $ NC.sendMessage w hdl
+-- interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
+interpretApp _ (VSend v@(VChan cc)) w = do
+  -- liftIO (Chan.writeChan c w)
+  liftIO $ DC.writeMessage (ccWrite cc) w
+  channelstate <- liftIO $ MVar.readMVar (ccChannelState cc)
+  case ccPartnerUserID cc of
+    Just userid -> liftIO $ NC.sendMessageID w (csConInfoMap channelstate) userid
+    Nothing -> pure () 
+  --case handle of
+  --  Nothing -> pure ()
+  --  Just hdl -> liftIO $ NC.sendMessage w hdl
   return v
 interpretApp e _ _ = throw $ ApplicationException e
 

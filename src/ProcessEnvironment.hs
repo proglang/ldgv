@@ -50,7 +50,8 @@ data Value
   | VString String
   -- we have two channels, one for reading and one for writing to the other
   -- end, so we do not read our own written values
-  | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle) (Maybe SockAddr) (Maybe String) (Maybe String)
+  -- | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle) (Maybe SockAddr) (Maybe String) (Maybe String)
+  | VChan CommunicationChannel
   --        Read Chan       Write Chan    Handle of Con   Address of other  other Userid  own UserID
 --  | VChan (C.Chan Value) (C.Chan Value)
   | VSend Value
@@ -67,13 +68,18 @@ data Value
                                                                               -- This is the server id
   deriving Eq
 
-data ConnectionInfo = ConnectionInfo {ciHandle :: Handle, ciAddr :: SockAddr, ciReadChannel :: C.Chan Value, ciWriteChannel :: C.Chan Value}
+data ConnectionInfo = ConnectionInfo {ciHandle :: Handle, ciAddr :: SockAddr, ciReadChannel :: DirectionalConnection Value, ciWriteChannel :: DirectionalConnection Value}
+  deriving Eq
 
-data CommunicationChannel = CommunicationChannel {ccRead :: DirectionalConnection Value, ccWrite :: DirectionalConnection Value, ccPartnerUserID :: Maybe String, ccOwnUserID :: Maybe String, ccPartnerAddress :: Maybe SockAddr, ccChannelState :: ChannelState}
+data CommunicationChannel = CommunicationChannel {ccRead :: DirectionalConnection Value, ccWrite :: DirectionalConnection Value, ccPartnerUserID :: Maybe String, ccOwnUserID :: Maybe String, ccPartnerAddress :: Maybe SockAddr, ccChannelState :: MVar.MVar ChannelState}
+  deriving Eq
+                                                                                                                                                                                                   -- Change this to Maybe MVar SockAddr                                           
 
 data ChannelState = Connected {csConInfoMap :: MVar.MVar (Map.Map String ConnectionInfo)}
                   | Disconnected
-
+                  | Emulated
+                  | Disabled -- Used when a Channel was sent  --> Maybe we can automatically change this on serialization when we put this in a MVar 
+  deriving Eq
 
 instance Show Value where
   show = \case

@@ -22,6 +22,8 @@ import Control.Exception
 
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
+import qualified Networking.DirectionalConnection as DC
+import Networking.DirectionalConnection (DirectionalConnection)
 
 {-
 -- communicate :: Chan.Chan Value -> Chan.Chan Value -> Socket -> IO ()
@@ -87,14 +89,19 @@ sendMessageID value handlemapmvar userid = do
         Nothing -> putStrLn $ "Error " ++ userid ++ " not found while trying to recieve messages"
     -}
 
-recieveMessagesID :: Chan.Chan Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()
+recieveMessagesID :: DirectionalConnection Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()
 recieveMessagesID chan mvar userid = do
     handle <- userIDToHandle mvar userid
     message <- hGetLine handle
     putStrLn $ "Recieved message:" ++ message
-    case VT.runAlex message VG.parseValues of
+    case VT.runAlex message VG.parseMessages of
+    -- case VT.runAlex message VG.parseValues of
         Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
-        Right deserial -> writeChan chan deserial
+        Right deserialmessages -> case deserialmessages of
+            NewValue userid val -> DC.writeMessage chan val
+            _ -> do
+                serial <- NSerialize.serialize deserialmessages
+                putStrLn $ "Error unsupported networkmessage: "++ serial
     {-
     case maybehandle of
         Just handle -> do
@@ -115,7 +122,7 @@ sendMessage value handle = do
     hPutStrLn handle (serializedValue ++" ")
 
 
-
+{-
 recieveMessages :: Chan.Chan Value -> Handle -> IO ()
 recieveMessages chan handle = do
     message <- hGetLine handle
@@ -124,7 +131,7 @@ recieveMessages chan handle = do
         Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
         Right deserial -> writeChan chan deserial
     recieveMessages chan handle
-
+-}
 
 getHandle :: Socket -> IO Handle
 getHandle socket = do

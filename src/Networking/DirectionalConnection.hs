@@ -1,4 +1,4 @@
-module Networking.DirectionalConnection (DirectionalConnection(..)) where
+module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, writeMessage, allMessages, readUnreadMessage) where
 
 import Control.Concurrent.Chan
 import Control.Concurrent.MVar

@@ -20,6 +20,7 @@ import ProcessEnvironment
 import Control.Exception
 import qualified Networking.UserID as UserID
 import qualified Networking.Messages as Messages
+import qualified Networking.DirectionalConnection as NC
 
 {-newtype ServerException = NoIntroductionException String
     deriving Eq
@@ -61,8 +62,8 @@ acceptClient :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> (So
 acceptClient mvar chan clientsocket serverid = do
     hdl <- NC.getHandle $ fst clientsocket
     userid <- waitForIntroduction hdl serverid
-    r <- Chan.newChan
-    w <- Chan.newChan
+    r <- NC.newConnection
+    w <- NC.newConnection
     MVar.modifyMVar_ mvar (return . insert userid (ConnectionInfo hdl (snd clientsocket) r w))
     forkIO $ NC.recieveMessagesID r mvar userid
     Chan.writeChan chan userid
