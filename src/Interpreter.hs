@@ -167,7 +167,7 @@ eval = \case
     liftIO $ MVar.putMVar channelstate1 Emulated
     channelstate2 <- liftIO MVar.newEmptyMVar
     liftIO $ MVar.putMVar channelstate2 Emulated 
-    return $ VPair (VChan (CommunicationChannel r w Nothing Nothing Nothing channelstate1)) (VChan (CommunicationChannel w r Nothing Nothing Nothing channelstate2))
+    return $ VPair (VChan (CommunicationChannel r w Nothing Nothing channelstate1)) (VChan (CommunicationChannel w r Nothing Nothing channelstate2))
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
     interpret' e >>= \v@(VChan ci) -> do
@@ -204,7 +204,7 @@ eval = \case
         -- return $ VChan (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just $ ciHandle clientuser ) (Just $ ciAddr clientuser ) (Just newuser) $ Just serverid
         channelstate <- liftIO MVar.newEmptyMVar
         liftIO $ MVar.putMVar channelstate $ Connected mvar 
-        return $ VChan $ CommunicationChannel (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just newuser) (Just serverid) (Just $ ciAddr clientuser ) channelstate
+        return $ VChan $ CommunicationChannel (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just newuser) (Just serverid) channelstate
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e1 e2 t -> do
@@ -249,7 +249,7 @@ eval = \case
             channelstate <- liftIO MVar.newEmptyMVar
             liftIO $ MVar.putMVar channelstate $ Connected mvar 
 
-            return $ VChan $ CommunicationChannel r w (Just serverid) (Just ownuserid) (Just $ addrAddress $ head addrInfo) channelstate
+            return $ VChan $ CommunicationChannel r w (Just serverid) (Just ownuserid) channelstate
           _ -> throw $ NotAnExpectedValueException "VInt" portVal
       _ -> throw $ NotAnExpectedValueException "VString" addressVal
     where

@@ -5,6 +5,7 @@ module Networking.Serialize where
 
 import Control.Monad.IO.Class
 import Control.Concurrent.Chan as Chan
+import qualified Control.Concurrent.MVar as MVar
 import Syntax
 import Kinds
 import qualified Syntax as S
@@ -14,6 +15,11 @@ import Control.Concurrent (getChanContents)
 import Control.Exception
 import ProcessEnvironment
 import Networking.Messages
+import qualified Networking.DirectionalConnection as DC
+import qualified Networking.DirectionalConnection as DC
+import qualified Data.Maybe
+import qualified Data.Map as Map
+import qualified Network.Socket as Sock
 
 
 newtype SerializationException = UnserializableException String
@@ -52,9 +58,39 @@ instance Serializable Value where
       VFuncCast v ft1 ft2 -> serializeLabeledEntryMulti "VFuncCast" v $ sNext ft1 $ sLast ft2
       VRec env f x e0 e1 -> serializeLabeledEntryMulti "VRec" env $ sNext f $ sNext x $ sNext e0 $ sLast e1
       VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
-      
+
       VServerSocket {} -> throw $ UnserializableException "VServerSocket"
-      VChan {} -> throw $ UnserializableException "VChan"
+      -- VChan {} -> throw $ UnserializableException "VChan"
+      VChan cc -> do
+        putStrLn "Trying to serialize VChan"
+        channelstate <- MVar.readMVar (ccChannelState cc)
+        case channelstate of
+          Connected mvarinfomap -> do
+            readList <- DC.allMessages (ccRead cc)
+            putStrLn "Read all incoming messages"
+            let readStartUnreadMVar = DC.messagesUnreadStart (ccRead cc)
+            readStartUnread <- MVar.readMVar readStartUnreadMVar
+            putStrLn "Read unreadpoint of incoming messages"
+
+            writeList <- DC.allMessages (ccWrite cc)
+            putStrLn "Read all outgoing messages"
+            let writeStartUnreadMVar = DC.messagesUnreadStart (ccWrite cc)
+            writeStartUnread <- MVar.readMVar writeStartUnreadMVar
+            putStrLn "Read unreadpoint of outgoing messages"
+
+            let partnerUserID = Data.Maybe.fromMaybe "" (ccPartnerUserID cc)
+            let ownUserID = Data.Maybe.fromMaybe "" (ccOwnUserID cc)
+
+            putStrLn "Aquired all but connection address"
+            infomap <- MVar.readMVar  mvarinfomap
+            let maybeconnectioninfo = Map.lookup partnerUserID infomap 
+            case maybeconnectioninfo of
+              Nothing -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
+              Just connectioninfo -> do
+                case ciAddr connectioninfo of
+                  Sock.SockAddrInet port hostname -> serializeLabeledEntryMulti "VChan" readList $ sNext readStartUnread $ sNext writeList $ sNext writeStartUnread $ sNext partnerUserID $ sNext ownUserID $ sNext (show port) $ sLast (show hostname)
+                  _ -> throw $ UnserializableException "VChan currently only works over IPv4"
+          _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
 
 instance Serializable Multiplicity where
   serialize = \case
@@ -78,7 +114,7 @@ instance Serializable Type where
     TLab arr -> serializeLabeledEntry "TLab" arr
     TFun mult ident t1 t2 -> serializeLabeledEntryMulti "TFun" mult $ sNext ident $ sNext t1 $ sLast t2
     TPair ident t1 t2 -> serializeLabeledEntryMulti "TPair" ident $ sNext t1 $ sLast t2
-    TSend ident t1 t2 -> serializeLabeledEntryMulti "TSend" ident $ sNext t1 $ sLast t2 
+    TSend ident t1 t2 -> serializeLabeledEntryMulti "TSend" ident $ sNext t1 $ sLast t2
     TRecv ident t1 t2 -> serializeLabeledEntryMulti "TRecv" ident $ sNext t1 $ sLast t2
     TCase e arr -> serializeLabeledEntryMulti "TCase" e $ sLast arr
     TEqn e1 e2 t -> serializeLabeledEntryMulti "TEqn" e1 $ sNext e2 $ sLast t
@@ -170,19 +206,19 @@ serializeLabeledEntry label x = do
     return $ label ++ " (" ++ xString ++ ")"
 
 instance {-# OVERLAPPING  #-} Serializable String where
-  serialize s = return $ "String:"++ show s 
+  serialize s = return $ "String:"++ show s
 
 instance Serializable Int where
-  serialize i = return $ "Int:" ++ show i 
+  serialize i = return $ "Int:" ++ show i
 
 instance Serializable Integer where
-  serialize i = return $ "Integer:" ++ show i 
+  serialize i = return $ "Integer:" ++ show i
 
 instance Serializable Bool where
-  serialize b = return $ "Bool:" ++ show b 
+  serialize b = return $ "Bool:" ++ show b
 
 instance Serializable Double where
-  serialize d = return $ "Double:" ++ show d 
+  serialize d = return $ "Double:" ++ show d
 
 -- instance (Serializable a => Serializable (Set a)) where 
 --   serialize as = "{" ++ serializeElements (elems as) ++ "}"
@@ -191,7 +227,7 @@ instance Serializable Double where
 --   serialize arr = "["++ serializeElements arr ++"]"
 
 instance ((Serializable a, Serializable b) => Serializable (a, b)) where
-  serialize (s, t) = do 
+  serialize (s, t) = do
     ss <- serialize s
     ts <- serialize t
     return $ "((" ++ ss ++ ") (" ++ ts ++ "))"
@@ -200,7 +236,7 @@ instance {-# OVERLAPPING #-} Serializable PEnv where
   serialize arr = serializeLabeledArray "PEnv" arr
 
 instance {-# OVERLAPPING #-} Serializable PEnvEntry where
-  serialize (s, t) = do 
+  serialize (s, t) = do
     ss <- serialize s
     ts <- serialize t
     return $ "PEnvEntry (" ++ ss ++ ") (" ++ ts ++ ")"
@@ -234,7 +270,7 @@ serializeLabeledArray label arr = do
 serializeElements :: Serializable a => [a] -> IO String
 serializeElements [] = return ""
 serializeElements [x] = serialize x
-serializeElements (x:xs) = do 
+serializeElements (x:xs) = do
   h <- serialize x
-  t <- serializeElements xs  
+  t <- serializeElements xs
   return $ h ++ ", " ++ t

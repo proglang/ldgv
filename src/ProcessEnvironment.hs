@@ -71,7 +71,8 @@ data Value
 data ConnectionInfo = ConnectionInfo {ciHandle :: Handle, ciAddr :: SockAddr, ciReadChannel :: DirectionalConnection Value, ciWriteChannel :: DirectionalConnection Value}
   deriving Eq
 
-data CommunicationChannel = CommunicationChannel {ccRead :: DirectionalConnection Value, ccWrite :: DirectionalConnection Value, ccPartnerUserID :: Maybe String, ccOwnUserID :: Maybe String, ccPartnerAddress :: Maybe SockAddr, ccChannelState :: MVar.MVar ChannelState}
+-- data CommunicationChannel = CommunicationChannel {ccRead :: DirectionalConnection Value, ccWrite :: DirectionalConnection Value, ccPartnerUserID :: Maybe String, ccOwnUserID :: Maybe String, ccPartnerAddress :: Maybe (MVar.MVar SockAddr), ccChannelState :: MVar.MVar ChannelState}
+data CommunicationChannel = CommunicationChannel {ccRead :: DirectionalConnection Value, ccWrite :: DirectionalConnection Value, ccPartnerUserID :: Maybe String, ccOwnUserID :: Maybe String, ccChannelState :: MVar.MVar ChannelState}
   deriving Eq
                                                                                                                                                                                                    -- Change this to Maybe MVar SockAddr                                           
 
