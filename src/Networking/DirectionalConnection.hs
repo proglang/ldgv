@@ -1,45 +1,41 @@
 module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, writeMessage, allMessages, readUnreadMessage) where
 
-import Control.Concurrent.Chan
 import Control.Concurrent.MVar
 
-data DirectionalConnection a = DirectionalConnection { messagesAll :: Chan a, messagesUnread :: Chan a, messagesUnreadStart :: MVar Int, messagesEnd :: MVar Int}
+data DirectionalConnection a = DirectionalConnection { messages :: MVar [a], messagesUnreadStart :: MVar Int}
     deriving Eq
 
+-- When a channel is duplicated there are no unread messages in the new channel, only the old one
 
 newConnection :: IO (DirectionalConnection a)
 newConnection = do
-    messagesAll <- newChan
-    messagesUnread <- dupChan messagesAll
+    messages <- newEmptyMVar
+    putMVar messages []
     messagesUnreadStart <- newEmptyMVar 
     putMVar messagesUnreadStart 0
-    messagesEnd <- newEmptyMVar 
-    putMVar messagesEnd 0
-    return $ DirectionalConnection messagesAll messagesUnread messagesUnreadStart messagesEnd
+    return $ DirectionalConnection messages messagesUnreadStart
 
 writeMessage :: DirectionalConnection a -> a -> IO ()
 writeMessage connection message = do
-    writeChan (messagesAll connection) message  -- We only need to write it to one channel, since we duplicated them
-    modifyMVar_ (messagesEnd connection) (\i -> return $ i+1)
+    modifyMVar_ (messages connection) (\m -> do
+        return $ m ++ [message]
+        )
 
 -- Gives all outMessages until this point
 allMessages :: DirectionalConnection a -> IO [a]
-allMessages connection = do
-    messagesEnd <- readMVar $ messagesEnd connection
-    messagesDup <- dupChan $ messagesAll connection
-    giveMessages messagesDup messagesEnd
-    where
-        giveMessages :: Chan a -> Int -> IO [a] 
-        giveMessages messages 0 = return []
-        giveMessages messages count = do 
-            x <- readChan messages
-            xs <- giveMessages messages $ count-1
-            return (x:xs)
+allMessages connection = readMVar (messages connection)
 
 readUnreadMessage :: DirectionalConnection a -> IO a
-readUnreadMessage connection = do
-    modifyMVar_ (messagesUnreadStart connection) (\i -> return $ i+1)
-    readChan $ messagesUnread connection
+readUnreadMessage connection = modifyMVar (messagesUnreadStart connection) (\i -> do 
+    messagesBind <- allMessages connection
+    return ((i+1), (messagesBind!!i))
+    )
 
 
-
+test = do
+    mycon <- newConnection
+    writeMessage mycon "a"
+    writeMessage mycon "b"
+    allMessages mycon >>= print
+    readUnreadMessage mycon >>= print
+    allMessages mycon >>= print
