@@ -134,7 +134,9 @@ replaceVChanSerial input = case input of
     VNewNatRec penv a b c d e f g -> do 
         newpenv <- replaceVChanSerialPEnv penv
         return $ VNewNatRec newpenv a b c d e f g
-    VChanSerial r ri w wi pid oid p h -> getVChanFromSerial r ri w wi pid oid p h
+    VChanSerial r ri w wi pid oid p h -> do 
+        putStrLn "Attempting to deserialize a VChanSerial"
+        getVChanFromSerial r ri w wi pid oid p h
     _ -> return input
     where
         replaceVChanSerialPEnv :: [(String, Value)] -> IO [(String, Value)]
@@ -155,18 +157,27 @@ getVChanFromSerial msgRead readCount msgWrite writeCount partnerID ownID port ho
                 addrFlags = []
               , addrSocketType = Stream
   }
+
+  putStrLn $ "getVChanFromSerial: Trying to connect to new partner: " ++ hostname ++ ":" ++ port
   addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
   clientsocket <- openSocket $ head addrInfo
+  putStrLn "getVChanFromSerial: Aquired socket"
   connect clientsocket $ addrAddress $ head addrInfo
+  putStrLn "getVChanFromSerial: Connected to socket"
   handle <- getHandle clientsocket
+  putStrLn "getVChanFromSerial: Converted to handle"
   sendMessage (Introduce ownID) handle
+  putStrLn "getVChanFromSerial: Waiting for handshake"
   serverid <- waitForServerIntroduction handle
+  putStrLn "getVChanFromSerial: Handshake recieved"
   if partnerID == serverid then do
-    -- Hockup automatic message recieving
+    putStrLn "getVChanFromSerial: Handshake valid"
+    -- Hookup automatic message recieving
     mvar <- liftIO MVar.newEmptyMVar
     MVar.putMVar mvar (Map.fromList [(serverid, ConnectionInfo handle (addrAddress $ head addrInfo) readDC writeDC )])
     forkIO $ recieveMessagesID readDC mvar serverid
     MVar.putMVar channelstate $ Connected mvar
+    putStrLn "getVChanFromSerial: Message revieving hooked up"
   else MVar.putMVar channelstate Disconnected
   return $ VChan $ CommunicationChannel readDC writeDC (Just partnerID) (Just ownID) channelstate
   where

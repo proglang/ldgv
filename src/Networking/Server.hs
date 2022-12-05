@@ -44,7 +44,10 @@ createServer port = do
 
 acceptClients :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> Socket -> String-> IO ()
 acceptClients mvar chan socket serverid = do
+    putStrLn "Waiting for clients"
     clientsocket <- accept socket
+    putStrLn "Accepted new client"
+
     forkIO $ acceptClient mvar chan clientsocket serverid
     acceptClients mvar chan socket serverid
 
