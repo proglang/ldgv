@@ -54,6 +54,7 @@ data Value
   -- | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle) (Maybe SockAddr) (Maybe String) (Maybe String)
   | VChan CommunicationChannel
   | VChanSerial [Value] Int [Value] Int String String String String
+  -- Maybe replace this with an VChan Either comchan or this
   --        Read Chan       Write Chan    Handle of Con   Address of other  other Userid  own UserID
 --  | VChan (C.Chan Value) (C.Chan Value)
   | VSend Value
