@@ -51,11 +51,11 @@ userIDToHandle mvar userid = do
         Just connectioninfo -> return $ ciHandle connectioninfo
         Nothing -> userIDToHandle mvar userid
 
-sendMessageID :: Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()
-sendMessageID value handlemapmvar userid = do
+sendMessageID :: Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> String -> IO ()
+sendMessageID value handlemapmvar partnerid userid = do
     serializedValue <- NSerialize.serialize $ NewValue userid value
     putStrLn $ "Sending message:" ++ serializedValue
-    handle <- userIDToHandle handlemapmvar userid
+    handle <- userIDToHandle handlemapmvar partnerid
     hPutStrLn handle  (serializedValue ++ " ")
 
 recieveMessagesID :: DirectionalConnection Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()

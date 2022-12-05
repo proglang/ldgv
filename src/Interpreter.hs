@@ -293,8 +293,10 @@ interpretApp _ (VSend v@(VChan cc)) w = do
   liftIO $ DC.writeMessage (ccWrite cc) w
   channelstate <- liftIO $ MVar.readMVar (ccChannelState cc)
   case ccPartnerUserID cc of
-    Just userid -> liftIO $ NC.sendMessageID w (csConInfoMap channelstate) userid
-    Nothing -> pure () 
+    Just partnerid -> case ccOwnUserID cc of 
+      Just ownuserid -> liftIO $ NC.sendMessageID w (csConInfoMap channelstate) partnerid ownuserid
+      Nothing -> pure () 
+    Nothing -> pure ()
   --case handle of
   --  Nothing -> pure ()
   --  Just hdl -> liftIO $ NC.sendMessage w hdl
