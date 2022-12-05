@@ -11,4 +11,4 @@ data Messages
     | NewValue Partner Value
     | SyncIncoming Partner [Value]
     | RequestSync Partner
-    | ChangePartnerAddress Partner Hostname Port 
+    | ChangePartnerAddress Partner Hostname Port -- This is currently not used

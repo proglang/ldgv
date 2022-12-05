@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Kinds (Multiplicity(..))
 
 import Networking.DirectionalConnection
+-- import qualified Networking.Common as NC
 
 import Network.Socket
 -- import qualified Networking.Common as NC
@@ -81,6 +82,32 @@ data ChannelState = Connected {csConInfoMap :: MVar.MVar (Map.Map String Connect
                   | Emulated
                   | Disabled -- Used when a Channel was sent  --> Maybe we can automatically change this on serialization when we put this in a MVar 
   deriving Eq
+
+
+-- If a channel is about to be send it should be deactivated
+disableVChan :: Value -> IO ()
+disableVChan = \case
+  VSend v -> disableVChan v
+  VPair v1 v2 -> disableVChan v1 >> disableVChan v2
+  VFunc penv _ _ -> disableVChanArr penv
+  VDynCast v _ -> disableVChan v
+  VFuncCast v _ _ -> disableVChan v
+  VRec penv _ _ _ _ -> disableVChanArr penv
+  VNewNatRec penv _ _ _ _ _ _ _ -> disableVChanArr penv
+  VChan cc -> do
+    channelstate <- MVar.takeMVar $ ccChannelState cc
+    case channelstate of
+      Connected infomap -> MVar.putMVar (ccChannelState cc) Disabled
+      _ -> MVar.putMVar (ccChannelState cc) channelstate
+  _ -> return ()
+  where
+    disableVChanArr :: PEnv -> IO ()
+    disableVChanArr [] = return ()
+    disableVChanArr (x:xs) = disableVChan (snd x) >> disableVChanArr xs
+
+
+
+
 
 instance Show Value where
   show = \case

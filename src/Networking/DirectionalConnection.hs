@@ -1,4 +1,4 @@
-module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, writeMessage, allMessages, readUnreadMessage, readUnreadMessageMaybe) where
+module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, createConnection, writeMessage, allMessages, readUnreadMessage, readUnreadMessageMaybe) where
 
 import Control.Concurrent.MVar
 
@@ -14,6 +14,16 @@ newConnection = do
     messagesUnreadStart <- newEmptyMVar 
     putMVar messagesUnreadStart 0
     return $ DirectionalConnection messages messagesUnreadStart
+
+
+createConnection :: [a] -> Int -> IO (DirectionalConnection a)
+createConnection messages unreadStart = do
+    msg <- newEmptyMVar
+    putMVar msg messages
+    messagesUnreadStart <- newEmptyMVar 
+    putMVar messagesUnreadStart unreadStart
+    return $ DirectionalConnection msg messagesUnreadStart
+
 
 writeMessage :: DirectionalConnection a -> a -> IO ()
 writeMessage connection message = do

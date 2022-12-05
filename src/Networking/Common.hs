@@ -25,6 +25,8 @@ import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.DirectionalConnection as DC
 import Networking.DirectionalConnection (DirectionalConnection)
 
+import Network.Socket
+
 {-
 -- communicate :: Chan.Chan Value -> Chan.Chan Value -> Socket -> IO ()
 communicate read write socket = do
@@ -159,3 +161,32 @@ waitForServerIntroduction handle = do
             _ -> do 
                 putStrLn $ "Error during server introduction, wrong message: "++ message
                 throw $ NoIntroductionException message
+
+
+getVChanFromSerial :: [Value] -> Int -> [Value] -> Int -> String -> String -> String -> String -> IO Value
+getVChanFromSerial msgRead readCount msgWrite writeCount partnerID ownID port hostname = do
+  readDC <- DC.createConnection msgRead readCount
+  writeDC <- DC.createConnection msgWrite writeCount
+  channelstate <- MVar.newEmptyMVar 
+
+  -- Connect to partner
+  let hints = defaultHints {
+                addrFlags = []
+              , addrSocketType = Stream
+  }
+  addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
+  clientsocket <- openSocket $ head addrInfo
+  connect clientsocket $ addrAddress $ head addrInfo
+  handle <- getHandle clientsocket
+  sendMessage (Introduce ownID) handle
+  serverid <- waitForServerIntroduction handle
+  if partnerID == serverid then do
+    -- Hockup automatic message recieving
+    mvar <- liftIO MVar.newEmptyMVar
+    MVar.putMVar mvar (Map.fromList [(serverid, ConnectionInfo handle (addrAddress $ head addrInfo) readDC writeDC )])
+    forkIO $ recieveMessagesID readDC mvar serverid
+    MVar.putMVar channelstate $ Connected mvar
+  else MVar.putMVar channelstate Disconnected
+  return $ VChan $ CommunicationChannel readDC writeDC (Just partnerID) (Just ownID) channelstate
+  where
+    openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
