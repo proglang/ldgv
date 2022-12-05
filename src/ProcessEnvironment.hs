@@ -53,6 +53,7 @@ data Value
   -- end, so we do not read our own written values
   -- | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle) (Maybe SockAddr) (Maybe String) (Maybe String)
   | VChan CommunicationChannel
+  | VChanSerial [Value] Int [Value] Int String String String String
   --        Read Chan       Write Chan    Handle of Con   Address of other  other Userid  own UserID
 --  | VChan (C.Chan Value) (C.Chan Value)
   | VSend Value
@@ -68,6 +69,7 @@ data Value
   | VServerSocket (MVar.MVar (Map.Map String ConnectionInfo)) (C.Chan String) String
                                                                               -- This is the server id
   deriving Eq
+
 
 data ConnectionInfo = ConnectionInfo {ciHandle :: Handle, ciAddr :: SockAddr, ciReadChannel :: DirectionalConnection Value, ciWriteChannel :: DirectionalConnection Value}
   deriving Eq
@@ -117,6 +119,7 @@ instance Show Value where
     VDouble d -> "VDouble " ++ show d
     VString s -> "VString \"" ++ show s ++ "\""
     VChan {} -> "VChan"
+    VChanSerial {} -> "VChanSerial"
     VSend v -> "VSend (" ++ show v ++ ")"
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
     VType t -> "VType " ++ show t

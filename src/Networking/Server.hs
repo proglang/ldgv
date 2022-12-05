@@ -20,16 +20,7 @@ import ProcessEnvironment
 import Control.Exception
 import qualified Networking.UserID as UserID
 import qualified Networking.Messages as Messages
-import qualified Networking.DirectionalConnection as NC
-
-{-newtype ServerException = NoIntroductionException String
-    deriving Eq
-
-instance Show ServerException where
-    show = \case
-        NoIntroductionException s -> "Client didn't introduce itself, but sent: " ++ s
-
-instance Exception ServerException-}
+import qualified Networking.DirectionalConnection as ND
 
 
 createServer :: Int -> IO (MVar.MVar (Map String ConnectionInfo), Chan.Chan String, String)
@@ -62,8 +53,8 @@ acceptClient :: MVar.MVar (Map String ConnectionInfo) -> Chan.Chan String -> (So
 acceptClient mvar chan clientsocket serverid = do
     hdl <- NC.getHandle $ fst clientsocket
     userid <- waitForIntroduction hdl serverid
-    r <- NC.newConnection
-    w <- NC.newConnection
+    r <- ND.newConnection
+    w <- ND.newConnection
     MVar.modifyMVar_ mvar (return . insert userid (ConnectionInfo hdl (snd clientsocket) r w))
     forkIO $ NC.recieveMessagesID r mvar userid
     Chan.writeChan chan userid

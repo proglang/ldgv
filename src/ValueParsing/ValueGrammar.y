@@ -171,7 +171,7 @@ Values : vunit { VUnit }
        | vint '(' int ')' {VInt $3}
        | vdouble '(' double ')' {VDouble $3}
        | vstring '(' String ')' {VString $3 }
---       | vchan '(' SValuesArray ')' '(' SValuesArray ')' {VChan $3 $6}
+       | vchan '(' SValuesArray ')' '(' int ')' '(' SValuesArray ')' '(' int ')' '(' String ')' '(' String ')' '(' String ')' '(' String ')' {VChanSerial $3 $6 $9 $12 $15 $18 $21 $24 }
        | vsend '(' Values ')' {VSend $3}
        | vpair '(' Values ')' '(' Values ')' {VPair $3 $6}
        | vtype '(' Type ')' {VType $3}

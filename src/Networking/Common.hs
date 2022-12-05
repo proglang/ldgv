@@ -25,32 +25,6 @@ import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.DirectionalConnection as DC
 import Networking.DirectionalConnection (DirectionalConnection)
 
-import Network.Socket
-
-{-
--- communicate :: Chan.Chan Value -> Chan.Chan Value -> Socket -> IO ()
-communicate read write socket = do
-    hdl <- socketToHandle socket ReadWriteMode
-    hSetBuffering hdl NoBuffering
-    forkIO (sendWritten write hdl)
-    recieveReadable read hdl
-    where
-        sendWritten write handle = do
-            message <- readChan write
-            putStrLn $ "Sending message:" ++ SV.serialize message
-            hPutStrLn handle (SV.serialize message ++" ")
-            sendWritten write handle
-
-        recieveReadable read handle = do
-            message <- hGetLine handle
-            putStrLn $ "Recieved message:" ++ message
-            case VT.runAlex message VG.parseValues of
-                Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
-                Right deserial -> writeChan read deserial
-            recieveReadable read handle
--}
-
-
 newtype ServerException = NoIntroductionException String
     deriving Eq
 
@@ -84,13 +58,6 @@ sendMessageID value handlemapmvar userid = do
     handle <- userIDToHandle handlemapmvar userid
     hPutStrLn handle  (serializedValue ++ " ")
 
-    {-
-    maybehandle <- userIDToHandle handlemapmvar userid
-    case maybehandle of
-        Just handle -> hPutStrLn handle  (serializedValue ++" ")
-        Nothing -> putStrLn $ "Error " ++ userid ++ " not found while trying to recieve messages"
-    -}
-
 recieveMessagesID :: DirectionalConnection Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()
 recieveMessagesID chan mvar userid = do
     handle <- userIDToHandle mvar userid
@@ -100,20 +67,12 @@ recieveMessagesID chan mvar userid = do
     -- case VT.runAlex message VG.parseValues of
         Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
         Right deserialmessages -> case deserialmessages of
-            NewValue userid val -> DC.writeMessage chan val
+            NewValue userid val -> do 
+                valCleaned <- replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
+                DC.writeMessage chan valCleaned
             _ -> do
                 serial <- NSerialize.serialize deserialmessages
                 putStrLn $ "Error unsupported networkmessage: "++ serial
-    {-
-    case maybehandle of
-        Just handle -> do
-            message <- hGetLine handle
-            putStrLn $ "Recieved message:" ++ message
-            case VT.runAlex message VG.parseValues of
-                Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
-                Right deserial -> writeChan chan deserial
-        Nothing -> putStrLn $ "Error " ++ userid ++ " not found while trying to recieve messages"
-    -}
     recieveMessagesID chan mvar userid
 
 
@@ -122,18 +81,6 @@ sendMessage value handle = do
     serializedValue <- NSerialize.serialize value
     putStrLn $ "Sending message:" ++ serializedValue
     hPutStrLn handle (serializedValue ++" ")
-
-
-{-
-recieveMessages :: Chan.Chan Value -> Handle -> IO ()
-recieveMessages chan handle = do
-    message <- hGetLine handle
-    putStrLn $ "Recieved message:" ++ message
-    case VT.runAlex message VG.parseValues of
-        Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
-        Right deserial -> writeChan chan deserial
-    recieveMessages chan handle
--}
 
 getHandle :: Socket -> IO Handle
 getHandle socket = do
@@ -162,6 +109,40 @@ waitForServerIntroduction handle = do
                 putStrLn $ "Error during server introduction, wrong message: "++ message
                 throw $ NoIntroductionException message
 
+
+replaceVChanSerial :: Value -> IO Value
+replaceVChanSerial input = case input of
+    VSend v -> do
+        nv <- replaceVChanSerial v
+        return $ VSend nv
+    VPair v1 v2 -> do 
+        nv1 <- replaceVChanSerial v1
+        nv2 <- replaceVChanSerial v2
+        return $ VPair nv1 nv2
+    VFunc penv a b -> do
+        newpenv <- replaceVChanSerialPEnv penv
+        return $ VFunc newpenv a b
+    VDynCast v g -> do 
+        nv <- replaceVChanSerial v
+        return $ VDynCast nv g
+    VFuncCast v a b -> do 
+        nv <- replaceVChanSerial v
+        return $ VFuncCast nv a b
+    VRec penv a b c d -> do 
+        newpenv <- replaceVChanSerialPEnv penv
+        return $ VRec newpenv a b c d
+    VNewNatRec penv a b c d e f g -> do 
+        newpenv <- replaceVChanSerialPEnv penv
+        return $ VNewNatRec newpenv a b c d e f g
+    VChanSerial r ri w wi pid oid p h -> getVChanFromSerial r ri w wi pid oid p h
+    _ -> return input
+    where
+        replaceVChanSerialPEnv :: [(String, Value)] -> IO [(String, Value)]
+        replaceVChanSerialPEnv [] = return []
+        replaceVChanSerialPEnv (x:xs) = do 
+            newval <- replaceVChanSerial $ snd x
+            rest <- replaceVChanSerialPEnv xs
+            return $ (fst x, newval):rest
 
 getVChanFromSerial :: [Value] -> Int -> [Value] -> Int -> String -> String -> String -> String -> IO Value
 getVChanFromSerial msgRead readCount msgWrite writeCount partnerID ownID port hostname = do
