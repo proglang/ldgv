@@ -4,11 +4,11 @@ import ProcessEnvironment
 
 type Partner = String
 type Hostname = String
-type Port = Int
+type Port = String
 
 data Messages
     = Introduce Partner
     | NewValue Partner Value
     | SyncIncoming Partner [Value]
     | RequestSync Partner
-    | ChangePartnerAddress Partner Hostname Port -- This is currently not used
+    | ChangePartnerAddress Partner Hostname Port

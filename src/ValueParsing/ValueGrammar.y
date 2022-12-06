@@ -259,7 +259,7 @@ Messages : nintroduce '(' String ')' {Introduce $3}
          | nnewvalue '(' String ')''(' Values ')' {NewValue $3 $6}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
          | nrequestsync '(' String ')' {RequestSync $3}
-         | nchangepartneraddress '(' String ')' '(' String ')' '(' int ')' {ChangePartnerAddress $3 $6 $9}
+         | nchangepartneraddress '(' String ')' '(' String ')' '(' String ')' {ChangePartnerAddress $3 $6 $9}
 
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}

@@ -24,6 +24,7 @@ import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.DirectionalConnection as DC
 import Networking.DirectionalConnection (DirectionalConnection)
+import Networking.Serialize (Serializable)
 
 newtype ServerException = NoIntroductionException String
     deriving Eq
@@ -58,6 +59,7 @@ sendMessageID value handlemapmvar partnerid userid = do
     handle <- userIDToHandle handlemapmvar partnerid
     hPutStrLn handle  (serializedValue ++ " ")
 
+
 recieveMessagesID :: DirectionalConnection Value -> MVar.MVar (Map.Map String ConnectionInfo) -> String -> IO ()
 recieveMessagesID chan mvar userid = do
     handle <- userIDToHandle mvar userid
@@ -81,6 +83,18 @@ sendMessage value handle = do
     serializedValue <- NSerialize.serialize value
     putStrLn $ "Sending message:" ++ serializedValue
     hPutStrLn handle (serializedValue ++" ")
+
+recieveMessage :: Handle -> IO (Maybe Messages)
+recieveMessage handle = do
+    message <- hGetLine handle
+    case VT.runAlex message VG.parseMessages of
+    -- case VT.runAlex message VG.parseValues of
+        Left err -> do 
+            putStrLn $ "Error during recieving a networkmessage: "++err
+            return Nothing
+        Right deserialmessage -> return $ Just deserialmessage
+
+
 
 getHandle :: Socket -> IO Handle
 getHandle socket = do
@@ -180,5 +194,6 @@ getVChanFromSerial msgRead readCount msgWrite writeCount partnerID ownID port ho
     putStrLn "getVChanFromSerial: Message revieving hooked up"
   else MVar.putMVar channelstate Disconnected
   return $ VChan $ CommunicationChannel readDC writeDC (Just partnerID) (Just ownID) channelstate
-  where
-    openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+
+
+openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
