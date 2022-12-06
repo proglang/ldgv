@@ -207,7 +207,7 @@ eval = \case
         return $ VChan $ CommunicationChannel (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just newuser) (Just serverid) channelstate
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
-  Connect e1 e2 t -> do
+  Connect e0 e1 e2 t -> do
     r <- liftIO DC.newConnection
     w <- liftIO DC.newConnection
     liftIO $ C.traceIO "Client trying to connect"

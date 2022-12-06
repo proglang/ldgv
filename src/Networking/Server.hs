@@ -94,7 +94,7 @@ acceptClientNew mvar chan clientsocket = do
                     Nothing -> do
                         putStrLn "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
                         MVar.putMVar mvar networkconnectionmap
-            Introduce userid -> do
+            IntroduceClient userid clientport -> do
                 networkconnectionmap <- MVar.takeMVar mvar
                 case Map.lookup userid networkconnectionmap of
                     Just networkconnection -> do
@@ -103,7 +103,7 @@ acceptClientNew mvar chan clientsocket = do
                     Nothing ->  case snd clientsocket of -- This client is new
                         SockAddrInet port hostname -> do
                             serverid <- UserID.newRandomUserID
-                            networkconnection <- newNetworkConnection userid serverid (show hostname) (show port)
+                            networkconnection <- newNetworkConnection userid serverid (show hostname) clientport
                             let newnetworkconnectionmap = Map.insert userid networkconnection networkconnectionmap
                             MVar.putMVar mvar newnetworkconnectionmap
                             NC.sendMessage (Introduce serverid) hdl -- Answer with own serverid

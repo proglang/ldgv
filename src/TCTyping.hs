@@ -245,7 +245,7 @@ tySynth te e =
   -- I've got no real clue of what I am doing here hope it kind of works
   Create e1 -> do
     return (TServerSocket, te)
-  Connect e1 e2 ty -> do
+  Connect e0 e1 e2 ty -> do
     kiCheck (demoteTE te) ty Kssn
     return (ty, te)
   Accept e1 ty -> do
