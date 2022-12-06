@@ -148,7 +148,7 @@ instance Serializable Exp where
     Cast e t1 t2 -> serializeLabeledEntryMulti "ECast" e $ sNext t1 $ sLast t2
 
     Create e -> serializeLabeledEntry "ECreate" e
-    Connect e0 e1 e2 t -> serializeLabeledEntryMulti "EConnect" e0 $ sNext e1 $ sNext e2 $ sLast t
+    Connect e0 t e1 e2 -> serializeLabeledEntryMulti "EConnect" e0 $ sNext t $ sNext e1 $ sLast e2
     Accept e t -> serializeLabeledEntryMulti "EAccept" e $ sLast t
 
 instance Serializable (MathOp Exp) where

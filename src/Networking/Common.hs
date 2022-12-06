@@ -174,7 +174,7 @@ getVChanFromSerial msgRead readCount msgWrite writeCount partnerID ownID port ho
 
   putStrLn $ "getVChanFromSerial: Trying to connect to new partner: " ++ hostname ++ ":" ++ port
   addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-  clientsocket <- openSocket $ head addrInfo
+  clientsocket <- openSocketNC $ head addrInfo
   putStrLn "getVChanFromSerial: Aquired socket"
   connect clientsocket $ addrAddress $ head addrInfo
   putStrLn "getVChanFromSerial: Connected to socket"
@@ -196,4 +196,5 @@ getVChanFromSerial msgRead readCount msgWrite writeCount partnerID ownID port ho
   return $ VChan $ CommunicationChannel readDC writeDC (Just partnerID) (Just ownID) channelstate
 
 
-openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+-- openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+openSocketNC addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)

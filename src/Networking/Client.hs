@@ -26,7 +26,7 @@ sendMessage networkconnection val = do
     case connectionstate of
         NCon.Connected hostname port -> do
             addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-            clientsocket <- NC.openSocket $ head addrInfo
+            clientsocket <- NC.openSocketNC $ head addrInfo
             connect clientsocket $ addrAddress $ head addrInfo
             handle <- NC.getHandle clientsocket
             putStrLn "Client connected: Sending Message"
@@ -46,7 +46,7 @@ initialConnect mvar hostname port = do
             }
     networkconnectionmap <- MVar.takeMVar mvar    
     addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-    clientsocket <- NC.openSocket $ head addrInfo
+    clientsocket <- NC.openSocketNC $ head addrInfo
     connect clientsocket $ addrAddress $ head addrInfo
     handle <- NC.getHandle clientsocket
     ownuserid <- UserID.newRandomUserID
@@ -60,5 +60,5 @@ initialConnect mvar hostname port = do
     let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
     MVar.putMVar mvar newNetworkconnectionmap
 
-
+-- openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
 

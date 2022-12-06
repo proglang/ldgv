@@ -171,7 +171,8 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | recv Exp %prec recv   { Recv $2 }
     | create Exp %prec create       { Create $2 }
 --    | connect Exp Exp Exp Typ %prec connect { Connect $2 $3 $4 $5 }
-    | connect Exp Typ Exp Exp %prec connect { Connect $2 $4 $5 $3}
+--    | connect Exp Typ Exp Exp %prec connect { Connect $2 $4 $5 $3}
+    | connect Exp Typ Exp Exp %prec connect {Connect $2 $3 $4 $5}
     | accept Exp Typ %prec accept           { Accept $2 $3 }
     | Exp Exp  %prec APP  { App $1 $2 }
 
