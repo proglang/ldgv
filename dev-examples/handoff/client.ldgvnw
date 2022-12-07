@@ -20,8 +20,9 @@ val add2 (c1: dualof SendTwoInt) =
 
 val main : Unit
 val main =
-    let con = (connect "127.0.0.1" 4242 SendTwoInt) in  -- This cannot be localhost, since this might break on containerized images
-    let oneint = send1 con in
-    let con2 = (connect "127.0.0.1" 4343 SendSendOneInt) in
+    let sock = (create 4141) in
+    let con = (connect sock SendTwoInt "127.0.0.1" 4242) in  -- This cannot be localhost, since this might break on containerized images
+    let oneint = (send1 con) in
+    let con2 = (connect sock SendSendOneInt "127.0.0.1" 4343) in
     (send con2) oneint 
 

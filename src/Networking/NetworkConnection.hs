@@ -21,6 +21,16 @@ newNetworkConnection partnerID ownID hostname port = do
     return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate
 
 
+createNetworkConnection :: [a] -> Int -> [a] -> Int -> Maybe String -> Maybe String -> String -> String -> IO (NetworkConnection a)
+createNetworkConnection readList readNew writeList writeNew partnerID ownID hostname port = do
+    read <- createConnection readList readNew
+    write <- createConnection writeList writeNew
+    connectionstate <- MVar.newEmptyMVar
+    MVar.putMVar connectionstate $ Connected hostname port
+    return $ NetworkConnection read write partnerID ownID connectionstate
+
+
+
 newEmulatedConnection :: DirectionalConnection a -> DirectionalConnection a -> IO (NetworkConnection a)
 newEmulatedConnection r w = do
     connectionstate <- MVar.newEmptyMVar 

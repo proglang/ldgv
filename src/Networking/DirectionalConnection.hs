@@ -55,6 +55,7 @@ serializeConnection connection = do
     messageUnread <- readMVar $ messagesUnreadStart connection
     return (messageList, messageUnread)
 
+
 test = do
     mycon <- newConnection
     writeMessage mycon "a"
