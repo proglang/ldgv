@@ -1,4 +1,4 @@
-module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, createConnection, writeMessage, allMessages, readUnreadMessage, readUnreadMessageMaybe) where
+module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, createConnection, writeMessage, allMessages, readUnreadMessage, readUnreadMessageMaybe, serializeConnection) where
 
 import Control.Concurrent.MVar
 
@@ -48,6 +48,12 @@ readUnreadMessage connection = do
         Nothing -> readUnreadMessage connection
         Just val -> return val
 
+
+serializeConnection :: DirectionalConnection a -> IO ([a], Int)
+serializeConnection connection = do
+    messageList <- allMessages connection
+    messageUnread <- readMVar $ messagesUnreadStart connection
+    return (messageList, messageUnread)
 
 test = do
     mycon <- newConnection

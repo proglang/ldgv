@@ -16,10 +16,12 @@ import Control.Exception
 import ProcessEnvironment
 import Networking.Messages
 import qualified Networking.DirectionalConnection as DC
-import qualified Networking.DirectionalConnection as DC
+import qualified Networking.NetworkConnection as NCon 
 import qualified Data.Maybe
 import qualified Data.Map as Map
 import qualified Network.Socket as Sock
+import qualified Data.ByteString as DC
+import qualified Networking.DirectionalConnection as NCon
 
 
 newtype SerializationException = UnserializableException String
@@ -44,6 +46,32 @@ instance Serializable Messages where
         SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
         RequestSync p -> serializeLabeledEntry "NRequestSync" p
         ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
+
+-- instance (Serializable a => Serializable (NCon.NetworkConnection a)) where
+instance Serializable (NCon.NetworkConnection Value) where
+  serialize con = do 
+    constate <- MVar.takeMVar $ NCon.ncConnectionState con
+    (readList, readUnread) <- DC.serializeConnection $ NCon.ncRead con
+    (writeList, writeUnread) <- DC.serializeConnection $ NCon.ncWrite con
+
+
+    serializeLabeledEntryMulti "NNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncPartnerUserID con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncOwnUserID con) $ sLast constate
+
+
+-- instance (Serializable a => Serializable (NCon.DirectionalConnection a)) where
+instance Serializable (NCon.DirectionalConnection Value) where
+  serialize dcon = do
+    (msg, msgUnread) <- DC.serializeConnection dcon
+
+    serializeLabeledEntryMulti "NDirectionalConnection" msg $ sLast msgUnread
+
+
+instance Serializable NCon.ConnectionState where
+  serialize = \case
+    NCon.Connected hostname port -> serializeLabeledEntryMulti "NConnected" hostname $ sLast port
+    NCon.Disconnected -> return "NDisconnected"
+    NCon.Emulated -> return "NEmulated" 
+
 
 instance Serializable Value where
   serialize = \case
@@ -257,6 +285,7 @@ instance {-# OVERLAPPING #-} Serializable [String] where
 
 instance {-# OVERLAPPING #-}Serializable [Value] where
   serialize arr = serializeLabeledArray "SValuesArray" arr
+
 
 
 instance Serializable (Chan.Chan Value) where
