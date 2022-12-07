@@ -19,3 +19,10 @@ newNetworkConnection partnerID ownID hostname port = do
     connectionstate <- MVar.newEmptyMVar 
     MVar.putMVar connectionstate $ Connected hostname port
     return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate
+
+
+newEmulatedConnection :: DirectionalConnection a -> DirectionalConnection a -> IO (NetworkConnection a)
+newEmulatedConnection r w = do
+    connectionstate <- MVar.newEmptyMVar 
+    MVar.putMVar connectionstate Emulated
+    return $ NetworkConnection r w Nothing Nothing connectionstate

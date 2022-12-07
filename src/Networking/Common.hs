@@ -70,8 +70,9 @@ recieveMessagesID chan mvar userid = do
         Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
         Right deserialmessages -> case deserialmessages of
             NewValue userid val -> do 
-                valCleaned <- replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
-                DC.writeMessage chan valCleaned
+                -- valCleaned <- replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
+                -- DC.writeMessage chan valCleaned
+                DC.writeMessage chan val
             _ -> do
                 serial <- NSerialize.serialize deserialmessages
                 putStrLn $ "Error unsupported networkmessage: "++ serial
@@ -124,6 +125,7 @@ waitForServerIntroduction handle = do
                 throw $ NoIntroductionException message
 
 
+{-
 replaceVChanSerial :: Value -> IO Value
 replaceVChanSerial input = case input of
     VSend v -> do
@@ -195,6 +197,7 @@ getVChanFromSerial msgRead readCount msgWrite writeCount partnerID ownID port ho
   else MVar.putMVar channelstate Disconnected
   return $ VChan $ CommunicationChannel readDC writeDC (Just partnerID) (Just ownID) channelstate
 
+-}
 
 -- openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
 openSocketNC addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)

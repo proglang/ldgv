@@ -169,7 +169,7 @@ instance Pretty Value where
     VDouble d -> pretty $ show d
     VString s -> pretty $ show s
     VChan {} -> pretty "VChan"
-    VChanSerial {} -> pretty "VChanSerial"
+    -- VChanSerial {} -> pretty "VChanSerial"
     VSend v -> pretty "VSend"
     VPair a b -> pretty "&lt;" <+> pretty a <+> pretty ", " <+> pretty b <+> pretty "&gt;"
     VType t -> pretty t

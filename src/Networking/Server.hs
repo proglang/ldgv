@@ -88,8 +88,9 @@ acceptClientNew mvar chan clientsocket = do
                 networkconnectionmap <- MVar.takeMVar mvar
                 case Map.lookup userid networkconnectionmap of
                     Just networkconnection -> do  -- This means we habe already spoken to this client
-                        valCleaned <- NC.replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
-                        ND.writeMessage (ncRead networkconnection) valCleaned
+                        -- valCleaned <- NC.replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
+                        -- ND.writeMessage (ncRead networkconnection) valCleaned
+                        ND.writeMessage (ncRead networkconnection) val
                         MVar.putMVar mvar networkconnectionmap
                     Nothing -> do
                         putStrLn "Error during recieving a networkmessage: Introduction is needed prior to sending values!"

@@ -38,7 +38,7 @@ sendMessage networkconnection val = do
     MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
 
-initialConnect :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> Int -> IO ()
+initialConnect :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> IO Value
 initialConnect mvar hostname port ownport= do
     let hints = defaultHints {
                 addrFlags = []
@@ -51,7 +51,7 @@ initialConnect mvar hostname port ownport= do
     handle <- NC.getHandle clientsocket
     ownuserid <- UserID.newRandomUserID
     putStrLn "Client connected: Introducing"
-    NC.sendMessage (Messages.IntroduceClient ownuserid $ show ownport) handle
+    NC.sendMessage (Messages.IntroduceClient ownuserid ownport) handle
     introductionanswer <- NC.waitForServerIntroduction handle
     putStrLn "Finished Handshake"
     hClose handle
@@ -59,6 +59,7 @@ initialConnect mvar hostname port ownport= do
     newConnection <- newNetworkConnection introductionanswer ownuserid hostname port
     let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
     MVar.putMVar mvar newNetworkconnectionmap
+    return $ VChan newConnection
 
 -- openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
 

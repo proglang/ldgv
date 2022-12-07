@@ -90,8 +90,9 @@ instance Serializable Value where
       VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
 
       VServerSocket {} -> throw $ UnserializableException "VServerSocket"
+      VChan nc -> serializeLabeledEntry "VChan" nc
       -- VChan {} -> throw $ UnserializableException "VChan"
-      VChan cc -> do
+      {-VChan cc -> do
         putStrLn "Trying to serialize VChan"
         channelstate <- MVar.readMVar (ccChannelState cc)
         case channelstate of
@@ -120,7 +121,7 @@ instance Serializable Value where
                 case ciAddr connectioninfo of
                   Sock.SockAddrInet port hostname -> serializeLabeledEntryMulti "VChan" readList $ sNext readStartUnread $ sNext writeList $ sNext writeStartUnread $ sNext partnerUserID $ sNext ownUserID $ sNext (show port) $ sLast (show hostname)
                   _ -> throw $ UnserializableException "VChan currently only works over IPv4"
-          _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
+          _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"-}
 
 instance Serializable Multiplicity where
   serialize = \case

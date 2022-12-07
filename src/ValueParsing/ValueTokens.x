@@ -124,6 +124,8 @@ tokens :-
   "SValuesArray"                          { tok $ const SValuesArray }
 
   "NIntroduce"                          { tok $ const NIntroduce }
+  "NIntroduceClient"                    { tok $ const NIntroduceClient }
+  "NIntroduceServer"                    { tok $ const NIntroduceServer }
   "NNewValue"                           { tok $ const NNewValue }
   "NSyncIncoming"                       { tok $ const NSyncIncoming }
   "NRequestSync"                        { tok $ const NRequestSync }
@@ -237,6 +239,8 @@ data Token
   | SValuesArray
 
   | NIntroduce
+  | NIntroduceClient
+  | NIntroduceServer
   | NNewValue
   | NSyncIncoming
   | NRequestSync

@@ -12,9 +12,11 @@ import qualified Data.Set as Set
 import Kinds (Multiplicity(..))
 
 import Networking.DirectionalConnection
+import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.Common as NC
 
 import Network.Socket
+import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.Common as NC
 
 -- | the interpretation monad
@@ -52,8 +54,9 @@ data Value
   -- we have two channels, one for reading and one for writing to the other
   -- end, so we do not read our own written values
   -- | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle) (Maybe SockAddr) (Maybe String) (Maybe String)
-  | VChan CommunicationChannel
-  | VChanSerial [Value] Int [Value] Int String String String String
+  -- | VChan CommunicationChannel
+  | VChan (NCon.NetworkConnection Value)
+  -- | VChanSerial [Value] Int [Value] Int String String String String
   -- Maybe replace this with an VChan Either comchan or this
   --        Read Chan       Write Chan    Handle of Con   Address of other  other Userid  own UserID
 --  | VChan (C.Chan Value) (C.Chan Value)
@@ -67,8 +70,8 @@ data Value
   | VNewNatRec PEnv String String String Type Exp String Exp
   -- | VServerSocket (MVar.MVar Socket)
   -- | VServerSocket Socket
-  | VServerSocket (MVar.MVar (Map.Map String ConnectionInfo)) (C.Chan String) String
-                                                                              -- This is the server id
+  | VServerSocket (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) (C.Chan String) String
+                                                                                              -- Own Port Number
   deriving Eq
 
 
@@ -98,6 +101,29 @@ disableVChan = \case
   VRec penv _ _ _ _ -> disableVChanArr penv
   VNewNatRec penv _ _ _ _ _ _ _ -> disableVChanArr penv
   VChan cc -> do
+    channelstate <- MVar.takeMVar $ NCon.ncConnectionState cc
+    case channelstate of
+      NCon.Connected {} -> MVar.putMVar (NCon.ncConnectionState cc) NCon.Disconnected 
+      _ -> MVar.putMVar (NCon.ncConnectionState cc) channelstate
+  _ -> return ()
+  where
+    disableVChanArr :: PEnv -> IO ()
+    disableVChanArr [] = return ()
+    disableVChanArr (x:xs) = disableVChan (snd x) >> disableVChanArr xs
+
+
+{-
+
+disableVChan :: Value -> IO ()
+disableVChan = \case
+  VSend v -> disableVChan v
+  VPair v1 v2 -> disableVChan v1 >> disableVChan v2
+  VFunc penv _ _ -> disableVChanArr penv
+  VDynCast v _ -> disableVChan v
+  VFuncCast v _ _ -> disableVChan v
+  VRec penv _ _ _ _ -> disableVChanArr penv
+  VNewNatRec penv _ _ _ _ _ _ _ -> disableVChanArr penv
+  VChan cc -> do
     channelstate <- MVar.takeMVar $ ccChannelState cc
     case channelstate of
       Connected infomap -> MVar.putMVar (ccChannelState cc) Disabled
@@ -111,6 +137,11 @@ disableVChan = \case
 
 
 
+-}
+
+
+
+
 
 instance Show Value where
   show = \case
@@ -120,7 +151,7 @@ instance Show Value where
     VDouble d -> "VDouble " ++ show d
     VString s -> "VString \"" ++ show s ++ "\""
     VChan {} -> "VChan"
-    VChanSerial {} -> "VChanSerial"
+    -- VChanSerial {} -> "VChanSerial"
     VSend v -> "VSend (" ++ show v ++ ")"
     VPair a b -> "VPair <" ++ show a ++ ", " ++ show b ++ ">"
     VType t -> "VType " ++ show t

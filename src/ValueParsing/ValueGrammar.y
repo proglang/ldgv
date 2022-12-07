@@ -109,6 +109,8 @@ import Networking.Messages
     svaluesarray  { T _ T.SValuesArray }
 
     nintroduce    { T _ T.NIntroduce }
+    nintroduceclient    { T _ T.NIntroduceClient }
+    nintroduceserver    { T _ T.NIntroduceServer }
     nnewvalue     { T _ T.NNewValue }
     nsyncincoming { T _ T.NSyncIncoming }
     nrequestsync  { T _ T.NRequestSync }
@@ -171,7 +173,7 @@ Values : vunit { VUnit }
        | vint '(' int ')' {VInt $3}
        | vdouble '(' double ')' {VDouble $3}
        | vstring '(' String ')' {VString $3 }
-       | vchan '(' SValuesArray ')' '(' int ')' '(' SValuesArray ')' '(' int ')' '(' String ')' '(' String ')' '(' String ')' '(' String ')' {VChanSerial $3 $6 $9 $12 $15 $18 $21 $24 }
+       -- | vchan '(' SValuesArray ')' '(' int ')' '(' SValuesArray ')' '(' int ')' '(' String ')' '(' String ')' '(' String ')' '(' String ')' {VChanSerial $3 $6 $9 $12 $15 $18 $21 $24 }
        | vsend '(' Values ')' {VSend $3}
        | vpair '(' Values ')' '(' Values ')' {VPair $3 $6}
        | vtype '(' Type ')' {VType $3}
@@ -256,6 +258,8 @@ GType : gunit {GUnit}
       | gstring {GString}
 
 Messages : nintroduce '(' String ')' {Introduce $3}
+         | nintroduceclient '(' String ')' '(' String ')' {IntroduceClient $3 $6}
+         | nintroduceserver '(' String ')' {IntroduceServer $3}
          | nnewvalue '(' String ')''(' Values ')' {NewValue $3 $6}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
          | nrequestsync '(' String ')' {RequestSync $3}

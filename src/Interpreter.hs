@@ -30,6 +30,7 @@ import qualified SerializeValues as SV
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.Common as NC
+import qualified Networking.Client as NClient
 
 import Network.Run.TCP
 import qualified Networking.Server as NS
@@ -41,8 +42,11 @@ import qualified Networking.UserID as UserID
 
 import qualified Networking.Messages as Messages
 import qualified Networking.DirectionalConnection as DC
+import qualified Networking.NetworkConnection as NCon
 import ProcessEnvironment (CommunicationChannel(CommunicationChannel, ccChannelState, ccPartnerUserID), ConnectionInfo (ciReadChannel, ciWriteChannel))
 import qualified Control.Concurrent as MVar
+import qualified Networking.NetworkConnection as NCon
+import qualified Networking.NetworkConnection as NCon
 
 data InterpreterException
   = MathException String
@@ -55,6 +59,7 @@ data InterpreterException
   | TypeNotImplementedException Type
   | DeserializationException String
   | NotAnExpectedValueException String Value
+  | CommunicationPartnerNotFoundException String
   deriving Eq
 
 instance Show InterpreterException where
@@ -69,6 +74,7 @@ instance Show InterpreterException where
     (TypeNotImplementedException typ) -> "TypeNotImplementedException: " ++ pshow typ
     (DeserializationException err) -> "DeserializationException: " ++ err
     (NotAnExpectedValueException expected val) -> "NotAnExpectedValueException: This expresion: (" ++ pshow val ++ ") is not of type: " ++ expected
+    (CommunicationPartnerNotFoundException partner) -> "CommunicationPartnerNotFoundException: Partner:" ++ partner ++ " not found"
 
 instance Exception InterpreterException
 
@@ -163,15 +169,19 @@ eval = \case
     -- return $ VPair (VChan r w Nothing Nothing Nothing Nothing) (VChan w r Nothing Nothing Nothing Nothing)
     r <- liftIO DC.newConnection
     w <- liftIO DC.newConnection
-    channelstate1 <- liftIO MVar.newEmptyMVar
+    {-channelstate1 <- liftIO MVar.newEmptyMVar
     liftIO $ MVar.putMVar channelstate1 Emulated
     channelstate2 <- liftIO MVar.newEmptyMVar
     liftIO $ MVar.putMVar channelstate2 Emulated 
-    return $ VPair (VChan (CommunicationChannel r w Nothing Nothing channelstate1)) (VChan (CommunicationChannel w r Nothing Nothing channelstate2))
+    return $ VPair (VChan (CommunicationChannel r w Nothing Nothing channelstate1)) (VChan (CommunicationChannel w r Nothing Nothing channelstate2))-}
+    nc1 <- liftIO $ NCon.newEmulatedConnection r w
+    nc2 <- liftIO $ NCon.newEmulatedConnection w r
+    return $ VPair (VChan nc1) $ VChan nc2
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
     interpret' e >>= \v@(VChan ci) -> do
-      let dcRead = ccRead ci
+      -- let dcRead = ccRead ci
+      let dcRead = NCon.ncRead ci
 
       -- val <- liftIO $ Chan.readChan c
       val <- liftIO $ DC.readUnreadMessage dcRead
@@ -179,16 +189,16 @@ eval = \case
       return $ VPair val v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   Create e -> do
-    liftIO $ C.traceIO "Creating server!"
+    liftIO $ C.traceIO "Creating socket!"
 
     val <- interpret' e
     case val of
       VInt port -> do
         -- mvar <- liftIO MVar.newEmptyMVar
-        (mvar, chan, serverid) <- liftIO $ NS.createServer port
-        liftIO $ C.traceIO "Server created"
+        (mvar, chan) <- liftIO $ NS.createServerNew port
+        liftIO $ C.traceIO "Socket created"
         -- return $ VServerSocket mvar
-        return $ VServerSocket mvar chan serverid
+        return $ VServerSocket mvar chan $ show port
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
   Accept e t -> do
@@ -196,15 +206,19 @@ eval = \case
 
     val <- interpret' e
     case val of
-      VServerSocket mvar chan serverid -> do
+      VServerSocket mvar chan ownport -> do
         -- socket <- liftIO $ MVar.readMVar socketMVar
         newuser <- liftIO $ Chan.readChan chan
-        clientuser <- liftIO $ NC.getConnectionInfo mvar newuser
+        -- clientuser <- liftIO $ NC.getConnectionInfo mvar newuser
         liftIO $ C.traceIO "Client accepted"
         -- return $ VChan (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just $ ciHandle clientuser ) (Just $ ciAddr clientuser ) (Just newuser) $ Just serverid
-        channelstate <- liftIO MVar.newEmptyMVar
-        liftIO $ MVar.putMVar channelstate $ Connected mvar 
-        return $ VChan $ CommunicationChannel (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just newuser) (Just serverid) channelstate
+        -- channelstate <- liftIO MVar.newEmptyMVar
+        -- liftIO $ MVar.putMVar channelstate $ Connected mvar
+        -- return $ VChan $ CommunicationChannel (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just newuser) (Just serverid) channelstate
+        networkconnectionmap <- liftIO $ MVar.readMVar mvar
+        case Map.lookup newuser networkconnectionmap of
+          Nothing -> throw $ CommunicationPartnerNotFoundException newuser
+          Just networkconnection -> return $ VChan networkconnection
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e0 t e1 e2-> do
@@ -212,46 +226,53 @@ eval = \case
     w <- liftIO DC.newConnection
     liftIO $ C.traceIO "Client trying to connect"
 
-    addressVal <- interpret' e1
-    case addressVal of
-      VString address -> do
-        portVal <- interpret' e2
-        case portVal of
-          VInt port -> do
-            -- socketmvar <- liftIO newEmptyMVar 
-            -- liftIO $ forkIO $ runTCPClient address (show port) $ putMVar socketmvar
-            -- socket <- liftIO $ readMVar socketmvar
-            -- liftIO $ forkIO $ NC.communicate r w socket
-            -- liftIO $ forkIO $ runTCPClient address (show port) (NC.communicate r w)
-            let hints = defaultHints {
-                addrFlags = []
-              , addrSocketType = Stream
-            }
-            addrInfo <- liftIO $ getAddrInfo (Just hints) (Just address) $ Just $ show port
-            clientsocket <- liftIO $ openSocket $ head addrInfo
-            liftIO $ connect clientsocket $ addrAddress $ head addrInfo
-            -- liftIO $ forkIO $ NC.communicate r w clientsocket
-            handle <- liftIO $ NC.getHandle clientsocket
-            liftIO $ C.traceIO "Client connected"
-            ownuserid <- liftIO UserID.newRandomUserID
-            liftIO $ NC.sendMessage (Messages.Introduce ownuserid) handle
+    serversocket <- interpret' e0
+    case serversocket of
+      VServerSocket networkconmapmvar chan ownport -> do
+        addressVal <- interpret' e1
+        case addressVal of
+          VString address -> do
+            portVal <- interpret' e2
+            case portVal of
+              VInt port -> do
+                liftIO $ NClient.initialConnect networkconmapmvar address (show port) ownport
+                {-
+                -- socketmvar <- liftIO newEmptyMVar 
+                -- liftIO $ forkIO $ runTCPClient address (show port) $ putMVar socketmvar
+                -- socket <- liftIO $ readMVar socketmvar
+                -- liftIO $ forkIO $ NC.communicate r w socket
+                -- liftIO $ forkIO $ runTCPClient address (show port) (NC.communicate r w)
+                let hints = defaultHints {
+                    addrFlags = []
+                  , addrSocketType = Stream
+                }
+                addrInfo <- liftIO $ getAddrInfo (Just hints) (Just address) $ Just $ show port
+                clientsocket <- liftIO $ openSocket $ head addrInfo
+                liftIO $ connect clientsocket $ addrAddress $ head addrInfo
+                -- liftIO $ forkIO $ NC.communicate r w clientsocket
+                handle <- liftIO $ NC.getHandle clientsocket
+                liftIO $ C.traceIO "Client connected"
+                ownuserid <- liftIO UserID.newRandomUserID
+                liftIO $ NC.sendMessage (Messages.Introduce ownuserid) handle
 
-            -- Wait for answer from the server
-            serverid <- liftIO $ NC.waitForServerIntroduction handle
+                -- Wait for answer from the server
+                serverid <- liftIO $ NC.waitForServerIntroduction handle
 
-            -- Hockup automatic message recieving
-            mvar <- liftIO MVar.newEmptyMVar
-            liftIO $ MVar.putMVar mvar (Map.fromList [(serverid, ConnectionInfo handle (addrAddress $ head addrInfo) r w )])
-            liftIO $ forkIO $ NC.recieveMessagesID r mvar serverid
+                -- Hockup automatic message recieving
+                mvar <- liftIO MVar.newEmptyMVar
+                liftIO $ MVar.putMVar mvar (Map.fromList [(serverid, ConnectionInfo handle (addrAddress $ head addrInfo) r w )])
+                liftIO $ forkIO $ NC.recieveMessagesID r mvar serverid
 
 
-            -- return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) (Just serverid) $ Just ownuserid
-            channelstate <- liftIO MVar.newEmptyMVar
-            liftIO $ MVar.putMVar channelstate $ Connected mvar 
+                -- return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) (Just serverid) $ Just ownuserid
+                channelstate <- liftIO MVar.newEmptyMVar
+                liftIO $ MVar.putMVar channelstate $ Connected mvar 
 
-            return $ VChan $ CommunicationChannel r w (Just serverid) (Just ownuserid) channelstate
-          _ -> throw $ NotAnExpectedValueException "VInt" portVal
-      _ -> throw $ NotAnExpectedValueException "VString" addressVal
+                return $ VChan $ CommunicationChannel r w (Just serverid) (Just ownuserid) channelstate
+                -}
+              _ -> throw $ NotAnExpectedValueException "VInt" portVal
+          _ -> throw $ NotAnExpectedValueException "VString" addressVal
+      _ -> throw $ NotAnExpectedValueException "VServerSocket" serversocket
     where
       openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
   e -> throw $ NotImplementedException e
@@ -289,7 +310,9 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
     R.local (const env') (interpret' es)
 -- interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
 interpretApp _ (VSend v@(VChan cc)) w = do
+  liftIO $ NClient.sendMessage cc w
   -- liftIO (Chan.writeChan c w)
+  {-
   liftIO $ DC.writeMessage (ccWrite cc) w
   channelstate <- liftIO $ MVar.readMVar (ccChannelState cc)
   case ccPartnerUserID cc of
@@ -300,6 +323,7 @@ interpretApp _ (VSend v@(VChan cc)) w = do
   --case handle of
   --  Nothing -> pure ()
   --  Just hdl -> liftIO $ NC.sendMessage w hdl
+  -}
   return v
 interpretApp e _ _ = throw $ ApplicationException e
 
