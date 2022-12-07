@@ -25,9 +25,13 @@ sendMessage networkconnection val = do
     connectionstate <- MVar.takeMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
+            putStrLn $ "Trying to connect to: " ++ hostname ++":"++port
             addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
+            --addrInfo <- getAddrInfo (Just hints) (Just "127.0.0.1") $ Just port  -- Thia is obviously only for testing
             clientsocket <- NC.openSocketNC $ head addrInfo
+            putStrLn "Before connect"
             connect clientsocket $ addrAddress $ head addrInfo
+            putStrLn "After connect"
             handle <- NC.getHandle clientsocket
             putStrLn "Client connected: Sending Message"
             NC.sendMessage (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) val) handle

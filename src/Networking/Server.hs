@@ -104,7 +104,8 @@ acceptClientNew mvar chan clientsocket = do
                     Nothing ->  case snd clientsocket of -- This client is new
                         SockAddrInet port hostname -> do
                             serverid <- UserID.newRandomUserID
-                            networkconnection <- newNetworkConnection userid serverid (show hostname) clientport
+                            -- networkconnection <- newNetworkConnection userid serverid (show hostname) clientport
+                            networkconnection <- newNetworkConnection userid serverid (hostaddressTypeToString hostname) clientport
                             let newnetworkconnectionmap = Map.insert userid networkconnection networkconnectionmap
                             MVar.putMVar mvar newnetworkconnectionmap
                             NC.sendMessage (Introduce serverid) hdl -- Answer with own serverid
@@ -131,6 +132,10 @@ acceptClientNew mvar chan clientsocket = do
     hClose hdl
 
 
+hostaddressTypeToString :: HostAddress -> String
+hostaddressTypeToString hostaddress = do 
+    let (a, b, c, d) = hostAddressToTuple hostaddress
+    show a ++ "." ++ show b ++ "."++ show c ++ "." ++ show d
 
 
 acceptClients :: MVar.MVar (Map.Map String ConnectionInfo) -> Chan.Chan String -> Socket -> String-> IO ()

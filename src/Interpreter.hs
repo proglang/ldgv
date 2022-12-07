@@ -310,6 +310,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
     R.local (const env') (interpret' es)
 -- interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
 interpretApp _ (VSend v@(VChan cc)) w = do
+  liftIO $ putStrLn $ "Trying to send message:" ++ show w
   liftIO $ NClient.sendMessage cc w
   -- liftIO (Chan.writeChan c w)
   {-
