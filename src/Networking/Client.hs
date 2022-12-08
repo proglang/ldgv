@@ -19,6 +19,8 @@ import Networking.NetworkConnection (NetworkConnection(ncConnectionState), Conne
 import qualified Networking.Messages as Messages
 import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
+import Control.Exception
+import GHC.Exception
 
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
@@ -29,6 +31,7 @@ sendMessage networkconnection val = do
     connectionstate <- MVar.takeMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
+          catch ( do
             putStrLn $ "Trying to connect to: " ++ hostname ++":"++port
             addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
             --addrInfo <- getAddrInfo (Just hints) (Just "127.0.0.1") $ Just port  -- Thia is obviously only for testing
@@ -44,7 +47,7 @@ sendMessage networkconnection val = do
             putStrLn "Disabling Chans"
             disableVChans val -- Disables all sent VChans for the sending party
             putStrLn "Chans disabled"
-            hClose handle
+            hClose handle ) $ printConErr hostname port
         NCon.Disconnected -> putStrLn "Error when sending message: This channel is disconnected"
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
     MVar.putMVar (ncConnectionState networkconnection) connectionstate
@@ -59,20 +62,26 @@ sendNetworkMessage networkconnection message = do
     connectionstate <- MVar.takeMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
-            putStrLn $ "Trying to connect to: " ++ hostname ++":"++port
-            addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-            --addrInfo <- getAddrInfo (Just hints) (Just "127.0.0.1") $ Just port  -- Thia is obviously only for testing
-            clientsocket <- NC.openSocketNC $ head addrInfo
-            putStrLn "Before connect"
-            connect clientsocket $ addrAddress $ head addrInfo
-            putStrLn "After connect"
-            handle <- NC.getHandle clientsocket
-            putStrLn "Client connected: Sending NetworkMessage"
-            NC.sendMessage message handle
-            hClose handle
+            catch ( do
+              putStrLn $ "Trying to connect to: " ++ hostname ++":"++port
+              addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
+              --addrInfo <- getAddrInfo (Just hints) (Just "127.0.0.1") $ Just port  -- Thia is obviously only for testing
+              clientsocket <- NC.openSocketNC $ head addrInfo
+              putStrLn "Before connect"
+              connect clientsocket $ addrAddress $ head addrInfo
+              putStrLn "After connect"
+              handle <- NC.getHandle clientsocket
+              putStrLn "Client connected: Sending NetworkMessage"
+              NC.sendMessage message handle
+              hClose handle ) $ printConErr hostname port
         NCon.Disconnected -> putStrLn "Error when sending message: This channel is disconnected"
         NCon.Emulated -> pure ()
     MVar.putMVar (ncConnectionState networkconnection) connectionstate
+
+
+
+printConErr :: String -> String -> IOException -> IO ()
+printConErr hostname port err = putStrLn $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
 
 
 initialConnect :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> IO Value
@@ -125,14 +134,14 @@ makeVChanSendable newhost newport input = case input of
         newpenv <- makeVChanSendablePEnv newhost newport penv
         return $ VNewNatRec newpenv a b c d e f g
     VChan nc -> do 
-        putStrLn "Attempting to sending VChan"
+        putStrLn "Attempting to sending ChangePartnerAddress"
         -- connectionstate <- MVar.readMVar $ ncConnectionState nc
         -- putStrLn "Aquired connectionstate"
         sendNetworkMessage nc (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport)
         -- MVar.putMVar (ncConnectionState nc) Disconnected
         -- _ <- MVar.takeMVar $ ncConnectionState nc
         -- MVar.putMVar (ncConnectionState nc) Disconnected
-        putStrLn "Sent VChan"
+        putStrLn "Sent ChangePartnerAddress"
         return $ VChan nc
     _ -> return input
     where
