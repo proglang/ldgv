@@ -108,6 +108,10 @@ import Networking.Messages
     sstringarray  { T _ T.SStringArray }
     svaluesarray  { T _ T.SValuesArray }
 
+    snetworkconnection {T _ T.SNetworkConnection}
+    sdirectionalconnection {T _ T.SDirectionalConnection}
+    sconnected          {T _ T.SConnected}
+
     nintroduce    { T _ T.NIntroduce }
     nintroduceclient    { T _ T.NIntroduceClient }
     nintroduceserver    { T _ T.NIntroduceServer }
@@ -174,6 +178,7 @@ Values : vunit { VUnit }
        | vdouble '(' double ')' {VDouble $3}
        | vstring '(' String ')' {VString $3 }
        -- | vchan '(' SValuesArray ')' '(' int ')' '(' SValuesArray ')' '(' int ')' '(' String ')' '(' String ')' '(' String ')' '(' String ')' {VChanSerial $3 $6 $9 $12 $15 $18 $21 $24 }
+       | vchan '(' NetworkConnection ')' {$3}
        | vsend '(' Values ')' {VSend $3}
        | vpair '(' Values ')' '(' Values ')' {VPair $3 $6}
        | vtype '(' Type ')' {VType $3}
@@ -184,6 +189,12 @@ Values : vunit { VUnit }
        | vnewnatrec '(' PEnv ')' '(' String ')' '(' String ')' '(' String ')' '(' Type ')' '(' Exp ')' '(' String ')' '(' Exp ')' {VNewNatRec $3 $6 $9 $12 $15 $18 $21 $24}
 
 String : string {trimQuote $1}
+
+NetworkConnection : snetworkconnection '(' DirectionalConnection ')' '(' DirectionalConnection ')' '(' String ')' '(' String ')' '(' ConnectionState ')' {VChanSerial $3 $6 $9 $12 $15}
+
+DirectionalConnection : sdirectionalconnection '(' SValuesArray ')' '(' int ')' {($3, $6)}
+
+ConnectionState : sconnected '(' String ')' '(' String ')' {($3, $6)}
 
 
 Mult : mone { MOne }

@@ -25,6 +25,7 @@ import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.DirectionalConnection as DC
 import Networking.DirectionalConnection (DirectionalConnection)
 import Networking.Serialize (Serializable)
+import Networking.NetworkConnection (createNetworkConnection, createNetworkConnectionS)
 
 newtype ServerException = NoIntroductionException String
     deriving Eq
@@ -35,6 +36,8 @@ instance Show ServerException where
 
 instance Exception ServerException
 
+
+{-
 
 -- Hangs if no valid client id is provided
 getConnectionInfo :: MVar.MVar (Map String ConnectionInfo) -> String -> IO ConnectionInfo
@@ -78,6 +81,7 @@ recieveMessagesID chan mvar userid = do
                 putStrLn $ "Error unsupported networkmessage: "++ serial
     recieveMessagesID chan mvar userid
 
+-}
 
 sendMessage :: NSerialize.Serializable a => a -> Handle -> IO ()
 sendMessage value handle = do
@@ -123,6 +127,45 @@ waitForServerIntroduction handle = do
             _ -> do 
                 putStrLn $ "Error during server introduction, wrong message: "++ message
                 throw $ NoIntroductionException message
+
+
+replaceVChanSerial :: Value -> IO Value
+replaceVChanSerial input = case input of
+    VSend v -> do
+        nv <- replaceVChanSerial v
+        return $ VSend nv
+    VPair v1 v2 -> do 
+        nv1 <- replaceVChanSerial v1
+        nv2 <- replaceVChanSerial v2
+        return $ VPair nv1 nv2
+    VFunc penv a b -> do
+        newpenv <- replaceVChanSerialPEnv penv
+        return $ VFunc newpenv a b
+    VDynCast v g -> do 
+        nv <- replaceVChanSerial v
+        return $ VDynCast nv g
+    VFuncCast v a b -> do 
+        nv <- replaceVChanSerial v
+        return $ VFuncCast nv a b
+    VRec penv a b c d -> do 
+        newpenv <- replaceVChanSerialPEnv penv
+        return $ VRec newpenv a b c d
+    VNewNatRec penv a b c d e f g -> do 
+        newpenv <- replaceVChanSerialPEnv penv
+        return $ VNewNatRec newpenv a b c d e f g
+    VChanSerial r w p o c -> do 
+        putStrLn "Attempting to deserialize a VChanSerial"
+        networkconnection <- createNetworkConnectionS r w p o c
+        return $ VChan networkconnection
+    _ -> return input
+    where
+        replaceVChanSerialPEnv :: [(String, Value)] -> IO [(String, Value)]
+        replaceVChanSerialPEnv [] = return []
+        replaceVChanSerialPEnv (x:xs) = do 
+            newval <- replaceVChanSerial $ snd x
+            rest <- replaceVChanSerialPEnv xs
+            return $ (fst x, newval):rest
+
 
 
 {-

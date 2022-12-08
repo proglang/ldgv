@@ -27,6 +27,7 @@ import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (nc
 import Networking.Messages (Messages(Introduce))
 
 
+{-
 createServer :: Int -> IO (MVar.MVar (Map.Map String ConnectionInfo), Chan.Chan String, String)
 createServer port = do
     serverid <- UserID.newRandomUserID
@@ -45,7 +46,7 @@ createServer port = do
     chan <- Chan.newChan
     forkIO $ acceptClients mvar chan sock serverid
     return (mvar, chan, serverid)
-
+-}
 
 createServerNew :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), Chan.Chan String)
 createServerNew port = do
@@ -88,9 +89,9 @@ acceptClientNew mvar chan clientsocket = do
                 networkconnectionmap <- MVar.takeMVar mvar
                 case Map.lookup userid networkconnectionmap of
                     Just networkconnection -> do  -- This means we habe already spoken to this client
-                        -- valCleaned <- NC.replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
-                        -- ND.writeMessage (ncRead networkconnection) valCleaned
-                        ND.writeMessage (ncRead networkconnection) val
+                        valCleaned <- NC.replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
+                        ND.writeMessage (ncRead networkconnection) valCleaned
+                        -- ND.writeMessage (ncRead networkconnection) val
                         MVar.putMVar mvar networkconnectionmap
                     Nothing -> do
                         putStrLn "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
@@ -137,7 +138,7 @@ hostaddressTypeToString hostaddress = do
     let (a, b, c, d) = hostAddressToTuple hostaddress
     show a ++ "." ++ show b ++ "."++ show c ++ "." ++ show d
 
-
+{-
 acceptClients :: MVar.MVar (Map.Map String ConnectionInfo) -> Chan.Chan String -> Socket -> String-> IO ()
 acceptClients mvar chan socket serverid = do
     putStrLn "Waiting for clients"
@@ -157,6 +158,7 @@ acceptClient mvar chan clientsocket serverid = do
     MVar.modifyMVar_ mvar (return . Map.insert userid (ConnectionInfo hdl (snd clientsocket) r w))
     forkIO $ NC.recieveMessagesID r mvar userid
     Chan.writeChan chan userid
+-}
 
 waitForIntroduction :: Handle -> String -> IO String
 waitForIntroduction handle serverid = do

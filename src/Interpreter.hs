@@ -43,10 +43,11 @@ import qualified Networking.UserID as UserID
 import qualified Networking.Messages as Messages
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkConnection as NCon
-import ProcessEnvironment (CommunicationChannel(CommunicationChannel, ccChannelState, ccPartnerUserID), ConnectionInfo (ciReadChannel, ciWriteChannel))
+-- import ProcessEnvironment (CommunicationChannel(CommunicationChannel, ccChannelState, ccPartnerUserID), ConnectionInfo (ciReadChannel, ciWriteChannel))
+-- import ProcessEnvironment
 import qualified Control.Concurrent as MVar
-import qualified Networking.NetworkConnection as NCon
-import qualified Networking.NetworkConnection as NCon
+-- import qualified Networking.NetworkConnection as NCon
+-- import qualified Networking.NetworkConnection as NCon
 
 data InterpreterException
   = MathException String

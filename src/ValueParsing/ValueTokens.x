@@ -122,6 +122,9 @@ tokens :-
   "SStringTypeArray"                    { tok $ const SStringTypeArray }
   "SStringArray"                        { tok $ const SStringArray }
   "SValuesArray"                          { tok $ const SValuesArray }
+  "SNetworkConnection"                  { tok $ const SNetworkConnection}
+  "SDirectionalConnection"              { tok $ const SDirectionalConnection}
+  "SConnected"                          { tok $ const SConnected}
 
   "NIntroduce"                          { tok $ const NIntroduce }
   "NIntroduceClient"                    { tok $ const NIntroduceClient }
@@ -237,6 +240,10 @@ data Token
   | SStringTypeArray
   | SStringArray
   | SValuesArray
+
+  | SNetworkConnection
+  | SDirectionalConnection
+  | SConnected
 
   | NIntroduce
   | NIntroduceClient

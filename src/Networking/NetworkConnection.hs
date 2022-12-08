@@ -30,6 +30,9 @@ createNetworkConnection readList readNew writeList writeNew partnerID ownID host
     return $ NetworkConnection read write partnerID ownID connectionstate
 
 
+createNetworkConnectionS :: ([a], Int) -> ([a], Int) -> String -> String -> (String, String) -> IO (NetworkConnection a)
+createNetworkConnectionS (readList, readNew) (writeList, writeNew) partnerID ownID (hostname, port) = createNetworkConnection readList readNew writeList writeNew (Just partnerID) (Just ownID) hostname port
+
 
 newEmulatedConnection :: DirectionalConnection a -> DirectionalConnection a -> IO (NetworkConnection a)
 newEmulatedConnection r w = do

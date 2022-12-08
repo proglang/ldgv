@@ -56,6 +56,7 @@ data Value
   -- | VChan (C.Chan Value) (C.Chan Value) (Maybe Handle) (Maybe SockAddr) (Maybe String) (Maybe String)
   -- | VChan CommunicationChannel
   | VChan (NCon.NetworkConnection Value)
+  | VChanSerial ([Value], Int) ([Value], Int) String String (String, String)
   -- | VChanSerial [Value] Int [Value] Int String String String String
   -- Maybe replace this with an VChan Either comchan or this
   --        Read Chan       Write Chan    Handle of Con   Address of other  other Userid  own UserID
@@ -74,7 +75,7 @@ data Value
                                                                                               -- Own Port Number
   deriving Eq
 
-
+{-
 data ConnectionInfo = ConnectionInfo {ciHandle :: Handle, ciAddr :: SockAddr, ciReadChannel :: DirectionalConnection Value, ciWriteChannel :: DirectionalConnection Value}
   deriving Eq
 
@@ -88,7 +89,7 @@ data ChannelState = Connected {csConInfoMap :: MVar.MVar (Map.Map String Connect
                   | Emulated
                   | Disabled -- Used when a Channel was sent  --> Maybe we can automatically change this on serialization when we put this in a MVar 
   deriving Eq
-
+-}
 
 -- If a channel is about to be send it should be deactivated
 disableVChan :: Value -> IO ()

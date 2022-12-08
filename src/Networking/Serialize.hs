@@ -55,7 +55,7 @@ instance Serializable (NCon.NetworkConnection Value) where
     (writeList, writeUnread) <- DC.serializeConnection $ NCon.ncWrite con
 
 
-    serializeLabeledEntryMulti "NNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncPartnerUserID con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncOwnUserID con) $ sLast constate
+    serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncPartnerUserID con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncOwnUserID con) $ sLast constate
 
 
 -- instance (Serializable a => Serializable (NCon.DirectionalConnection a)) where
@@ -63,14 +63,15 @@ instance Serializable (NCon.DirectionalConnection Value) where
   serialize dcon = do
     (msg, msgUnread) <- DC.serializeConnection dcon
 
-    serializeLabeledEntryMulti "NDirectionalConnection" msg $ sLast msgUnread
+    serializeLabeledEntryMulti "SDirectionalConnection" msg $ sLast msgUnread
 
 
 instance Serializable NCon.ConnectionState where
   serialize = \case
-    NCon.Connected hostname port -> serializeLabeledEntryMulti "NConnected" hostname $ sLast port
-    NCon.Disconnected -> return "NDisconnected"
-    NCon.Emulated -> return "NEmulated" 
+    NCon.Connected hostname port -> serializeLabeledEntryMulti "SConnected" hostname $ sLast port
+    -- NCon.Disconnected -> return "SDisconnected"
+    -- NCon.Emulated -> return "SEmulated" 
+    _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
 
 
 instance Serializable Value where
@@ -91,6 +92,7 @@ instance Serializable Value where
 
       VServerSocket {} -> throw $ UnserializableException "VServerSocket"
       VChan nc -> serializeLabeledEntry "VChan" nc
+      VChanSerial {} -> throw $ UnserializableException "VChanSerial (This is only used for sending VChans, and should never appear here)"
       -- VChan {} -> throw $ UnserializableException "VChan"
       {-VChan cc -> do
         putStrLn "Trying to serialize VChan"
