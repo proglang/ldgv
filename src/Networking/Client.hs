@@ -40,7 +40,10 @@ sendMessage networkconnection val = do
             putStrLn "Client connected: Sending Message"
             valcleaned <- makeVChanSendable hostname port val
             NC.sendMessage (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) handle
-            DC.writeMessage (ncWrite networkconnection) val
+            DC.writeMessage (ncWrite networkconnection) valcleaned
+            putStrLn "Disabling Chans"
+            disableVChans val -- Disables all sent VChans for the sending party
+            putStrLn "Chans disabled"
             hClose handle
         NCon.Disconnected -> putStrLn "Error when sending message: This channel is disconnected"
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val

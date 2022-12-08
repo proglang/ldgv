@@ -17,6 +17,8 @@ import qualified Networking.NetworkConnection as NCon
 
 import Network.Socket
 import qualified Networking.NetworkConnection as NCon
+import qualified Networking.NetworkConnection as NCOn
+import qualified Networking.NetworkConnection as Ncon
 -- import qualified Networking.Common as NC
 
 -- | the interpretation monad
@@ -64,6 +66,78 @@ data Value
   | VServerSocket (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) (C.Chan String) String
                                                                                               -- Own Port Number
   deriving Eq
+
+disableOldVChan :: Value -> IO Value
+disableOldVChan value = case value of
+  VChan nc -> do
+    constate <- MVar.newEmptyMVar 
+    oldconstate <- MVar.takeMVar $ NCon.ncConnectionState nc
+    MVar.putMVar constate oldconstate
+    MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected 
+    let newNC = NCon.NetworkConnection (NCon.ncRead nc) (NCon.ncWrite nc) (NCOn.ncPartnerUserID nc) (NCon.ncOwnUserID nc) constate 
+    return $ VChan newNC
+  _ -> return value
+
+
+disableVChan :: Value -> IO ()
+disableVChan value = case value of
+  VChan nc -> do
+    -- constate <- MVar.newEmptyMVar 
+    -- MVar.putMVar constate NCon.Disconnected 
+    -- let newNC = NCon.NetworkConnection (NCon.ncRead nc) (NCon.ncWrite nc) (NCOn.ncPartnerUserID nc) (NCon.ncOwnUserID nc) constate 
+    putStrLn "Taking MVar"
+    _ <- MVar.tryTakeMVar $ NCon.ncConnectionState nc  --I dont fully understand why this mvar isnt filled but lets bypass this problem
+    putStrLn "MVar cleared"
+    MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
+    putStrLn "MVar written"
+    -- return $ VChan nc
+    -- return $ VChan newNC
+  _ -> return () --return value
+
+
+
+disableVChans :: Value -> IO ()
+disableVChans input = case input of
+    VSend v -> do
+        nv <- disableVChans v
+        return ()
+        -- return $ VSend nv
+    VPair v1 v2 -> do 
+        nv1 <- disableVChans v1
+        nv2 <- disableVChans v2
+        return ()
+        -- return $ VPair nv1 nv2
+    VFunc penv a b -> do
+        newpenv <- disableVChansPEnv penv
+        return ()
+        -- return $ VFunc newpenv a b
+    VDynCast v g -> do 
+        nv <- disableVChans v
+        return ()
+        -- return $ VDynCast nv g
+    VFuncCast v a b -> do 
+        nv <- disableVChans v
+        return ()
+        -- return $ VFuncCast nv a b
+    VRec penv a b c d -> do 
+        newpenv <- disableVChansPEnv penv
+        return ()
+        -- return $ VRec newpenv a b c d
+    VNewNatRec penv a b c d e f g -> do 
+        newpenv <- disableVChansPEnv penv
+        return ()
+        -- return $ VNewNatRec newpenv a b c d e f g
+    _ -> disableVChan input -- This handles vchans and the default case
+    where
+        disableVChansPEnv :: [(String, Value)] -> IO ()
+        disableVChansPEnv [] = return ()
+        disableVChansPEnv (x:xs) = do 
+            newval <- disableVChans $ snd x
+            rest <- disableVChansPEnv xs
+            return ()
+            -- return $ (fst x, newval):rest
+
+
 
 
 instance Show Value where

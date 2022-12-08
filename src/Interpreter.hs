@@ -46,6 +46,7 @@ import qualified Networking.NetworkConnection as NCon
 -- import ProcessEnvironment (CommunicationChannel(CommunicationChannel, ccChannelState, ccPartnerUserID), ConnectionInfo (ciReadChannel, ciWriteChannel))
 -- import ProcessEnvironment
 import qualified Control.Concurrent as MVar
+import ProcessEnvironment (disableOldVChan)
 -- import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.NetworkConnection as NCon
 
@@ -174,9 +175,13 @@ eval = \case
   Recv e -> do
     interpret' e >>= \v@(VChan ci) -> do
       let dcRead = NCon.ncRead ci
-      val <- liftIO $ DC.readUnreadMessage dcRead
+      valunclean <- liftIO $ DC.readUnreadMessage dcRead
+      val <- liftIO $ NC.replaceVChanSerial valunclean
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
-      return $ VPair val v
+
+      -- Disable the old channel and get a new one
+      newV <- liftIO $ disableOldVChan v
+      return $ VPair val newV
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   Create e -> do
     liftIO $ C.traceIO "Creating socket!"
@@ -260,7 +265,10 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
 interpretApp _ (VSend v@(VChan cc)) w = do
   liftIO $ putStrLn $ "Trying to send message:" ++ show w
   liftIO $ NClient.sendMessage cc w
-  return v
+
+  -- Disable old VChan
+  newV <- liftIO $ disableOldVChan v
+  return newV
 interpretApp e _ _ = throw $ ApplicationException e
 
 interpretLit :: Literal -> Value
