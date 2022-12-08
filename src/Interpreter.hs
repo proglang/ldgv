@@ -165,26 +165,15 @@ eval = \case
       C.traceIO "Ran a forked operation")
     return VUnit
   New t -> do
-    -- r <- liftIO Chan.newChan
-    -- w <- liftIO Chan.newChan
-    -- return $ VPair (VChan r w Nothing Nothing Nothing Nothing) (VChan w r Nothing Nothing Nothing Nothing)
     r <- liftIO DC.newConnection
     w <- liftIO DC.newConnection
-    {-channelstate1 <- liftIO MVar.newEmptyMVar
-    liftIO $ MVar.putMVar channelstate1 Emulated
-    channelstate2 <- liftIO MVar.newEmptyMVar
-    liftIO $ MVar.putMVar channelstate2 Emulated 
-    return $ VPair (VChan (CommunicationChannel r w Nothing Nothing channelstate1)) (VChan (CommunicationChannel w r Nothing Nothing channelstate2))-}
     nc1 <- liftIO $ NCon.newEmulatedConnection r w
     nc2 <- liftIO $ NCon.newEmulatedConnection w r
     return $ VPair (VChan nc1) $ VChan nc2
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
     interpret' e >>= \v@(VChan ci) -> do
-      -- let dcRead = ccRead ci
       let dcRead = NCon.ncRead ci
-
-      -- val <- liftIO $ Chan.readChan c
       val <- liftIO $ DC.readUnreadMessage dcRead
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
       return $ VPair val v
@@ -195,10 +184,8 @@ eval = \case
     val <- interpret' e
     case val of
       VInt port -> do
-        -- mvar <- liftIO MVar.newEmptyMVar
         (mvar, chan) <- liftIO $ NS.createServerNew port
         liftIO $ C.traceIO "Socket created"
-        -- return $ VServerSocket mvar
         return $ VServerSocket mvar chan $ show port
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
@@ -208,14 +195,8 @@ eval = \case
     val <- interpret' e
     case val of
       VServerSocket mvar chan ownport -> do
-        -- socket <- liftIO $ MVar.readMVar socketMVar
         newuser <- liftIO $ Chan.readChan chan
-        -- clientuser <- liftIO $ NC.getConnectionInfo mvar newuser
         liftIO $ C.traceIO "Client accepted"
-        -- return $ VChan (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just $ ciHandle clientuser ) (Just $ ciAddr clientuser ) (Just newuser) $ Just serverid
-        -- channelstate <- liftIO MVar.newEmptyMVar
-        -- liftIO $ MVar.putMVar channelstate $ Connected mvar
-        -- return $ VChan $ CommunicationChannel (ciReadChannel clientuser) (ciWriteChannel clientuser) (Just newuser) (Just serverid) channelstate
         networkconnectionmap <- liftIO $ MVar.readMVar mvar
         case Map.lookup newuser networkconnectionmap of
           Nothing -> throw $ CommunicationPartnerNotFoundException newuser
@@ -237,40 +218,6 @@ eval = \case
             case portVal of
               VInt port -> do
                 liftIO $ NClient.initialConnect networkconmapmvar address (show port) ownport
-                {-
-                -- socketmvar <- liftIO newEmptyMVar 
-                -- liftIO $ forkIO $ runTCPClient address (show port) $ putMVar socketmvar
-                -- socket <- liftIO $ readMVar socketmvar
-                -- liftIO $ forkIO $ NC.communicate r w socket
-                -- liftIO $ forkIO $ runTCPClient address (show port) (NC.communicate r w)
-                let hints = defaultHints {
-                    addrFlags = []
-                  , addrSocketType = Stream
-                }
-                addrInfo <- liftIO $ getAddrInfo (Just hints) (Just address) $ Just $ show port
-                clientsocket <- liftIO $ openSocket $ head addrInfo
-                liftIO $ connect clientsocket $ addrAddress $ head addrInfo
-                -- liftIO $ forkIO $ NC.communicate r w clientsocket
-                handle <- liftIO $ NC.getHandle clientsocket
-                liftIO $ C.traceIO "Client connected"
-                ownuserid <- liftIO UserID.newRandomUserID
-                liftIO $ NC.sendMessage (Messages.Introduce ownuserid) handle
-
-                -- Wait for answer from the server
-                serverid <- liftIO $ NC.waitForServerIntroduction handle
-
-                -- Hockup automatic message recieving
-                mvar <- liftIO MVar.newEmptyMVar
-                liftIO $ MVar.putMVar mvar (Map.fromList [(serverid, ConnectionInfo handle (addrAddress $ head addrInfo) r w )])
-                liftIO $ forkIO $ NC.recieveMessagesID r mvar serverid
-
-
-                -- return $ VChan r w (Just handle) (Just $ addrAddress $ head addrInfo) (Just serverid) $ Just ownuserid
-                channelstate <- liftIO MVar.newEmptyMVar
-                liftIO $ MVar.putMVar channelstate $ Connected mvar 
-
-                return $ VChan $ CommunicationChannel r w (Just serverid) (Just ownuserid) channelstate
-                -}
               _ -> throw $ NotAnExpectedValueException "VInt" portVal
           _ -> throw $ NotAnExpectedValueException "VString" addressVal
       _ -> throw $ NotAnExpectedValueException "VServerSocket" serversocket
@@ -313,19 +260,6 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
 interpretApp _ (VSend v@(VChan cc)) w = do
   liftIO $ putStrLn $ "Trying to send message:" ++ show w
   liftIO $ NClient.sendMessage cc w
-  -- liftIO (Chan.writeChan c w)
-  {-
-  liftIO $ DC.writeMessage (ccWrite cc) w
-  channelstate <- liftIO $ MVar.readMVar (ccChannelState cc)
-  case ccPartnerUserID cc of
-    Just partnerid -> case ccOwnUserID cc of 
-      Just ownuserid -> liftIO $ NC.sendMessageID w (csConInfoMap channelstate) partnerid ownuserid
-      Nothing -> pure () 
-    Nothing -> pure ()
-  --case handle of
-  --  Nothing -> pure ()
-  --  Just hdl -> liftIO $ NC.sendMessage w hdl
-  -}
   return v
 interpretApp e _ _ = throw $ ApplicationException e
 

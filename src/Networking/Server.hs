@@ -26,28 +26,6 @@ import qualified Control.Concurrent as MVar
 import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (ncConnectionState))
 import Networking.Messages (Messages(Introduce))
 
-
-{-
-createServer :: Int -> IO (MVar.MVar (Map.Map String ConnectionInfo), Chan.Chan String, String)
-createServer port = do
-    serverid <- UserID.newRandomUserID
-    sock <- liftIO $ socket AF_INET Stream 0
-    liftIO $ setSocketOption sock ReuseAddr 1
-    let hints = defaultHints {
-            addrFlags = [AI_PASSIVE]
-          , addrSocketType = Stream
-    }
-    addrInfo <- liftIO $ getAddrInfo (Just hints) Nothing $ Just $ show port
-        
-    liftIO $ bind sock $ addrAddress $ head addrInfo
-    liftIO $ listen sock 2
-    mvar <- MVar.newEmptyMVar
-    MVar.putMVar mvar Map.empty
-    chan <- Chan.newChan
-    forkIO $ acceptClients mvar chan sock serverid
-    return (mvar, chan, serverid)
--}
-
 createServerNew :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), Chan.Chan String)
 createServerNew port = do
     serverid <- UserID.newRandomUserID
@@ -137,28 +115,6 @@ hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do 
     let (a, b, c, d) = hostAddressToTuple hostaddress
     show a ++ "." ++ show b ++ "."++ show c ++ "." ++ show d
-
-{-
-acceptClients :: MVar.MVar (Map.Map String ConnectionInfo) -> Chan.Chan String -> Socket -> String-> IO ()
-acceptClients mvar chan socket serverid = do
-    putStrLn "Waiting for clients"
-    clientsocket <- accept socket
-    putStrLn "Accepted new client"
-
-    forkIO $ acceptClient mvar chan clientsocket serverid
-    acceptClients mvar chan socket serverid
-
-
-acceptClient :: MVar.MVar (Map.Map String ConnectionInfo) -> Chan.Chan String -> (Socket, SockAddr) -> String -> IO ()
-acceptClient mvar chan clientsocket serverid = do
-    hdl <- NC.getHandle $ fst clientsocket
-    userid <- waitForIntroduction hdl serverid
-    r <- ND.newConnection
-    w <- ND.newConnection
-    MVar.modifyMVar_ mvar (return . Map.insert userid (ConnectionInfo hdl (snd clientsocket) r w))
-    forkIO $ NC.recieveMessagesID r mvar userid
-    Chan.writeChan chan userid
--}
 
 waitForIntroduction :: Handle -> String -> IO String
 waitForIntroduction handle serverid = do
