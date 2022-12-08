@@ -92,7 +92,7 @@ instance Serializable Value where
 
       VServerSocket {} -> throw $ UnserializableException "VServerSocket"
       VChan nc -> serializeLabeledEntry "VChan" nc
-      VChanSerial {} -> throw $ UnserializableException "VChanSerial (This is only used for sending VChans, and should never appear here)"
+      VChanSerial r w p o c -> serializeLabeledEntryMulti "VChanSerial" r $ sNext w $ sNext p $ sNext c $ sLast c
       -- VChan {} -> throw $ UnserializableException "VChan"
       {-VChan cc -> do
         putStrLn "Trying to serialize VChan"

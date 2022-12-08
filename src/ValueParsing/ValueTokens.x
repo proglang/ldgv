@@ -36,6 +36,7 @@ tokens :-
   "VDouble"                             { tok $ const VDouble }
   "VString"                             { tok $ const VString }
   "VChan"                               { tok $ const VChan }
+  "VChanSerial"                         { tok $ const VChanSerial }
   "VSend"                               { tok $ const VSend }
   "VPair"                               { tok $ const VPair }
   "VType"                               { tok $ const VType }
@@ -152,6 +153,7 @@ data Token
   | VDouble
   | VString
   | VChan
+  | VChanSerial
   | VSend
   | VPair
   | VType

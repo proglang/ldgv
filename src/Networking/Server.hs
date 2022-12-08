@@ -6,6 +6,7 @@ import qualified Control.Concurrent.Chan as Chan
 import Control.Concurrent (forkIO)
 import Control.Monad.IO.Class
 import qualified Data.Map as Map
+import qualified Data.Maybe
 import GHC.IO.Handle
 import Network.Socket
 
@@ -20,11 +21,12 @@ import Control.Exception
 import qualified Networking.UserID as UserID
 import qualified Networking.Messages as Messages
 import qualified Networking.DirectionalConnection as ND
+import qualified Networking.Client as NClient
 
 import Networking.NetworkConnection
 import qualified Control.Concurrent as MVar
-import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (ncConnectionState))
-import Networking.Messages (Messages(Introduce))
+import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (ncConnectionState, ncOwnUserID))
+import Networking.Messages (Messages(Introduce, RequestSync, SyncIncoming))
 
 createServerNew :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), Chan.Chan String)
 createServerNew port = do
@@ -54,6 +56,8 @@ acceptClientsNew mvar chan socket = do
     forkIO $ acceptClientNew mvar chan clientsocket
     acceptClientsNew mvar chan socket
 
+
+-- In the nothing case we shoud wait a few seconds for other messages to resolve the issue
 acceptClientNew :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> Chan.Chan String -> (Socket, SockAddr) -> IO ()
 acceptClientNew mvar chan clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
@@ -103,8 +107,31 @@ acceptClientNew mvar chan clientsocket = do
                         _ <- MVar.takeMVar constate
                         MVar.putMVar constate $ Networking.NetworkConnection.Connected hostname port
                         MVar.putMVar mvar networkconnectionmap
-                    Nothing -> pure ()  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
 
+                        -- Sync and request sync
+                        NClient.sendNetworkMessage networkconnection (RequestSync $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection)
+                        writevals <- ND.allMessages $ ncWrite networkconnection
+                        NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
+
+                    Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
+            RequestSync userid -> do
+                networkconnectionmap <- MVar.takeMVar mvar
+                case Map.lookup userid networkconnectionmap of
+                    Just networkconnection -> do  -- Change to current network address
+                        MVar.putMVar mvar networkconnectionmap
+                        -- Sync and request sync
+                        writevals <- ND.allMessages $ ncWrite networkconnection
+                        NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
+
+                    Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
+            SyncIncoming userid values -> do
+                networkconnectionmap <- MVar.takeMVar mvar
+                case Map.lookup userid networkconnectionmap of
+                    Just networkconnection -> do  -- Change to current network address
+                        MVar.putMVar mvar networkconnectionmap
+                        ND.syncMessages (ncRead networkconnection) values
+
+                    Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
             _ -> do
                 serial <- NSerialize.serialize deserialmessages
                 putStrLn $ "Error unsupported networkmessage: "++ serial

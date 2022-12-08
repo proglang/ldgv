@@ -34,6 +34,7 @@ import Networking.Messages
     vdouble       { T _ T.VDouble }
     vstring       { T _ T.VString }
     vchan         { T _ T.VChan}
+    vchanserial   { T _ T.VChanSerial}
     vsend         { T _ T.VSend }
     vpair         { T _ T.VPair }
     vtype         { T _ T.VType }
@@ -179,6 +180,7 @@ Values : vunit { VUnit }
        | vstring '(' String ')' {VString $3 }
        -- | vchan '(' SValuesArray ')' '(' int ')' '(' SValuesArray ')' '(' int ')' '(' String ')' '(' String ')' '(' String ')' '(' String ')' {VChanSerial $3 $6 $9 $12 $15 $18 $21 $24 }
        | vchan '(' NetworkConnection ')' {$3}
+       | vchanserial '(' SArrayIntElement ')' '(' SArrayIntElement ')' '(' String ')' '(' String ')' '(' SStringStringElement ')' {VChanSerial $3 $6 $9 $12 $15}
        | vsend '(' Values ')' {VSend $3}
        | vpair '(' Values ')' '(' Values ')' {VPair $3 $6}
        | vtype '(' Type ')' {VType $3}
@@ -314,6 +316,10 @@ SValuesElements : Values ',' SValuesElements {$1 : $3}
                 | {- empty -} {[]}
 
 LabelType : slabeltype '{' SStringElements '}' {$3}
+
+SArrayIntElement : '(' '(' SValuesArray ')' '(' int ')' ')' {($3, $6)}
+
+SStringStringElement : '(' '(' String ')' '(' String ')' ')' {($3, $6)}
 
      
 

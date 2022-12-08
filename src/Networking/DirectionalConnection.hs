@@ -1,4 +1,4 @@
-module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, createConnection, writeMessage, allMessages, readUnreadMessage, readUnreadMessageMaybe, serializeConnection) where
+module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, createConnection, writeMessage, allMessages, readUnreadMessage, readUnreadMessageMaybe, serializeConnection, syncMessages) where
 
 import Control.Concurrent.MVar
 
@@ -30,6 +30,12 @@ writeMessage connection message = do
     modifyMVar_ (messages connection) (\m -> do
         return $ m ++ [message]
         )
+
+-- This relies on the message array giving having the same first entrys as the internal messages
+syncMessages :: DirectionalConnection a -> [a] -> IO ()
+syncMessages connection msgs = do
+    mymessages <- takeMVar $ messages connection
+    if length mymessages < length msgs then putMVar (messages connection) msgs else putMVar (messages connection) mymessages
 
 -- Gives all outMessages until this point
 allMessages :: DirectionalConnection a -> IO [a]
