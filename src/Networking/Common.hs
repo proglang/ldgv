@@ -168,6 +168,9 @@ replaceVChanSerial input = case input of
 
 
 
+
+
+
 {-
 replaceVChanSerial :: Value -> IO Value
 replaceVChanSerial input = case input of
