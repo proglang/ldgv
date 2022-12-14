@@ -271,7 +271,7 @@ GType : gunit {GUnit}
       | gstring {GString}
 
 Messages : nintroduce '(' String ')' {Introduce $3}
-         | nintroduceclient '(' String ')' '(' String ')' {IntroduceClient $3 $6}
+         | nintroduceclient '(' String ')' '(' String ')' '(' Type ')' {IntroduceClient $3 $6 $9}
          | nintroduceserver '(' String ')' {IntroduceServer $3}
          | nnewvalue '(' String ')''(' Values ')' {NewValue $3 $6}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}

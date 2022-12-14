@@ -40,7 +40,7 @@ class Serializable a where
 instance Serializable Messages where
     serialize = \case
         Introduce p -> serializeLabeledEntry "NIntroduce" p
-        IntroduceClient p port -> serializeLabeledEntryMulti "NIntroduceClient" p $ sLast port
+        IntroduceClient p port t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sLast t
         IntroduceServer p -> serializeLabeledEntry "NIntroduceServer" p
         NewValue p v -> serializeLabeledEntryMulti "NNewValue" p $ sLast v
         SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs

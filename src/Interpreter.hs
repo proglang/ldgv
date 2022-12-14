@@ -222,7 +222,7 @@ eval = \case
             portVal <- interpret' e2
             case portVal of
               VInt port -> do
-                liftIO $ NClient.initialConnect networkconmapmvar address (show port) ownport
+                liftIO $ NClient.initialConnect networkconmapmvar address (show port) ownport t
               _ -> throw $ NotAnExpectedValueException "VInt" portVal
           _ -> throw $ NotAnExpectedValueException "VString" addressVal
       _ -> throw $ NotAnExpectedValueException "VServerSocket" serversocket

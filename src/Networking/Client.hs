@@ -21,6 +21,7 @@ import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
 import Control.Exception
 import GHC.Exception
+import qualified Syntax
 
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
@@ -84,8 +85,8 @@ printConErr :: String -> String -> IOException -> IO ()
 printConErr hostname port err = putStrLn $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
 
 
-initialConnect :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> IO Value
-initialConnect mvar hostname port ownport= do
+initialConnect :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> Syntax.Type -> IO Value
+initialConnect mvar hostname port ownport syntype= do
     let hints = defaultHints {
                 addrFlags = []
               , addrSocketType = Stream
@@ -97,7 +98,7 @@ initialConnect mvar hostname port ownport= do
     handle <- NC.getHandle clientsocket
     ownuserid <- UserID.newRandomUserID
     putStrLn "Client connected: Introducing"
-    NC.sendMessage (Messages.IntroduceClient ownuserid ownport) handle
+    NC.sendMessage (Messages.IntroduceClient ownuserid ownport syntype) handle
     introductionanswer <- NC.waitForServerIntroduction handle
     putStrLn "Finished Handshake"
     hClose handle
