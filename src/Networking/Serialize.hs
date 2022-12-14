@@ -50,7 +50,7 @@ instance Serializable Messages where
 -- instance (Serializable a => Serializable (NCon.NetworkConnection a)) where
 instance Serializable (NCon.NetworkConnection Value) where
   serialize con = do 
-    constate <- MVar.takeMVar $ NCon.ncConnectionState con
+    constate <- MVar.readMVar $ NCon.ncConnectionState con
     (readList, readUnread) <- DC.serializeConnection $ NCon.ncRead con
     (writeList, writeUnread) <- DC.serializeConnection $ NCon.ncWrite con
 

@@ -42,7 +42,7 @@ sendMessage networkconnection val = do
             putStrLn "After connect"
             handle <- NC.getHandle clientsocket
             putStrLn "Client connected: Sending Message"
-            valcleaned <- makeVChanSendable hostname port val
+            valcleaned <- makeVChanSendable hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
             NC.sendMessage (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) handle
             DC.writeMessage (ncWrite networkconnection) valcleaned
             putStrLn "Disabling Chans"

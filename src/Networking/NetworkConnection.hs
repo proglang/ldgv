@@ -1,6 +1,7 @@
 module Networking.NetworkConnection where
 
 import Networking.DirectionalConnection
+import qualified Data.Maybe
 import qualified Control.Concurrent.MVar as MVar
 
 data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: Maybe String, ncOwnUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState}
@@ -9,6 +10,7 @@ data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a,
 data ConnectionState = Connected {csHostname :: String, csPort :: String}
                      | Disconnected
                      | Emulated
+                     | RedirectRequest {csHostname :: String, csPort :: String} -- Asks to redirect to this connection
     deriving Eq
 
 
@@ -39,3 +41,14 @@ newEmulatedConnection r w = do
     connectionstate <- MVar.newEmptyMVar 
     MVar.putMVar connectionstate Emulated
     return $ NetworkConnection r w Nothing Nothing connectionstate
+
+serializeNetworkConnection :: NetworkConnection a -> IO ([a], Int, [a], Int, String, String, String, String)
+serializeNetworkConnection nc = do
+    constate <- MVar.readMVar $ ncConnectionState nc
+    (readList, readUnread) <- serializeConnection $ ncRead nc
+    (writeList, writeUnread) <- serializeConnection $ ncWrite nc
+    (address, port) <- case constate of
+        Connected address port -> return (address, port)
+        RedirectRequest address port -> return (address, port)
+        _ -> return ("", "")
+    return (readList, readUnread, writeList, writeUnread, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, "", "")

@@ -24,8 +24,8 @@ import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.DirectionalConnection as DC
 import Networking.DirectionalConnection (DirectionalConnection)
-import Networking.Serialize (Serializable)
-import Networking.NetworkConnection (createNetworkConnection, createNetworkConnectionS)
+import Networking.Serialize (Serializable (serialize))
+import Networking.NetworkConnection (createNetworkConnection, createNetworkConnectionS, serializeNetworkConnection)
 
 newtype ServerException = NoIntroductionException String
     deriving Eq
@@ -117,6 +117,43 @@ replaceVChanSerial input = case input of
         replaceVChanSerialPEnv (x:xs) = do 
             newval <- replaceVChanSerial $ snd x
             rest <- replaceVChanSerialPEnv xs
+            return $ (fst x, newval):rest
+
+replaceVChan :: Value -> IO Value
+replaceVChan input = case input of
+    VSend v -> do
+        nv <- replaceVChan v
+        return $ VSend nv
+    VPair v1 v2 -> do 
+        nv1 <- replaceVChan v1
+        nv2 <- replaceVChan v2
+        return $ VPair nv1 nv2
+    VFunc penv a b -> do
+        newpenv <- replaceVChanPEnv penv
+        return $ VFunc newpenv a b
+    VDynCast v g -> do 
+        nv <- replaceVChan v
+        return $ VDynCast nv g
+    VFuncCast v a b -> do 
+        nv <- replaceVChan v
+        return $ VFuncCast nv a b
+    VRec penv a b c d -> do 
+        newpenv <- replaceVChanPEnv penv
+        return $ VRec newpenv a b c d
+    VNewNatRec penv a b c d e f g -> do 
+        newpenv <- replaceVChanPEnv penv
+        return $ VNewNatRec newpenv a b c d e f g
+    VChan nc -> do 
+        putStrLn "Attempting to serialize a VChan"
+        (r, rl, w, wl, pid, oid, h, p) <- serializeNetworkConnection nc
+        return $ VChanSerial (r, rl) (w, wl) pid oid (h, p)
+    _ -> return input
+    where
+        replaceVChanPEnv :: [(String, Value)] -> IO [(String, Value)]
+        replaceVChanPEnv [] = return []
+        replaceVChanPEnv (x:xs) = do 
+            newval <- replaceVChan $ snd x
+            rest <- replaceVChanPEnv xs
             return $ (fst x, newval):rest
 
 -- openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
