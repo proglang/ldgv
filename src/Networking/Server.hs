@@ -3,12 +3,12 @@ module Networking.Server where
 
 import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.Chan as Chan
-import Control.Concurrent (forkIO)
 import Control.Monad.IO.Class
 import qualified Data.Map as Map
 import qualified Data.Maybe
 import GHC.IO.Handle
 import Network.Socket
+import Control.Concurrent
 
 import Networking.Messages
 import qualified ValueParsing.ValueTokens as VT
@@ -169,10 +169,11 @@ findFittingClientMaybe :: MVar.MVar [(String, Syntax.Type)] -> Syntax.Type -> IO
 findFittingClientMaybe clientlist desiredType = do
     clientlistraw <- MVar.takeMVar clientlist
     let newclientlistrawAndReturn = fFCMRaw clientlistraw desiredType
-    putStrLn "findFittingClientMaybe:"
-    print clientlistraw
-    putStrLn $ "Desired Type: " ++ show desiredType
+    -- putStrLn "findFittingClientMaybe:"
+    -- print clientlistraw
+    -- putStrLn $ "Desired Type: " ++ show desiredType
     -- For some reason these prints are needed for it to work. Probably some timing thing
+    -- Also we send the name of the type but not the type itself, this needs to change
     MVar.putMVar clientlist $ fst newclientlistrawAndReturn
     return $ snd newclientlistrawAndReturn
     where
@@ -188,4 +189,6 @@ findFittingClient clientlist desiredType = do
     mbystring <- findFittingClientMaybe clientlist desiredType
     case mbystring of
         Just userid -> return userid
-        Nothing -> findFittingClient clientlist desiredType
+        Nothing -> do 
+            threadDelay 10000 -- Sleep for 10 ms to not hammer the CPU
+            findFittingClient clientlist desiredType
