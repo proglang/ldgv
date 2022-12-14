@@ -189,9 +189,9 @@ eval = \case
     val <- interpret' e
     case val of
       VInt port -> do
-        (mvar, chan) <- liftIO $ NS.createServerNew port
+        (mvar, clientlist) <- liftIO $ NS.createServerNew port
         liftIO $ C.traceIO "Socket created"
-        return $ VServerSocket mvar chan $ show port
+        return $ VServerSocket mvar clientlist $ show port
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
   Accept e t -> do
@@ -199,8 +199,9 @@ eval = \case
 
     val <- interpret' e
     case val of
-      VServerSocket mvar chan ownport -> do
-        newuser <- liftIO $ Chan.readChan chan
+      VServerSocket mvar clientlist ownport -> do
+        -- newuser <- liftIO $ Chan.readChan chan
+        newuser <- liftIO $ NS.findFittingClient clientlist t
         liftIO $ C.traceIO "Client accepted"
         networkconnectionmap <- liftIO $ MVar.readMVar mvar
         case Map.lookup newuser networkconnectionmap of

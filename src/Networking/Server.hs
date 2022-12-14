@@ -16,6 +16,7 @@ import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.Common as NC
 import qualified Networking.Serialize as NSerialize
 import ProcessEnvironment
+import qualified Syntax
 
 import Control.Exception
 import qualified Networking.UserID as UserID
@@ -27,8 +28,9 @@ import Networking.NetworkConnection
 import qualified Control.Concurrent as MVar
 import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (ncConnectionState, ncOwnUserID))
 import Networking.Messages (Messages(Introduce, RequestSync, SyncIncoming))
+import qualified Control.Concurrent as MVar
 
-createServerNew :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), Chan.Chan String)
+createServerNew :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
 createServerNew port = do
     serverid <- UserID.newRandomUserID
     sock <- liftIO $ socket AF_INET Stream 0
@@ -38,28 +40,30 @@ createServerNew port = do
           , addrSocketType = Stream
     }
     addrInfo <- liftIO $ getAddrInfo (Just hints) Nothing $ Just $ show port
-        
+
     liftIO $ bind sock $ addrAddress $ head addrInfo
     liftIO $ listen sock 2
     mvar <- MVar.newEmptyMVar
     MVar.putMVar mvar Map.empty
-    chan <- Chan.newChan
-    forkIO $ acceptClientsNew mvar chan sock
-    return (mvar, chan)
+    -- chan <- Chan.newChan
+    clientlist <- MVar.newEmptyMVar
+    MVar.putMVar clientlist []
+    forkIO $ acceptClientsNew mvar clientlist sock
+    return (mvar, clientlist)
 
-acceptClientsNew :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> Chan.Chan String -> Socket -> IO ()
-acceptClientsNew mvar chan socket = do
+acceptClientsNew :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> IO ()
+acceptClientsNew mvar clientlist socket = do
     putStrLn "Waiting for clients"
     clientsocket <- accept socket
     putStrLn "Accepted new client"
 
-    forkIO $ acceptClientNew mvar chan clientsocket
-    acceptClientsNew mvar chan socket
+    forkIO $ acceptClientNew mvar clientlist clientsocket
+    acceptClientsNew mvar clientlist socket
 
 
 -- In the nothing case we shoud wait a few seconds for other messages to resolve the issue
-acceptClientNew :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> Chan.Chan String -> (Socket, SockAddr) -> IO ()
-acceptClientNew mvar chan clientsocket = do
+acceptClientNew :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> IO ()
+acceptClientNew mvar clientlist clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
     message <- hGetLine hdl
     putStrLn $ "Recieved message:" ++ message
@@ -92,13 +96,16 @@ acceptClientNew mvar chan clientsocket = do
                             let newnetworkconnectionmap = Map.insert userid networkconnection networkconnectionmap
                             MVar.putMVar mvar newnetworkconnectionmap
                             NC.sendMessage (Introduce serverid) hdl -- Answer with own serverid
-                            Chan.writeChan chan userid -- Adds the new user to the users that can be accepted by the server
+                            -- Chan.writeChan chan userid 
+                            -- Adds the new user to the users that can be accepted by the server
+                            clientlistraw <- MVar.takeMVar clientlist
+                            MVar.putMVar clientlist $ clientlistraw ++ [(userid, syntype)]
 
-                        _ -> do 
+                        _ -> do
                             putStrLn "Error during recieving a networkmessage: only ipv4 is currently supported!"
                             MVar.putMVar mvar networkconnectionmap
 
-            
+
             ChangePartnerAddress userid hostname port -> do
                 networkconnectionmap <- MVar.takeMVar mvar
                 case Map.lookup userid networkconnectionmap of
@@ -139,7 +146,7 @@ acceptClientNew mvar chan clientsocket = do
 
 
 hostaddressTypeToString :: HostAddress -> String
-hostaddressTypeToString hostaddress = do 
+hostaddressTypeToString hostaddress = do
     let (a, b, c, d) = hostAddressToTuple hostaddress
     show a ++ "." ++ show b ++ "."++ show c ++ "." ++ show d
 
@@ -147,13 +154,38 @@ waitForIntroduction :: Handle -> String -> IO String
 waitForIntroduction handle serverid = do
     message <- hGetLine handle
     case VT.runAlex message VG.parseMessages of
-        Left err -> do 
+        Left err -> do
             putStrLn $ "Error during client introduction: "++err
             throw $ NC.NoIntroductionException message
         Right deserial -> case deserial of
             Introduce partner -> do
                 NC.sendMessage (Messages.Introduce serverid) handle
                 return partner
-            _ -> do 
+            _ -> do
                 putStrLn $ "Error during client introduction, wrong message: "++ message
                 throw $ NC.NoIntroductionException message
+
+findFittingClientMaybe :: MVar.MVar [(String, Syntax.Type)] -> Syntax.Type -> IO (Maybe String)
+findFittingClientMaybe clientlist desiredType = do
+    clientlistraw <- MVar.takeMVar clientlist
+    let newclientlistrawAndReturn = fFCMRaw clientlistraw desiredType
+    putStrLn "findFittingClientMaybe:"
+    print clientlistraw
+    putStrLn $ "Desired Type: " ++ show desiredType
+    -- For some reason these prints are needed for it to work. Probably some timing thing
+    MVar.putMVar clientlist $ fst newclientlistrawAndReturn
+    return $ snd newclientlistrawAndReturn
+    where
+        fFCMRaw :: [(String, Syntax.Type)] -> Syntax.Type -> ([(String, Syntax.Type)], Maybe String)
+        fFCMRaw [] _ = ([], Nothing)
+        fFCMRaw (x:xs) desiredtype = if snd x == Syntax.dualof desiredtype then (xs, Just $ fst x) else do
+            let nextfFCMRaw = fFCMRaw xs desiredtype
+            (x:(fst nextfFCMRaw), snd nextfFCMRaw)
+
+-- This halts until a fitting client is found
+findFittingClient :: MVar.MVar [(String, Syntax.Type)] -> Syntax.Type -> IO String
+findFittingClient clientlist desiredType = do
+    mbystring <- findFittingClientMaybe clientlist desiredType
+    case mbystring of
+        Just userid -> return userid
+        Nothing -> findFittingClient clientlist desiredType

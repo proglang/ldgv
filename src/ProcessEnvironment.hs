@@ -63,7 +63,7 @@ data Value
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,α,Π(x:A)A') => (ρ,α,Π(x:B)B'))
   | VRec PEnv String String Exp Exp
   | VNewNatRec PEnv String String String Type Exp String Exp
-  | VServerSocket (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) (C.Chan String) String
+  | VServerSocket (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) (MVar.MVar [(String, Type)]) String
                                                                                               -- Own Port Number
   deriving Eq
 
