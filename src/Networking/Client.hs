@@ -22,6 +22,7 @@ import qualified Control.Concurrent as MVar
 import Control.Exception
 import GHC.Exception
 import qualified Syntax
+import qualified Networking.NetworkConnection as NCon
 
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
@@ -42,9 +43,13 @@ sendMessage networkconnection val = do
             putStrLn "After connect"
             handle <- NC.getHandle clientsocket
             putStrLn "Client connected: Sending Message"
-            valcleaned <- makeVChanSendable hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
+            -- valcleaned <- makeVChanSendable hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
+            valcleaned <- NC.replaceVChan val
             NC.sendMessage (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) handle
             DC.writeMessage (ncWrite networkconnection) valcleaned
+            putStrLn "Sending message to old communication partner"
+            sendVChanMessages hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
+
             putStrLn "Disabling Chans"
             disableVChans val -- Disables all sent VChans for the sending party
             putStrLn "Chans disabled"
@@ -90,8 +95,7 @@ initialConnect mvar hostname port ownport syntype= do
     let hints = defaultHints {
                 addrFlags = []
               , addrSocketType = Stream
-            }
-    networkconnectionmap <- MVar.takeMVar mvar    
+            }   
     addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
     clientsocket <- NC.openSocketNC $ head addrInfo
     connect clientsocket $ addrAddress $ head addrInfo
@@ -104,12 +108,48 @@ initialConnect mvar hostname port ownport syntype= do
     hClose handle
             
     newConnection <- newNetworkConnection introductionanswer ownuserid hostname port
+    networkconnectionmap <- MVar.takeMVar mvar 
     let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
     MVar.putMVar mvar newNetworkconnectionmap
     return $ VChan newConnection
 
 -- openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
 
+sendVChanMessages :: String -> String -> Value -> IO ()
+sendVChanMessages newhost newport input = case input of
+    VSend v -> sendVChanMessages newhost newport v
+    VPair v1 v2 -> do 
+        sendVChanMessages newhost newport v1
+        sendVChanMessages newhost newport v2
+    VFunc penv a b -> sendVChanMessagesPEnv newhost newport penv
+    VDynCast v g -> sendVChanMessages newhost newport v
+    VFuncCast v a b -> sendVChanMessages newhost newport v
+    VRec penv a b c d -> sendVChanMessagesPEnv newhost newport penv
+    VNewNatRec penv a b c d e f g -> sendVChanMessagesPEnv newhost newport penv
+    VChan nc -> do 
+        putStrLn "Attempting to sending ChangePartnerAddress"
+        -- connectionstate <- MVar.readMVar $ ncConnectionState nc
+        -- putStrLn "Aquired connectionstate"
+        sendNetworkMessage nc (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport)
+        -- MVar.putMVar (ncConnectionState nc) Disconnected
+        -- _ <- MVar.takeMVar $ ncConnectionState nc
+        -- MVar.putMVar (ncConnectionState nc) Disconnected
+        putStrLn "Sent ChangePartnerAddress"
+        _ <- MVar.takeMVar $ ncConnectionState nc
+        putStrLn "Got connectionstate - Changeing to redirect"
+        MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest newhost newport
+        putStrLn "Set RedirectRequest"
+    _ -> return ()
+    where
+        sendVChanMessagesPEnv :: String -> String -> [(String, Value)] -> IO ()
+        sendVChanMessagesPEnv _ _ [] = return ()
+        sendVChanMessagesPEnv newhost newport (x:xs) = do 
+            sendVChanMessages newhost newport $ snd x
+            sendVChanMessagesPEnv newhost newport xs
+
+
+
+{-
 makeVChanSendable :: String -> String -> Value -> IO Value
 makeVChanSendable newhost newport input = case input of
     VSend v -> do
@@ -152,3 +192,4 @@ makeVChanSendable newhost newport input = case input of
             newval <- makeVChanSendable newhost newport $ snd x
             rest <- makeVChanSendablePEnv newhost newport xs
             return $ (fst x, newval):rest
+-}

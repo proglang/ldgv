@@ -173,10 +173,14 @@ eval = \case
     return $ VPair (VChan nc1) $ VChan nc2
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
+    liftIO $ putStrLn "Recieving value"
     interpret' e >>= \v@(VChan ci) -> do
       let dcRead = NCon.ncRead ci
+      liftIO $ putStrLn "Trying to read new value"
       valunclean <- liftIO $ DC.readUnreadMessage dcRead
+      liftIO $ putStrLn "Read new value"
       val <- liftIO $ NC.replaceVChanSerial valunclean
+      liftIO $ putStrLn "Replaced Serial"
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
       -- Disable the old channel and get a new one
@@ -201,12 +205,15 @@ eval = \case
     case val of
       VServerSocket mvar clientlist ownport -> do
         -- newuser <- liftIO $ Chan.readChan chan
-        newuser <- liftIO $ NS.findFittingClient clientlist t
+        liftIO $ C.traceIO "Searching for correct communicationpartner"
+        newuser <- liftIO $ NS.findFittingClient clientlist t -- There is still an issue
         liftIO $ C.traceIO "Client accepted"
         networkconnectionmap <- liftIO $ MVar.readMVar mvar
         case Map.lookup newuser networkconnectionmap of
           Nothing -> throw $ CommunicationPartnerNotFoundException newuser
-          Just networkconnection -> return $ VChan networkconnection
+          Just networkconnection -> do 
+            liftIO $ C.traceIO "Client successfully accepted!"
+            return $ VChan networkconnection
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e0 t e1 e2-> do

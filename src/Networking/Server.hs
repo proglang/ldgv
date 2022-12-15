@@ -72,16 +72,16 @@ acceptClientNew mvar clientlist clientsocket = do
         Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
         Right deserialmessages -> case deserialmessages of
             NewValue userid val -> do
-                networkconnectionmap <- MVar.takeMVar mvar
+                networkconnectionmap <- MVar.readMVar mvar
                 case Map.lookup userid networkconnectionmap of
                     Just networkconnection -> do  -- This means we habe already spoken to this client
                         -- valCleaned <- NC.replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
                         -- ND.writeMessage (ncRead networkconnection) valCleaned
                         ND.writeMessage (ncRead networkconnection) val
-                        MVar.putMVar mvar networkconnectionmap
+                        -- MVar.putMVar mvar networkconnectionmap
                     Nothing -> do
                         putStrLn "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
-                        MVar.putMVar mvar networkconnectionmap
+                        -- MVar.putMVar mvar networkconnectionmap
             IntroduceClient userid clientport syntype-> do
                 networkconnectionmap <- MVar.takeMVar mvar
                 case Map.lookup userid networkconnectionmap of
@@ -122,23 +122,25 @@ acceptClientNew mvar clientlist clientsocket = do
 
                     Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
             RequestSync userid -> do
-                networkconnectionmap <- MVar.takeMVar mvar
+                networkconnectionmap <- MVar.readMVar mvar
                 case Map.lookup userid networkconnectionmap of
                     Just networkconnection -> do  -- Change to current network address
-                        MVar.putMVar mvar networkconnectionmap
+                        -- MVar.putMVar mvar networkconnectionmap
                         -- Sync and request sync
                         writevals <- ND.allMessages $ ncWrite networkconnection
                         NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
 
-                    Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
+                    -- Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
+                    Nothing -> return ()
             SyncIncoming userid values -> do
-                networkconnectionmap <- MVar.takeMVar mvar
+                networkconnectionmap <- MVar.readMVar mvar
                 case Map.lookup userid networkconnectionmap of
                     Just networkconnection -> do  -- Change to current network address
-                        MVar.putMVar mvar networkconnectionmap
+                        -- MVar.putMVar mvar networkconnectionmap
                         ND.syncMessages (ncRead networkconnection) values
 
-                    Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
+                    -- Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
+                    Nothing -> return () 
             _ -> do
                 serial <- NSerialize.serialize deserialmessages
                 putStrLn $ "Error unsupported networkmessage: "++ serial

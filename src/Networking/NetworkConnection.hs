@@ -51,4 +51,4 @@ serializeNetworkConnection nc = do
         Connected address port -> return (address, port)
         RedirectRequest address port -> return (address, port)
         _ -> return ("", "")
-    return (readList, readUnread, writeList, writeUnread, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, "", "")
+    return (readList, readUnread, writeList, writeUnread, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, Data.Maybe.fromMaybe "" $ ncOwnUserID nc, address, port)
