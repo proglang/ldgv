@@ -29,9 +29,11 @@ import qualified Control.Concurrent as MVar
 import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (ncConnectionState, ncOwnUserID))
 import Networking.Messages (Messages(Introduce, RequestSync, SyncIncoming))
 import qualified Control.Concurrent as MVar
+import qualified Control.Concurrent as MVar
+import qualified Networking.Common as NC
 
-createServerNew :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
-createServerNew port = do
+createServer :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
+createServer port = do
     serverid <- UserID.newRandomUserID
     sock <- liftIO $ socket AF_INET Stream 0
     liftIO $ setSocketOption sock ReuseAddr 1
@@ -48,103 +50,136 @@ createServerNew port = do
     -- chan <- Chan.newChan
     clientlist <- MVar.newEmptyMVar
     MVar.putMVar clientlist []
-    forkIO $ acceptClientsNew mvar clientlist sock
+    forkIO $ acceptClients mvar clientlist sock
     return (mvar, clientlist)
 
-acceptClientsNew :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> IO ()
-acceptClientsNew mvar clientlist socket = do
+acceptClients :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> IO ()
+acceptClients mvar clientlist socket = do
     putStrLn "Waiting for clients"
     clientsocket <- accept socket
     putStrLn "Accepted new client"
 
-    forkIO $ acceptClientNew mvar clientlist clientsocket
-    acceptClientsNew mvar clientlist socket
+    forkIO $ acceptClient mvar clientlist clientsocket
+    acceptClients mvar clientlist socket
 
 
 -- In the nothing case we shoud wait a few seconds for other messages to resolve the issue
-acceptClientNew :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> IO ()
-acceptClientNew mvar clientlist clientsocket = do
+acceptClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> IO ()
+acceptClient mvar clientlist clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
     message <- hGetLine hdl
     putStrLn $ "Recieved message:" ++ message
     case VT.runAlex message VG.parseMessages of
     -- case VT.runAlex message VG.parseValues of
         Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
-        Right deserialmessages -> case deserialmessages of
-            NewValue userid val -> do
-                networkconnectionmap <- MVar.readMVar mvar
-                case Map.lookup userid networkconnectionmap of
-                    Just networkconnection -> do  -- This means we habe already spoken to this client
-                        -- valCleaned <- NC.replaceVChanSerial val -- Replaces VChanSerial with VChans and their appropriate connection
-                        -- ND.writeMessage (ncRead networkconnection) valCleaned
-                        ND.writeMessage (ncRead networkconnection) val
-                        -- MVar.putMVar mvar networkconnectionmap
-                    Nothing -> do
-                        putStrLn "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
-                        -- MVar.putMVar mvar networkconnectionmap
-            IntroduceClient userid clientport syntype-> do
-                networkconnectionmap <- MVar.takeMVar mvar
-                case Map.lookup userid networkconnectionmap of
-                    Just networkconnection -> do
-                        putStrLn "Error during recieving a networkmessage: Already introduced to this client!"
-                        MVar.putMVar mvar networkconnectionmap
-                    Nothing ->  case snd clientsocket of -- This client is new
-                        SockAddrInet port hostname -> do
-                            serverid <- UserID.newRandomUserID
-                            -- networkconnection <- newNetworkConnection userid serverid (show hostname) clientport
-                            networkconnection <- newNetworkConnection userid serverid (hostaddressTypeToString hostname) clientport
-                            let newnetworkconnectionmap = Map.insert userid networkconnection networkconnectionmap
-                            MVar.putMVar mvar newnetworkconnectionmap
-                            NC.sendMessage (Introduce serverid) hdl -- Answer with own serverid
-                            -- Chan.writeChan chan userid 
-                            -- Adds the new user to the users that can be accepted by the server
-                            clientlistraw <- MVar.takeMVar clientlist
-                            MVar.putMVar clientlist $ clientlistraw ++ [(userid, syntype)]
-
-                        _ -> do
-                            putStrLn "Error during recieving a networkmessage: only ipv4 is currently supported!"
-                            MVar.putMVar mvar networkconnectionmap
-
-
-            ChangePartnerAddress userid hostname port -> do
-                networkconnectionmap <- MVar.takeMVar mvar
-                case Map.lookup userid networkconnectionmap of
-                    Just networkconnection -> do  -- Change to current network address
-                        let constate = ncConnectionState networkconnection
-                        _ <- MVar.takeMVar constate
-                        MVar.putMVar constate $ Networking.NetworkConnection.Connected hostname port
-                        MVar.putMVar mvar networkconnectionmap
-
-                        -- Sync and request sync
-                        NClient.sendNetworkMessage networkconnection (RequestSync $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection)
-                        writevals <- ND.allMessages $ ncWrite networkconnection
-                        NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
-
-                    Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
-            RequestSync userid -> do
-                networkconnectionmap <- MVar.readMVar mvar
-                case Map.lookup userid networkconnectionmap of
-                    Just networkconnection -> do  -- Change to current network address
-                        -- MVar.putMVar mvar networkconnectionmap
-                        -- Sync and request sync
-                        writevals <- ND.allMessages $ ncWrite networkconnection
-                        NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
-
-                    -- Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
-                    Nothing -> return ()
-            SyncIncoming userid values -> do
-                networkconnectionmap <- MVar.readMVar mvar
-                case Map.lookup userid networkconnectionmap of
-                    Just networkconnection -> do  -- Change to current network address
-                        -- MVar.putMVar mvar networkconnectionmap
-                        ND.syncMessages (ncRead networkconnection) values
-
-                    -- Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
-                    Nothing -> return () 
-            _ -> do
-                serial <- NSerialize.serialize deserialmessages
-                putStrLn $ "Error unsupported networkmessage: "++ serial
+        Right deserialmessages -> do 
+            let userid = getPartnerID deserialmessages
+            netcon <- MVar.takeMVar mvar
+            redirectRequest <- checkRedirectRequest netcon userid
+            MVar.putMVar mvar netcon
+            if redirectRequest then sendRedirect hdl netcon userid else do 
+                case deserialmessages of
+                    NewValue userid val -> do
+                        handleNewValue mvar userid val
+                    IntroduceClient userid clientport syntype-> do
+                        handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
+                    ChangePartnerAddress userid hostname port -> do
+                        handleChangePartnerAddress mvar userid hostname port
+                    RequestSync userid -> do
+                        handleRequestSync mvar userid
+                    SyncIncoming userid values -> do
+                        handleSyncIncoming mvar userid values
+                    _ -> do
+                        serial <- NSerialize.serialize deserialmessages
+                        putStrLn $ "Error unsupported networkmessage: "++ serial
+                NC.sendMessage Messages.Okay hdl
     hClose hdl
+
+checkRedirectRequest :: Map.Map String (NetworkConnection Value) -> String -> IO Bool
+checkRedirectRequest ncmap userid = case Map.lookup userid ncmap of
+    Nothing -> return False
+    Just networkconnection -> do
+        constate <- MVar.readMVar $ ncConnectionState networkconnection 
+        case constate of
+            RedirectRequest _ _ -> return True
+            _ -> return False
+
+
+sendRedirect ::  Handle -> Map.Map String (NetworkConnection Value) -> String -> IO ()
+sendRedirect handle ncmap userid = case Map.lookup userid ncmap of
+    Nothing -> return ()
+    Just networkconnection -> do
+        constate <- MVar.readMVar $ ncConnectionState networkconnection 
+        case constate of
+            RedirectRequest host port -> NC.sendMessage (Messages.Redirect host port) handle
+            _ -> return ()
+
+
+
+handleNewValue :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Value -> IO ()
+handleNewValue mvar userid val = do
+    networkconnectionmap <- MVar.readMVar mvar
+    case Map.lookup userid networkconnectionmap of
+        Just networkconnection -> do
+            ND.writeMessage (ncRead networkconnection) val
+        Nothing -> do
+            putStrLn "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
+
+handleIntroduceClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Syntax.Type -> IO ()
+handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype = do
+    networkconnectionmap <- MVar.takeMVar mvar
+    case Map.lookup userid networkconnectionmap of
+        Just networkconnection -> do
+            putStrLn "Error during recieving a networkmessage: Already introduced to this client!"
+            MVar.putMVar mvar networkconnectionmap
+        Nothing ->  case snd clientsocket of -- This client is new
+            SockAddrInet port hostname -> do
+                serverid <- UserID.newRandomUserID
+                networkconnection <- newNetworkConnection userid serverid (hostaddressTypeToString hostname) clientport
+                let newnetworkconnectionmap = Map.insert userid networkconnection networkconnectionmap
+                MVar.putMVar mvar newnetworkconnectionmap
+                NC.sendMessage (Introduce serverid) hdl -- Answer with own serverid
+                -- Adds the new user to the users that can be accepted by the server
+                clientlistraw <- MVar.takeMVar clientlist
+                MVar.putMVar clientlist $ clientlistraw ++ [(userid, syntype)]
+
+            _ -> do
+                putStrLn "Error during recieving a networkmessage: only ipv4 is currently supported!"
+                MVar.putMVar mvar networkconnectionmap
+
+handleChangePartnerAddress :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> IO ()
+handleChangePartnerAddress mvar userid hostname port = do
+    networkconnectionmap <- MVar.takeMVar mvar
+    case Map.lookup userid networkconnectionmap of
+        Just networkconnection -> do  -- Change to current network address
+            let constate = ncConnectionState networkconnection
+            _ <- MVar.takeMVar constate
+            MVar.putMVar constate $ Networking.NetworkConnection.Connected hostname port
+            MVar.putMVar mvar networkconnectionmap
+
+            -- Sync and request sync
+            NClient.sendNetworkMessage networkconnection (RequestSync $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection)
+            writevals <- ND.allMessages $ ncWrite networkconnection
+            NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
+
+        Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
+
+handleRequestSync :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> IO ()
+handleRequestSync mvar userid = do
+    networkconnectionmap <- MVar.readMVar mvar
+    case Map.lookup userid networkconnectionmap of
+        Just networkconnection -> do  -- Change to current network address
+            writevals <- ND.allMessages $ ncWrite networkconnection
+            NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
+        othing -> return ()
+
+handleSyncIncoming :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> [Value] -> IO ()
+handleSyncIncoming mvar userid values = do
+    networkconnectionmap <- MVar.readMVar mvar
+    case Map.lookup userid networkconnectionmap of
+        Just networkconnection -> do  -- Change to current network address
+            ND.syncMessages (ncRead networkconnection) values
+        Nothing -> return () 
 
 
 hostaddressTypeToString :: HostAddress -> String

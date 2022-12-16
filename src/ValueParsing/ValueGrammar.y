@@ -1,5 +1,5 @@
 {
-module ValueParsing.ValueGrammar (parseValues, parseMessages) where
+module ValueParsing.ValueGrammar (parseValues, parseMessages, parseResponses) where
 
 import Control.Monad
 import qualified Data.List as List
@@ -23,6 +23,7 @@ import Networking.Messages
 
 %name parseValues Values
 %name parseMessages Messages
+%name parseResponses Responses
 -- %name parseSStringTypeElement SStringTypeElement
 -- %name parseSStringTypeElements SStringTypeElements
 -- %name parseSStringTypeArray SStringTypeArray
@@ -120,6 +121,8 @@ import Networking.Messages
     nsyncincoming { T _ T.NSyncIncoming }
     nrequestsync  { T _ T.NRequestSync }
     nchangepartneraddress {T _ T.NChangePartnerAddress }
+    nredirect     { T _ T.NRedirect}
+    nokay         { T _ T.NOkay}
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -277,6 +280,9 @@ Messages : nintroduce '(' String ')' {Introduce $3}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
          | nrequestsync '(' String ')' {RequestSync $3}
          | nchangepartneraddress '(' String ')' '(' String ')' '(' String ')' {ChangePartnerAddress $3 $6 $9}
+
+Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
+          | nokay {Okay}
 
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}

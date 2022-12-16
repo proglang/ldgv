@@ -52,6 +52,15 @@ recieveMessage handle = do
             return Nothing
         Right deserialmessage -> return $ Just deserialmessage
 
+recieveResponse :: Handle -> IO (Maybe Responses)
+recieveResponse handle = do
+    message <- hGetLine handle
+    case VT.runAlex message VG.parseResponses of
+        Left err -> do 
+            putStrLn $ "Error during recieving a networkmessage: "++err
+            return Nothing
+        Right deserialmessage -> return $ Just deserialmessage
+
 
 
 getHandle :: Socket -> IO Handle

@@ -37,6 +37,12 @@ instance Exception SerializationException
 class Serializable a where
   serialize :: a -> IO String
 
+
+instance Serializable Responses where
+  serialize = \case
+    Redirect host port -> serializeLabeledEntryMulti "NRedirect" host $ sLast port
+    Okay -> return "NOkay"
+
 instance Serializable Messages where
     serialize = \case
         Introduce p -> serializeLabeledEntry "NIntroduce" p

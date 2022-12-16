@@ -193,7 +193,7 @@ eval = \case
     val <- interpret' e
     case val of
       VInt port -> do
-        (mvar, clientlist) <- liftIO $ NS.createServerNew port
+        (mvar, clientlist) <- liftIO $ NS.createServer port
         liftIO $ C.traceIO "Socket created"
         return $ VServerSocket mvar clientlist $ show port
       _ -> throw $ NotAnExpectedValueException "VInt" val

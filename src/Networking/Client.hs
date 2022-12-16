@@ -23,68 +23,94 @@ import Control.Exception
 import GHC.Exception
 import qualified Syntax
 import qualified Networking.NetworkConnection as NCon
+import qualified Networking.Common as NC
 
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
-    let hints = defaultHints {
-                addrFlags = []
-              , addrSocketType = Stream
-            }
     connectionstate <- MVar.takeMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
-          catch ( do
-            putStrLn $ "Trying to connect to: " ++ hostname ++":"++port
-            addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-            --addrInfo <- getAddrInfo (Just hints) (Just "127.0.0.1") $ Just port  -- Thia is obviously only for testing
-            clientsocket <- NC.openSocketNC $ head addrInfo
-            putStrLn "Before connect"
-            connect clientsocket $ addrAddress $ head addrInfo
-            putStrLn "After connect"
-            handle <- NC.getHandle clientsocket
-            putStrLn "Client connected: Sending Message"
-            -- valcleaned <- makeVChanSendable hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
-            valcleaned <- NC.replaceVChan val
-            NC.sendMessage (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) handle
-            DC.writeMessage (ncWrite networkconnection) valcleaned
-            putStrLn "Sending message to old communication partner"
-            sendVChanMessages hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
-
-            putStrLn "Disabling Chans"
-            disableVChans val -- Disables all sent VChans for the sending party
-            putStrLn "Chans disabled"
-            hClose handle ) $ printConErr hostname port
+          catch (tryToSend networkconnection hostname port val) $ printConErr hostname port
         NCon.Disconnected -> putStrLn "Error when sending message: This channel is disconnected"
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
     MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
 
+tryToSend :: NetworkConnection Value -> String -> String -> Value -> IO ()
+tryToSend networkconnection hostname port val = do
+    let hints = defaultHints {
+            addrFlags = []
+            , addrSocketType = Stream
+        }
+    putStrLn $ "Trying to connect to: " ++ hostname ++":"++port
+    addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
+    --addrInfo <- getAddrInfo (Just hints) (Just "127.0.0.1") $ Just port  -- Thia is obviously only for testing
+    clientsocket <- NC.openSocketNC $ head addrInfo
+    -- putStrLn "Before connect"
+    connect clientsocket $ addrAddress $ head addrInfo
+    -- putStrLn "After connect"
+    handle <- NC.getHandle clientsocket
+    putStrLn "Client connected: Sending Message"
+    -- valcleaned <- makeVChanSendable hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
+    valcleaned <- NC.replaceVChan val
+    NC.sendMessage (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) handle
+    DC.writeMessage (ncWrite networkconnection) valcleaned
+    -- putStrLn "Sending message to old communication partner"
+    sendVChanMessages hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
+
+    -- putStrLn "Disabling Chans"
+    disableVChans val -- Disables all sent VChans for the sending party
+    -- putStrLn "Chans disabled"
+    putStrLn "Waiting for response"
+    mbyresponse <- NC.recieveResponse handle
+    hClose handle
+    case mbyresponse of
+        Just response -> case response of
+            Okay -> putStrLn "Message okay"
+            Redirect host port -> do 
+                putStrLn "Communication partner changed address, resending"
+                tryToSend networkconnection host port val
+        Nothing -> putStrLn "Error when recieving response"
+
+
+
 sendNetworkMessage :: NetworkConnection Value -> Messages -> IO ()
 sendNetworkMessage networkconnection message = do
-    let hints = defaultHints {
-                addrFlags = []
-              , addrSocketType = Stream
-            }
     connectionstate <- MVar.takeMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
-            catch ( do
-              putStrLn $ "Trying to connect to: " ++ hostname ++":"++port
-              addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-              --addrInfo <- getAddrInfo (Just hints) (Just "127.0.0.1") $ Just port  -- Thia is obviously only for testing
-              clientsocket <- NC.openSocketNC $ head addrInfo
-              putStrLn "Before connect"
-              connect clientsocket $ addrAddress $ head addrInfo
-              putStrLn "After connect"
-              handle <- NC.getHandle clientsocket
-              putStrLn "Client connected: Sending NetworkMessage"
-              NC.sendMessage message handle
-              hClose handle ) $ printConErr hostname port
+            catch ( tryToSendNetworkMessage networkconnection hostname port message ) $ printConErr hostname port
         NCon.Disconnected -> putStrLn "Error when sending message: This channel is disconnected"
         NCon.Emulated -> pure ()
     MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
-
+tryToSendNetworkMessage :: NetworkConnection Value -> String -> String -> Messages -> IO ()
+tryToSendNetworkMessage networkconnection hostname port message = do
+    let hints = defaultHints {
+                addrFlags = []
+              , addrSocketType = Stream
+            }
+    putStrLn $ "Trying to connect to: " ++ hostname ++":"++port
+    addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
+    --addrInfo <- getAddrInfo (Just hints) (Just "127.0.0.1") $ Just port  -- Thia is obviously only for testing
+    clientsocket <- NC.openSocketNC $ head addrInfo
+    putStrLn "Before connect"
+    connect clientsocket $ addrAddress $ head addrInfo
+    putStrLn "After connect"
+    handle <- NC.getHandle clientsocket
+    putStrLn "Client connected: Sending NetworkMessage"
+    NC.sendMessage message handle
+    
+    putStrLn "Waiting for response"
+    mbyresponse <- NC.recieveResponse handle
+    hClose handle
+    case mbyresponse of
+        Just response -> case response of
+            Okay -> putStrLn "Message okay"
+            Redirect host port -> do 
+                putStrLn "Communication partner changed address, resending"
+                tryToSendNetworkMessage networkconnection host port message
+        Nothing -> putStrLn "Error when recieving response"
 
 printConErr :: String -> String -> IOException -> IO ()
 printConErr hostname port err = putStrLn $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"

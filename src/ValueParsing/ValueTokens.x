@@ -134,6 +134,8 @@ tokens :-
   "NSyncIncoming"                       { tok $ const NSyncIncoming }
   "NRequestSync"                        { tok $ const NRequestSync }
   "NChangePartnerAddress"               { tok $ const NChangePartnerAddress }
+  "NRedirect"                           { tok $ const NRedirect }
+  "NOkay"                               { tok $ const NOkay }
 
   "Double:" $digit+ "." $digit+                   { tok $ Double . read . (drop 7) }
   "Int:" $digit+                               { tok $ Int . read . (drop 4)}
@@ -254,6 +256,8 @@ data Token
   | NSyncIncoming
   | NRequestSync
   | NChangePartnerAddress
+  | NRedirect
+  | NOkay
 
   | String String
   | Int Int
