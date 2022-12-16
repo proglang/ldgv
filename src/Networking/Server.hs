@@ -118,12 +118,13 @@ sendRedirect handle ncmap userid = case Map.lookup userid ncmap of
 
 handleNewValue :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Value -> IO ()
 handleNewValue mvar userid val = do
-    networkconnectionmap <- MVar.readMVar mvar
+    networkconnectionmap <- MVar.takeMVar mvar
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do
             ND.writeMessage (ncRead networkconnection) val
         Nothing -> do
             putStrLn "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
+    MVar.putMVar mvar networkconnectionmap
 
 handleIntroduceClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Syntax.Type -> IO ()
 handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype = do
