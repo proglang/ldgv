@@ -140,9 +140,9 @@ tokens :-
   "NRequestClose"                        { tok $ const NRequestClose }
   "NOkayClose"                               { tok $ const NOkayClose }
 
-  "Double:" $digit+ "." $digit+                   { tok $ Double . read . (drop 7) }
-  "Int:" $digit+                               { tok $ Int . read . (drop 4)}
-  "Integer:" $digit+                               { tok $ Integer . read . (drop 8)}
+  Double\:[\-]?[0-9]+[\.][0-9]+                  { tok $ Double . read . (drop 7) }
+  Int\:[\-]?[0-9]+                              { tok $ Int . read . (drop 4)}
+  Integer\:[\-]?[0-9]+                              { tok $ Integer . read . (drop 8)}
   String\:\"[^\"]*\"                            { tok $ String . (drop 7)}
   "Bool:False"                                  { tok $ Bool . ignoreArgument False}
   "Bool:True"                                   { tok $ Bool . ignoreArgument True}

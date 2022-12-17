@@ -1,0 +1,20 @@
+-- Simple example of Label-Dependent Session Types
+-- Interprets addition of two numbers
+
+type SendInt : ! ~ssn = !Int. !Int. Unit
+
+val send2 (c: SendInt) =
+    let x = ((send c) 1) in
+    let y = ((send x) 42) in
+    ()
+
+val add2 (c1: dualof SendInt) =
+    let <m, c2> = recv c1 in
+    let <n, c3> = recv c2 in
+    (m + n)
+
+val main : Unit
+val main =
+    let sock = (create 4343) in
+    let con = (connect sock SendInt "127.0.0.1" 4242 ) in  -- This cannot be localhost, since this might break on containerized images
+    send2 con

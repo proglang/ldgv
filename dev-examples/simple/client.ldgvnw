@@ -1,20 +1,50 @@
--- Simple example of Label-Dependent Session Types
--- Interprets addition of two numbers
+type End : ~unit = Unit
 
-type SendInt : ! ~ssn = !Int. !Int. Unit
 
-val send2 (c: SendInt) =
-    let x = ((send c) 1) in
-    let y = ((send x) 42) in
-    ()
+type EOS : ! ~un = {'EOS}
+type End : ! ~unit = Unit
 
-val add2 (c1: dualof SendInt) =
-    let <m, c2> = recv c1 in
-    let <n, c3> = recv c2 in
-    (m + n)
+type TClient : ! ~ssn =
+  !( l : {'neg, 'add})
+  case l of
+  { 'neg : !Int. ?Int. ?EOS. End
+  , 'add : !Int. !Int. ?Int. ?EOS. End
+  }
 
-val main : Unit
+type LClient : ! ~ssn =
+  !{'neg}. !Int. ?Int. ?EOS. End
+
+val lClient (d : TClient) (x : Int) : Int =
+    let d1 = (send d) 'neg in
+    let d2 = (send d1) x in
+    let <r,d3> = recv d2 in
+    let <xx,zz> = recv d3 in
+    let zzz = end zz in
+    r
+
+type TServer : ! ~ssn =
+  ? ( x : { 'neg, 'add })
+  case x of
+    { 'neg : ?Int. !Int. !EOS. End
+    , 'add : ?Int. ?Int. !Int. !EOS. End
+    }
+
+val lServer (c : TServer) : End =
+	let < l , c1 > = recv c in
+	let < x , c2 > = recv c1 in
+	case l of
+	{ 'neg :
+	  let c3 = send c2 (-x) in
+	  send c3 'EOS
+
+	, 'add :
+	  let < y , c3 > = recv c2 in
+	  let c4 = send c3 (x + y) in
+	  send c4 'EOS
+	}
+
+val main : Int
 val main =
     let sock = (create 4343) in
-    let con = (connect sock SendInt "127.0.0.1" 4242 ) in  -- This cannot be localhost, since this might break on containerized images
-    send2 con
+    let con = (connect sock TClient "127.0.0.1" 4242 ) in
+    ((lClient con) 42)
