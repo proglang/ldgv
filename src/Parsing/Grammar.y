@@ -39,6 +39,7 @@ import qualified Parsing.Tokens as T
     create  { T _ T.Create }
     connect { T _ T.Connect }
     accept  { T _ T.Accept }
+    end  { T _ T.End }
 
     -- for Binary Session Types; obsolete for Label Dependent ones
     select  { T _ T.Select }
@@ -94,7 +95,7 @@ import qualified Parsing.Tokens as T
 %nonassoc '>' '<'
 %left '+' '-' NEG POS
 %left '*' '/'
-%left send recv connect create accept
+%left send recv connect create accept end 
 %nonassoc APP
 
 
@@ -170,6 +171,7 @@ Exp : let var '=' Exp in Exp %prec LET { Let $2 $4 $6 }
     | send Exp %prec send   { Send $2 }
     | recv Exp %prec recv   { Recv $2 }
     | create Exp %prec create       { Create $2 }
+    | end Exp %prec end        { End $2 }
 --    | connect Exp Exp Exp Typ %prec connect { Connect $2 $3 $4 $5 }
 --    | connect Exp Typ Exp Exp %prec connect { Connect $2 $4 $5 $3}
     | connect Exp Typ Exp Exp %prec connect {Connect $2 $3 $4 $5}

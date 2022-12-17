@@ -73,8 +73,8 @@ disableOldVChan value = case value of
     constate <- MVar.newEmptyMVar 
     oldconstate <- MVar.takeMVar $ NCon.ncConnectionState nc
     MVar.putMVar constate oldconstate
-    MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected 
-    let newNC = NCon.NetworkConnection (NCon.ncRead nc) (NCon.ncWrite nc) (NCOn.ncPartnerUserID nc) (NCon.ncOwnUserID nc) constate 
+    MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
+    let newNC = NCon.NetworkConnection (NCon.ncRead nc) (NCon.ncWrite nc) (NCOn.ncPartnerUserID nc) (NCon.ncOwnUserID nc) constate (NCon.ncRecievedRequestClose nc)
     return $ VChan newNC
   _ -> return value
 

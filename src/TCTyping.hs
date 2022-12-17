@@ -244,6 +244,8 @@ tySynth te e =
     return (TPair "" ty (dualof ty), te)
   -- I've got no real clue of what I am doing here hope it kind of works
   Create e1 -> do
+    return (TDyn, te)
+  End e1 -> do
     return (TServerSocket, te)
   Connect e0 ty e1 e2 -> do
     kiCheck (demoteTE te) ty Kssn

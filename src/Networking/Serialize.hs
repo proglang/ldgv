@@ -42,6 +42,7 @@ instance Serializable Responses where
   serialize = \case
     Redirect host port -> serializeLabeledEntryMulti "NRedirect" host $ sLast port
     Okay -> return "NOkay"
+    OkayClose -> return "NOkayClose"
 
 instance Serializable Messages where
     serialize = \case
@@ -52,6 +53,7 @@ instance Serializable Messages where
         SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
         RequestSync p -> serializeLabeledEntry "NRequestSync" p
         ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
+        RequestClose p -> serializeLabeledEntry "NRequestClose" p
 
 -- instance (Serializable a => Serializable (NCon.NetworkConnection a)) where
 instance Serializable (NCon.NetworkConnection Value) where
@@ -187,6 +189,7 @@ instance Serializable Exp where
     Create e -> serializeLabeledEntry "ECreate" e
     Connect e0 t e1 e2 -> serializeLabeledEntryMulti "EConnect" e0 $ sNext t $ sNext e1 $ sLast e2
     Accept e t -> serializeLabeledEntryMulti "EAccept" e $ sLast t
+    End e -> serializeLabeledEntry "EEnd" e
 
 instance Serializable (MathOp Exp) where
   serialize = \case

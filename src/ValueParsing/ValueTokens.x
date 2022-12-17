@@ -87,6 +87,7 @@ tokens :-
   "ERecv"                               { tok $ const ERecv }
   "ECase"                               { tok $ const ECase }
   "ECast"                               { tok $ const ECast }
+  "EEnd"                                { tok $ const EEnd }
 
   "MAdd"                                { tok $ const MAdd }
   "MSub"                                { tok $ const MSub }
@@ -136,6 +137,8 @@ tokens :-
   "NChangePartnerAddress"               { tok $ const NChangePartnerAddress }
   "NRedirect"                           { tok $ const NRedirect }
   "NOkay"                               { tok $ const NOkay }
+  "NRequestClose"                        { tok $ const NRequestClose }
+  "NOkayClose"                               { tok $ const NOkayClose }
 
   "Double:" $digit+ "." $digit+                   { tok $ Double . read . (drop 7) }
   "Int:" $digit+                               { tok $ Int . read . (drop 4)}
@@ -206,6 +209,7 @@ data Token
   | ERecv
   | ECase
   | ECast
+  | EEnd
 
   | MAdd
   | MSub
@@ -258,6 +262,8 @@ data Token
   | NChangePartnerAddress
   | NRedirect
   | NOkay
+  | NRequestClose
+  | NOkayClose
 
   | String String
   | Int Int

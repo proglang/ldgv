@@ -18,11 +18,13 @@ data Messages
     | SyncIncoming Partner [Value]
     | RequestSync Partner
     | ChangePartnerAddress Partner Hostname Port
+    | RequestClose Partner
     deriving Eq
 
 data Responses
     = Redirect Hostname Port
     | Okay
+    | OkayClose
 
 getPartnerID :: Messages -> String
 getPartnerID = \case
@@ -33,6 +35,7 @@ getPartnerID = \case
     SyncIncoming p _ -> p
     RequestSync p -> p
     ChangePartnerAddress p _ _ -> p
+    RequestClose p -> p
 
 
 

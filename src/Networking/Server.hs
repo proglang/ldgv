@@ -26,7 +26,7 @@ import qualified Networking.Client as NClient
 
 import Networking.NetworkConnection
 import qualified Control.Concurrent as MVar
-import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (ncConnectionState, ncOwnUserID))
+import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (ncConnectionState, ncOwnUserID, ncRecievedRequestClose))
 import Networking.Messages (Messages(Introduce, RequestSync, SyncIncoming))
 import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
@@ -89,6 +89,8 @@ acceptClient mvar clientlist clientsocket = do
                         handleRequestSync mvar userid
                     SyncIncoming userid values -> do
                         handleSyncIncoming mvar userid values
+                    RequestClose userid -> do
+                        handleRequestClose mvar userid
                     _ -> do
                         serial <- NSerialize.serialize deserialmessages
                         putStrLn $ "Error unsupported networkmessage: "++ serial
@@ -181,6 +183,16 @@ handleSyncIncoming mvar userid values = do
         Just networkconnection -> do  -- Change to current network address
             ND.syncMessages (ncRead networkconnection) values
         Nothing -> return () 
+
+handleRequestClose :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> IO ()
+handleRequestClose mvar userid = do
+    networkconnectionmap <- MVar.takeMVar mvar
+    case Map.lookup userid networkconnectionmap of
+        Just networkconnection -> do
+            _ <- MVar.takeMVar $ ncRecievedRequestClose networkconnection 
+            MVar.putMVar (ncRecievedRequestClose networkconnection) True
+        Nothing -> return ()
+    MVar.putMVar mvar networkconnectionmap
 
 
 hostaddressTypeToString :: HostAddress -> String

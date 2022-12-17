@@ -15,15 +15,17 @@ import qualified Networking.UserID as UserID
 import qualified Data.Map as Map
 import GHC.IO.Handle
 import qualified Data.Maybe
-import Networking.NetworkConnection (NetworkConnection(ncConnectionState), ConnectionState (Disconnected))
+import Networking.NetworkConnection (NetworkConnection(ncConnectionState, ncOwnUserID, ncRecievedRequestClose), ConnectionState (Disconnected))
 import qualified Networking.Messages as Messages
-import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
 import Control.Exception
 import GHC.Exception
 import qualified Syntax
 import qualified Networking.NetworkConnection as NCon
 import qualified Networking.Common as NC
+import Networking.Messages (Messages(RequestClose))
+import qualified Control.Concurrent as MVar
+import qualified Control.Concurrent as MVar
 
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
@@ -172,6 +174,35 @@ sendVChanMessages newhost newport input = case input of
         sendVChanMessagesPEnv newhost newport (x:xs) = do 
             sendVChanMessages newhost newport $ snd x
             sendVChanMessagesPEnv newhost newport xs
+
+
+closeConnection :: NetworkConnection Value -> IO ()
+closeConnection networkconnection = do
+    connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
+    case connectionstate of
+        NCon.Connected hostname port -> do
+            -- catch ( tryToSendNetworkMessage networkconnection hostname port (RequestClose $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) ) $ printConErr hostname port
+            waitForAck networkconnection hostname port
+        NCon.Disconnected -> putStrLn "Error when sending message: This channel is disconnected"
+        NCon.Emulated -> pure ()
+    where
+        waitForAck con hostname port = do
+            connectionError <- MVar.newEmptyMVar
+            MVar.putMVar connectionError False
+            catch ( tryToSendNetworkMessage networkconnection hostname port (RequestClose $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) ) (\exception -> do 
+                printConErr hostname port exception 
+                _ <- MVar.takeMVar connectionError -- If we cannot communicate with them just close the connection
+                MVar.putMVar connectionError True
+                )
+            errorOccured <- MVar.readMVar connectionError
+            if errorOccured then return () else do
+                shouldClose <- MVar.readMVar $ ncRecievedRequestClose con
+                if shouldClose then do 
+                    putStrLn "Closing handshake completed"
+                    return () 
+                else do
+                    MVar.threadDelay 1000000
+                    waitForAck con hostname port
 
 
 

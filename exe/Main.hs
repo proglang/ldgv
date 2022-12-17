@@ -10,6 +10,7 @@ module Main (main) where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Reader
+import Control.Concurrent
 import Data.ByteString.Builder
 import Data.Foldable
 import Data.Maybe
@@ -190,10 +191,12 @@ interpret Interpreter{ interpreterInputs = inputs, interpreterGradual = gradual 
       Right a -> pure a
       Left err -> fail $ "Error: " ++ err
     liftIO $ I.interpret decls
+    -- For testing a small wait here, so all communications can come to a close
   liftIO $ putStrLn $ either
     (\v -> "Error: " ++ show v)
     (\v -> "Result: " ++ show v)
     (res :: Either SomeException P.Value)
+  -- liftIO $ threadDelay 1000000
 
 compile :: CompileOpts -> Action ()
 compile co = do

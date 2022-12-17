@@ -36,6 +36,7 @@ data Exp = Let Ident Exp Exp
          | Create Exp -- Create Port
          | Connect Exp Type Exp Exp  -- Connect URL Port Type
          | Accept Exp Type -- Accept Socket Type
+         | End Exp -- End Connection
   deriving (Show,Eq)
 
 data MathOp e
@@ -173,6 +174,7 @@ instance Freevars Exp where
   fv (Create e1) = fv e1
   fv (Connect e0 ty e1 e2) = fv e0 <> fv ty <>fv e1 <> fv e2
   fv (Accept e1 ty) = fv e1 <> fv ty
+  fv (End e1) = fv e1
   fv (Case e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
   fv (Cast e t1 t2) = fv e
   fv (Succ e) = fv e
@@ -203,6 +205,7 @@ instance Freevars Type where
   fv (TNatLeq _) = Set.empty
   fv (TNatRec e tz y ts) = fv e <> fv tz <> Set.delete y (fv ts)
   fv (TAbs x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
+  fv TServerSocket = Set.empty
 
 instance Freevars TypeSegment where
   fv ts = fv (segTy ts)
@@ -240,6 +243,7 @@ instance Substitution Exp where
     sb (Send e1) = Send (sb e1)
     sb (Recv e1) = Recv (sb e1)
     sb (Create e1) = Create (sb e1)
+    sb (End e1) = End (sb e1)
     sb (Connect e0 t e1 e2) = Connect (sb e0) t (sb e1) (sb e2)
     sb (Accept e1 t) = Accept (sb e1) t
     sb (Succ e1) = Succ (sb e1)
@@ -352,6 +356,7 @@ single x tyx ty =
       TNatRec e (single x tyx tz) y (if x==y then ts else single x tyx ts)
     TAbs y t1 t2 ->
       TAbs y (single x tyx t1) (if x==y then t2 else single x tyx t2)
+    TServerSocket -> TServerSocket
 
 
 varsupply :: Ident -> [Ident]
@@ -443,3 +448,4 @@ tsubst tn tyn ty = ts ty
         TSingle x -> ty
         TUnit -> TUnit
         TAbs _ _ _ -> ty
+        TServerSocket -> TServerSocket

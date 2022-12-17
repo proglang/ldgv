@@ -45,6 +45,7 @@ tokens :-
   create                                { tok $ const Create }
   connect                               { tok $ const Connect }
   accept                                { tok $ const Accept }
+  end                                 { tok $ const End }
 
   -- for Binary Session Types; obsolete for Label Dependent ones
   select                                { tok $ const Select }
@@ -102,6 +103,7 @@ data Token =
         Create          |
         Connect         |
         Accept          | 
+        End             |
 
         -- for Binary Session Types; obsolete for Label Dependent ones
         Select          |

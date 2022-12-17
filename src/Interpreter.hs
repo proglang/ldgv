@@ -186,6 +186,16 @@ eval = \case
       -- Disable the old channel and get a new one
       newV <- liftIO $ disableOldVChan v
       return $ VPair val newV
+  End e -> do
+    liftIO $ putStrLn "Recieving value"
+    interpret' e >>= \v@(VChan ci) -> do
+      liftIO $ C.traceIO "Trying to close connection"
+      liftIO $ NClient.closeConnection ci
+      liftIO $ C.traceIO "Trying to close connection"
+
+      -- Disable the channel
+      _ <- liftIO $ disableOldVChan v
+      return v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   Create e -> do
     liftIO $ C.traceIO "Creating socket!"

@@ -86,6 +86,7 @@ import Networking.Messages
     erecv         { T _ T.ERecv }
     ecase         { T _ T.ECase }
     ecast         { T _ T.ECast }
+    eend          { T _ T.EEnd }
 
     madd          { T _ T.MAdd }
     msub          { T _ T.MSub }
@@ -123,6 +124,8 @@ import Networking.Messages
     nchangepartneraddress {T _ T.NChangePartnerAddress }
     nredirect     { T _ T.NRedirect}
     nokay         { T _ T.NOkay}
+    nrequestclose { T _ T.NRequestClose }
+    nokayclose    { T _ T.NOkayClose}
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -255,6 +258,7 @@ Exp : elet '(' String ')' '(' Exp ')' '(' Exp ')' {Let $3 $6 $9}
     | erecv '(' Exp ')' {Recv $3}
     | ecase '(' Exp ')' '(' SStringExpArray ')' {Case $3 $6}
     | ecast '(' Exp ')' '(' Type ')' '(' Type ')'  {Cast $3 $6 $9}
+    | eend '(' Exp ')' {End $3}
 
 
 MathOp : madd '(' Exp ')' '(' Exp ')' {Add $3 $6}
@@ -280,9 +284,11 @@ Messages : nintroduce '(' String ')' {Introduce $3}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
          | nrequestsync '(' String ')' {RequestSync $3}
          | nchangepartneraddress '(' String ')' '(' String ')' '(' String ')' {ChangePartnerAddress $3 $6 $9}
+         | nrequestclose '(' String ')' {RequestClose $3}
 
 Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
           | nokay {Okay}
+          | nokayclose {OkayClose}
 
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}

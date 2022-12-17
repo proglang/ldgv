@@ -9,11 +9,13 @@ type SendSendOneInt : ! ~ssn = !SendOneInt. Unit
 val send2 (c: SendInt) =
     let x = ((send c) 1) in
     let y = ((send x) 42) in
+    let z = end y in
     ()
 
 val add2 (c1: dualof SendInt) (c3: SendSendOneInt)=
     let <m, c2> = recv c1 in
     let y = ((send c3) c2) in
+    let z = end y in
     (m)
 
 -- Hier problematisch ldgv hat noch kein Konzept wie beim akzeptieren zwischen verschiedenen Types ungerschieden werden kann
