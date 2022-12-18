@@ -11,7 +11,7 @@ data ConnectionState = Connected {csHostname :: String, csPort :: String}
                      | Disconnected
                      | Emulated
                      | RedirectRequest {csHostname :: String, csPort :: String} -- Asks to redirect to this connection
-    deriving Eq
+    deriving (Eq, Show)
 
 
 newNetworkConnection :: String -> String -> String -> String -> IO (NetworkConnection a)

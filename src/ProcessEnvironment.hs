@@ -11,6 +11,8 @@ import Data.Map as Map
 import qualified Data.Set as Set
 import Kinds (Multiplicity(..))
 
+import qualified Data.Maybe
+
 import Networking.DirectionalConnection
 import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.Common as NC
@@ -53,7 +55,8 @@ data Value
   | VInt Int
   | VDouble Double
   | VString String
-  | VChan (NCon.NetworkConnection Value)
+  | VChan (NCon.NetworkConnection Value) (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) --Maybe a "used" mvar to notify that this vchan should no longer be used
+  --                                                This is exclusively used to add VChanSerials into the map when in the interpreter
   | VChanSerial ([Value], Int) ([Value], Int) String String (String, String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
@@ -67,32 +70,36 @@ data Value
                                                                                               -- Own Port Number
   deriving Eq
 
+disableOldVChan v = return v
+disableVChan v = return v
+disableVChans v = return v
+
+{-
 disableOldVChan :: Value -> IO Value
 disableOldVChan value = case value of
-  VChan nc -> do
+  VChan nc mvar -> do
+    ncmap <- MVar.takeMVar mvar
     constate <- MVar.newEmptyMVar 
     oldconstate <- MVar.takeMVar $ NCon.ncConnectionState nc
     MVar.putMVar constate oldconstate
     MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
-    let newNC = NCon.NetworkConnection (NCon.ncRead nc) (NCon.ncWrite nc) (NCOn.ncPartnerUserID nc) (NCon.ncOwnUserID nc) constate (NCon.ncRecievedRequestClose nc)
-    return $ VChan newNC
+    let newNC = NCon.NetworkConnection (NCon.ncRead nc) (NCon.ncWrite nc) (NCon.ncPartnerUserID nc) (NCon.ncOwnUserID nc) constate (NCon.ncRecievedRequestClose nc)
+    MVar.putMVar mvar $ Map.insert (Data.Maybe.fromMaybe "" (NCon.ncPartnerUserID nc)) newNC ncmap
+    return $ VChan newNC mvar
   _ -> return value
 
 
 disableVChan :: Value -> IO ()
 disableVChan value = case value of
-  VChan nc -> do
-    -- constate <- MVar.newEmptyMVar 
-    -- MVar.putMVar constate NCon.Disconnected 
-    -- let newNC = NCon.NetworkConnection (NCon.ncRead nc) (NCon.ncWrite nc) (NCOn.ncPartnerUserID nc) (NCon.ncOwnUserID nc) constate 
-    putStrLn "Taking MVar"
-    _ <- MVar.tryTakeMVar $ NCon.ncConnectionState nc  --I dont fully understand why this mvar isnt filled but lets bypass this problem
-    putStrLn "MVar cleared"
-    MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
-    putStrLn "MVar written"
-    -- return $ VChan nc
-    -- return $ VChan newNC
-  _ -> return () --return value
+  VChan nc mvar -> do
+    mbystate <- MVar.tryTakeMVar $ NCon.ncConnectionState nc  --I dont fully understand why this mvar isnt filled but lets bypass this problem
+    case mbystate of
+      Nothing -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
+      Just state -> case state of
+          NCon.Connected _ _ -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
+          NCon.Emulated -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
+          _ -> MVar.putMVar (NCon.ncConnectionState nc) state
+  _ -> return ()
 
 
 
@@ -136,8 +143,7 @@ disableVChans input = case input of
             rest <- disableVChansPEnv xs
             return ()
             -- return $ (fst x, newval):rest
-
-
+-}
 
 
 instance Show Value where

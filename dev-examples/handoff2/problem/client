@@ -1,0 +1,83 @@
+Invoking interpretation on 𝜆 (c : SendInt) let x = send c 1 in let y = send x 42 in let z = end y in ()
+Invoking interpretation on 𝜆 (c1 : ~SendInt) let <m,c2> = recv c1 in let <n,c3> = recv c2 in let c4 = end c3 in m + n
+Invoking interpretation on let sock = create 4444 in let con = connect sock SendInt 127.0.0.1 4242 in send2 con
+Invoking interpretation on create 4444
+Creating socket!
+Invoking interpretation on 4444
+Leaving interpretation of 4444 with value VInt 4444
+Socket created
+Invoking interpretation on let con = connect sock SendInt 127.0.0.1 4242 in send2 con
+Invoking interpretation on connect sock SendInt 127.0.0.1 4242
+Client trying to connect
+Invoking interpretation on sock
+Leaving interpretation of create 4444 with value VServerSocket
+Leaving interpretation of sock with value VServerSocket
+Invoking interpretation on 127.0.0.1
+Leaving interpretation of 127.0.0.1 with value VString ""127.0.0.1""
+Invoking interpretation on 4242
+Leaving interpretation of 4242 with value VInt 4242
+Waiting for clients
+Client connected: Introducing
+Sending message:NIntroduceClient (String:"eSjynyc9ADY8bYwP4oMX2lwBD54oEaWXSgCBiAsw0YD2Az8GWLiEAQSeJXx46sP5rQLDfKWTCAfDjDRJHqUtskA2NDbJrBRkT336oaYIRIbQHFpRH3gZQ1b7SGJekjnE") (String:"4444") (TName (Bool:False) (String:"SendInt"))
+Finished Handshake
+Invoking interpretation on send2 con
+Arguments for (send2) are (con)
+Invoking interpretation on send2
+Invoking interpretation on con
+Leaving interpretation of 𝜆 (c : SendInt) let x = send c 1 in let y = send x 42 in let z = end y in () with value VFunc "c" Let "x" (App (Send (Var "c")) (Lit (LNat 1))) (Let "y" (App (Send (Var "x")) (Lit (LNat 42))) (Let "z" (End (Var "y")) (Lit LUnit)))
+Leaving interpretation of send2 with value VFunc "c" Let "x" (App (Send (Var "c")) (Lit (LNat 1))) (Let "y" (App (Send (Var "x")) (Lit (LNat 42))) (Let "z" (End (Var "y")) (Lit LUnit)))
+Invoking interpretation on let x = send c 1 in let y = send x 42 in let z = end y in ()
+Invoking interpretation on send c 1
+Arguments for (send c) are (1)
+Invoking interpretation on send c
+Invoking interpretation on c
+Invoking interpretation on 1
+Leaving interpretation of connect sock SendInt 127.0.0.1 4242 with value VChan
+Leaving interpretation of con with value VChan
+Leaving interpretation of c with value VChan
+Leaving interpretation of send c with value VSend (VChan)
+Trying to connect to: 127.0.0.1:4242
+Leaving interpretation of 1 with value VInt 1
+Sending message:NNewValue (String:"eSjynyc9ADY8bYwP4oMX2lwBD54oEaWXSgCBiAsw0YD2Az8GWLiEAQSeJXx46sP5rQLDfKWTCAfDjDRJHqUtskA2NDbJrBRkT336oaYIRIbQHFpRH3gZQ1b7SGJekjnE") (VInt (Int:1))
+Waiting for response
+Message okay
+Invoking interpretation on let y = send x 42 in let z = end y in ()
+Invoking interpretation on send x 42
+Arguments for (send x) are (42)
+Invoking interpretation on send x
+Invoking interpretation on x
+Invoking interpretation on 42
+Leaving interpretation of send c 1 with value VChan
+Leaving interpretation of x with value VChan
+Leaving interpretation of send x with value VSend (VChan)
+Trying to connect to: 127.0.0.1:4242
+Leaving interpretation of 42 with value VInt 42
+Sending message:NNewValue (String:"eSjynyc9ADY8bYwP4oMX2lwBD54oEaWXSgCBiAsw0YD2Az8GWLiEAQSeJXx46sP5rQLDfKWTCAfDjDRJHqUtskA2NDbJrBRkT336oaYIRIbQHFpRH3gZQ1b7SGJekjnE") (VInt (Int:42))
+Waiting for response
+Accepted new client
+Waiting for clients
+Recieved message:NChangePartnerAddress (String:"Ftj3NjTqeEa7yqGwr07JanWWbuvXxYIphkmqhAWN43MrfU7o4Vwqsk0Eleya7mRPEjgGNrCNb89NE73IXv4zoElnIa1mV3xYl1tGCHntn1qsuN5UKlntmCSdhQ1ZEsIn") (String:"127.0.0.1") (String:"4343") 
+Trying to connect to: 127.0.0.1:4343
+Sending message:NRequestSync (String:"eSjynyc9ADY8bYwP4oMX2lwBD54oEaWXSgCBiAsw0YD2Az8GWLiEAQSeJXx46sP5rQLDfKWTCAfDjDRJHqUtskA2NDbJrBRkT336oaYIRIbQHFpRH3gZQ1b7SGJekjnE")
+Waiting for response
+Message okay
+Invoking interpretation on let z = end y in ()
+Invoking interpretation on end y
+Invoking interpretation on y
+Leaving interpretation of send x 42 with value VChan
+Leaving interpretation of y with value VChan
+Trying to connect to: 127.0.0.1:4242
+Sending message:NRequestClose (String:"eSjynyc9ADY8bYwP4oMX2lwBD54oEaWXSgCBiAsw0YD2Az8GWLiEAQSeJXx46sP5rQLDfKWTCAfDjDRJHqUtskA2NDbJrBRkT336oaYIRIbQHFpRH3gZQ1b7SGJekjnE")
+Waiting for response
+Message okay
+Message okay
+Trying to connect to: 127.0.0.1:4343
+Sending message:NSyncIncoming (String:"eSjynyc9ADY8bYwP4oMX2lwBD54oEaWXSgCBiAsw0YD2Az8GWLiEAQSeJXx46sP5rQLDfKWTCAfDjDRJHqUtskA2NDbJrBRkT336oaYIRIbQHFpRH3gZQ1b7SGJekjnE") (SValuesArray [VInt (Int:1), VInt (Int:42)])
+Waiting for response
+Message okay
+Sending message:NOkay
+Trying to connect to: 127.0.0.1:4242
+Sending message:NRequestClose (String:"eSjynyc9ADY8bYwP4oMX2lwBD54oEaWXSgCBiAsw0YD2Az8GWLiEAQSeJXx46sP5rQLDfKWTCAfDjDRJHqUtskA2NDbJrBRkT336oaYIRIbQHFpRH3gZQ1b7SGJekjnE")
+Waiting for response
+Message okay
+^C

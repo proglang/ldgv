@@ -3,24 +3,17 @@
 
 module Networking.Serialize where
 
-import Control.Monad.IO.Class
 import Control.Concurrent.Chan as Chan
 import qualified Control.Concurrent.MVar as MVar
 import Syntax
 import Kinds
-import qualified Syntax as S
 import Data.Set
-import Foreign.C (eNODEV, e2BIG)
-import Control.Concurrent (getChanContents)
 import Control.Exception
 import ProcessEnvironment
 import Networking.Messages
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkConnection as NCon 
 import qualified Data.Maybe
-import qualified Data.Map as Map
-import qualified Network.Socket as Sock
-import qualified Data.ByteString as DC
 import qualified Networking.DirectionalConnection as NCon
 
 
@@ -55,7 +48,6 @@ instance Serializable Messages where
         ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
         RequestClose p -> serializeLabeledEntry "NRequestClose" p
 
--- instance (Serializable a => Serializable (NCon.NetworkConnection a)) where
 instance Serializable (NCon.NetworkConnection Value) where
   serialize con = do 
     constate <- MVar.readMVar $ NCon.ncConnectionState con
@@ -65,8 +57,6 @@ instance Serializable (NCon.NetworkConnection Value) where
 
     serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncPartnerUserID con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncOwnUserID con) $ sLast constate
 
-
--- instance (Serializable a => Serializable (NCon.DirectionalConnection a)) where
 instance Serializable (NCon.DirectionalConnection Value) where
   serialize dcon = do
     (msg, msgUnread) <- DC.serializeConnection dcon
@@ -77,8 +67,6 @@ instance Serializable (NCon.DirectionalConnection Value) where
 instance Serializable NCon.ConnectionState where
   serialize = \case
     NCon.Connected hostname port -> serializeLabeledEntryMulti "SConnected" hostname $ sLast port
-    -- NCon.Disconnected -> return "SDisconnected"
-    -- NCon.Emulated -> return "SEmulated" 
     _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
 
 
@@ -99,39 +87,8 @@ instance Serializable Value where
       VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
 
       VServerSocket {} -> throw $ UnserializableException "VServerSocket"
-      VChan nc -> serializeLabeledEntry "VChan" nc
+      VChan nc _-> serializeLabeledEntry "VChan" nc
       VChanSerial r w p o c -> serializeLabeledEntryMulti "VChanSerial" r $ sNext w $ sNext p $ sNext o $ sLast c
-      -- VChan {} -> throw $ UnserializableException "VChan"
-      {-VChan cc -> do
-        putStrLn "Trying to serialize VChan"
-        channelstate <- MVar.readMVar (ccChannelState cc)
-        case channelstate of
-          Connected mvarinfomap -> do
-            readList <- DC.allMessages (ccRead cc)
-            putStrLn "Read all incoming messages"
-            let readStartUnreadMVar = DC.messagesUnreadStart (ccRead cc)
-            readStartUnread <- MVar.readMVar readStartUnreadMVar
-            putStrLn "Read unreadpoint of incoming messages"
-
-            writeList <- DC.allMessages (ccWrite cc)
-            putStrLn "Read all outgoing messages"
-            let writeStartUnreadMVar = DC.messagesUnreadStart (ccWrite cc)
-            writeStartUnread <- MVar.readMVar writeStartUnreadMVar
-            putStrLn "Read unreadpoint of outgoing messages"
-
-            let partnerUserID = Data.Maybe.fromMaybe "" (ccPartnerUserID cc)
-            let ownUserID = Data.Maybe.fromMaybe "" (ccOwnUserID cc)
-
-            putStrLn "Aquired all but connection address"
-            infomap <- MVar.readMVar  mvarinfomap
-            let maybeconnectioninfo = Map.lookup partnerUserID infomap 
-            case maybeconnectioninfo of
-              Nothing -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
-              Just connectioninfo -> do
-                case ciAddr connectioninfo of
-                  Sock.SockAddrInet port hostname -> serializeLabeledEntryMulti "VChan" readList $ sNext readStartUnread $ sNext writeList $ sNext writeStartUnread $ sNext partnerUserID $ sNext ownUserID $ sNext (show port) $ sLast (show hostname)
-                  _ -> throw $ UnserializableException "VChan currently only works over IPv4"
-          _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"-}
 
 instance Serializable Multiplicity where
   serialize = \case
@@ -208,12 +165,7 @@ instance Serializable Literal where
     LString s -> serializeLabeledEntry "LString" s
 
 instance Serializable FuncType where
-  serialize (FuncType env s t1 t2) = serializeLabeledEntryMulti "SFuncType" env $ sNext s $ sNext t1 $ sLast t2 -- do 
-    -- envs <- serialize env
-    -- ss <- serialize s
-    -- t1s <- serialize t1
-    -- t2s <- serialize t2 
-    -- return $ "SFuncType (" ++ envs ++ ") (" ++ ss ++ ") (" ++ t1s ++ ") (" ++ t2s ++ ")"
+  serialize (FuncType env s t1 t2) = serializeLabeledEntryMulti "SFuncType" env $ sNext s $ sNext t1 $ sLast t2
 
 instance Serializable GType where
   serialize = \case

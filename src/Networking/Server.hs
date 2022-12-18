@@ -25,12 +25,8 @@ import qualified Networking.DirectionalConnection as ND
 import qualified Networking.Client as NClient
 
 import Networking.NetworkConnection
-import qualified Control.Concurrent as MVar
-import Networking.NetworkConnection (newNetworkConnection, NetworkConnection (ncConnectionState, ncOwnUserID, ncRecievedRequestClose))
-import Networking.Messages (Messages(Introduce, RequestSync, SyncIncoming))
-import qualified Control.Concurrent as MVar
-import qualified Control.Concurrent as MVar
 import qualified Networking.Common as NC
+import qualified Config
 
 createServer :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
 createServer port = do
@@ -47,7 +43,6 @@ createServer port = do
     liftIO $ listen sock 2
     mvar <- MVar.newEmptyMVar
     MVar.putMVar mvar Map.empty
-    -- chan <- Chan.newChan
     clientlist <- MVar.newEmptyMVar
     MVar.putMVar clientlist []
     forkIO $ acceptClients mvar clientlist sock
@@ -55,9 +50,9 @@ createServer port = do
 
 acceptClients :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> IO ()
 acceptClients mvar clientlist socket = do
-    putStrLn "Waiting for clients"
+    Config.traceIO "Waiting for clients"
     clientsocket <- accept socket
-    putStrLn "Accepted new client"
+    Config.traceIO "Accepted new client"
 
     forkIO $ acceptClient mvar clientlist clientsocket
     acceptClients mvar clientlist socket
@@ -68,16 +63,16 @@ acceptClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVa
 acceptClient mvar clientlist clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
     message <- hGetLine hdl
-    putStrLn $ "Recieved message:" ++ message
+    Config.traceIO $ "Recieved message:" ++ message
     case VT.runAlex message VG.parseMessages of
     -- case VT.runAlex message VG.parseValues of
-        Left err -> putStrLn $ "Error during recieving a networkmessage: "++err
-        Right deserialmessages -> do 
+        Left err -> Config.traceIO $ "Error during recieving a networkmessage: "++err
+        Right deserialmessages -> do
             let userid = getPartnerID deserialmessages
             netcon <- MVar.takeMVar mvar
             redirectRequest <- checkRedirectRequest netcon userid
             MVar.putMVar mvar netcon
-            if redirectRequest then sendRedirect hdl netcon userid else do 
+            if redirectRequest then sendRedirect hdl netcon userid else do
                 case deserialmessages of
                     NewValue userid val -> do
                         handleNewValue mvar userid val
@@ -93,28 +88,36 @@ acceptClient mvar clientlist clientsocket = do
                         handleRequestClose mvar userid
                     _ -> do
                         serial <- NSerialize.serialize deserialmessages
-                        putStrLn $ "Error unsupported networkmessage: "++ serial
+                        Config.traceIO $ "Error unsupported networkmessage: "++ serial
                 NC.sendMessage Messages.Okay hdl
     hClose hdl
 
 checkRedirectRequest :: Map.Map String (NetworkConnection Value) -> String -> IO Bool
-checkRedirectRequest ncmap userid = case Map.lookup userid ncmap of
-    Nothing -> return False
-    Just networkconnection -> do
-        constate <- MVar.readMVar $ ncConnectionState networkconnection 
-        case constate of
-            RedirectRequest _ _ -> return True
-            _ -> return False
+checkRedirectRequest ncmap userid = do
+    putStrLn $ "Checking redirect request of user: " ++ userid
+    case Map.lookup userid ncmap of
+        Nothing -> do
+            putStrLn $ "Warning user " ++ userid ++ " not found when processing redirect request!"
+            return False
+        Just networkconnection -> do
+            putStrLn $ "Trying to check connectionstate of user: " ++ userid
+            constate <- MVar.readMVar $ ncConnectionState networkconnection
+            print constate
+            case constate of
+                RedirectRequest _ _ -> return True
+                _ -> return False
 
 
 sendRedirect ::  Handle -> Map.Map String (NetworkConnection Value) -> String -> IO ()
-sendRedirect handle ncmap userid = case Map.lookup userid ncmap of
-    Nothing -> return ()
-    Just networkconnection -> do
-        constate <- MVar.readMVar $ ncConnectionState networkconnection 
-        case constate of
-            RedirectRequest host port -> NC.sendMessage (Messages.Redirect host port) handle
-            _ -> return ()
+sendRedirect handle ncmap userid = do
+    putStrLn "WARNING: Trying to send redirect!"
+    case Map.lookup userid ncmap of
+        Nothing -> return ()
+        Just networkconnection -> do
+            constate <- MVar.readMVar $ ncConnectionState networkconnection
+            case constate of
+                RedirectRequest host port -> NC.sendMessage (Messages.Redirect host port) handle
+                _ -> return ()
 
 
 
@@ -125,7 +128,7 @@ handleNewValue mvar userid val = do
         Just networkconnection -> do
             ND.writeMessage (ncRead networkconnection) val
         Nothing -> do
-            putStrLn "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
+            Config.traceIO "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
     MVar.putMVar mvar networkconnectionmap
 
 handleIntroduceClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Syntax.Type -> IO ()
@@ -133,7 +136,7 @@ handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
     networkconnectionmap <- MVar.takeMVar mvar
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do
-            putStrLn "Error during recieving a networkmessage: Already introduced to this client!"
+            Config.traceIO "Error during recieving a networkmessage: Already introduced to this client!"
             MVar.putMVar mvar networkconnectionmap
         Nothing ->  case snd clientsocket of -- This client is new
             SockAddrInet port hostname -> do
@@ -147,7 +150,7 @@ handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
                 MVar.putMVar clientlist $ clientlistraw ++ [(userid, syntype)]
 
             _ -> do
-                putStrLn "Error during recieving a networkmessage: only ipv4 is currently supported!"
+                Config.traceIO "Error during recieving a networkmessage: only ipv4 is currently supported!"
                 MVar.putMVar mvar networkconnectionmap
 
 handleChangePartnerAddress :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> IO ()
@@ -158,12 +161,16 @@ handleChangePartnerAddress mvar userid hostname port = do
             let constate = ncConnectionState networkconnection
             _ <- MVar.takeMVar constate
             MVar.putMVar constate $ Networking.NetworkConnection.Connected hostname port
+            -- For some reason constate doesn't seem to properly apply
             MVar.putMVar mvar networkconnectionmap
+            -- MVar.putMVar mvar $ Map.insert userid networkconnection networkconnectionmap
+            -- Maybe reinsert the networkconnection does the trick
 
             -- Sync and request sync
-            NClient.sendNetworkMessage networkconnection (RequestSync $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection)
-            writevals <- ND.allMessages $ ncWrite networkconnection
-            NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
+            -- NClient.sendNetworkMessage networkconnection (RequestSync $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection)
+            -- writevals <- ND.allMessages $ ncWrite networkconnection
+            -- NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
+            putStrLn "Changed partner address!"
 
         Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
 
@@ -182,14 +189,14 @@ handleSyncIncoming mvar userid values = do
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do  -- Change to current network address
             ND.syncMessages (ncRead networkconnection) values
-        Nothing -> return () 
+        Nothing -> return ()
 
 handleRequestClose :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> IO ()
 handleRequestClose mvar userid = do
     networkconnectionmap <- MVar.takeMVar mvar
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do
-            _ <- MVar.takeMVar $ ncRecievedRequestClose networkconnection 
+            _ <- MVar.takeMVar $ ncRecievedRequestClose networkconnection
             MVar.putMVar (ncRecievedRequestClose networkconnection) True
         Nothing -> return ()
     MVar.putMVar mvar networkconnectionmap
@@ -205,25 +212,21 @@ waitForIntroduction handle serverid = do
     message <- hGetLine handle
     case VT.runAlex message VG.parseMessages of
         Left err -> do
-            putStrLn $ "Error during client introduction: "++err
+            Config.traceIO $ "Error during client introduction: "++err
             throw $ NC.NoIntroductionException message
         Right deserial -> case deserial of
             Introduce partner -> do
                 NC.sendMessage (Messages.Introduce serverid) handle
                 return partner
             _ -> do
-                putStrLn $ "Error during client introduction, wrong message: "++ message
+                Config.traceIO $ "Error during client introduction, wrong message: "++ message
                 throw $ NC.NoIntroductionException message
 
 findFittingClientMaybe :: MVar.MVar [(String, Syntax.Type)] -> Syntax.Type -> IO (Maybe String)
 findFittingClientMaybe clientlist desiredType = do
     clientlistraw <- MVar.takeMVar clientlist
     let newclientlistrawAndReturn = fFCMRaw clientlistraw desiredType
-    -- putStrLn "findFittingClientMaybe:"
-    -- print clientlistraw
-    -- putStrLn $ "Desired Type: " ++ show desiredType
-    -- For some reason these prints are needed for it to work. Probably some timing thing
-    -- Also we send the name of the type but not the type itself, this needs to change
+    -- We send the name of the type but not the type itself, this needs to change
     MVar.putMVar clientlist $ fst newclientlistrawAndReturn
     return $ snd newclientlistrawAndReturn
     where
@@ -239,6 +242,46 @@ findFittingClient clientlist desiredType = do
     mbystring <- findFittingClientMaybe clientlist desiredType
     case mbystring of
         Just userid -> return userid
-        Nothing -> do 
+        Nothing -> do
             threadDelay 10000 -- Sleep for 10 ms to not hammer the CPU
             findFittingClient clientlist desiredType
+
+
+replaceVChanSerial :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> Value -> IO Value
+replaceVChanSerial mvar input = case input of
+    VSend v -> do
+        nv <- replaceVChanSerial mvar v
+        return $ VSend nv
+    VPair v1 v2 -> do
+        nv1 <- replaceVChanSerial mvar v1
+        nv2 <- replaceVChanSerial mvar v2
+        return $ VPair nv1 nv2
+    VFunc penv a b -> do
+        newpenv <- replaceVChanSerialPEnv mvar penv
+        return $ VFunc newpenv a b
+    VDynCast v g -> do
+        nv <- replaceVChanSerial mvar v
+        return $ VDynCast nv g
+    VFuncCast v a b -> do
+        nv <- replaceVChanSerial mvar v
+        return $ VFuncCast nv a b
+    VRec penv a b c d -> do
+        newpenv <- replaceVChanSerialPEnv mvar penv
+        return $ VRec newpenv a b c d
+    VNewNatRec penv a b c d e f g -> do
+        newpenv <- replaceVChanSerialPEnv mvar penv
+        return $ VNewNatRec newpenv a b c d e f g
+    VChanSerial r w p o c -> do
+        networkconnection <- createNetworkConnectionS r w p o c
+        ncmap <- MVar.takeMVar mvar
+        MVar.putMVar mvar $ Map.insert p networkconnection ncmap
+        NClient.sendNetworkMessage networkconnection $ RequestSync o
+        return $ VChan networkconnection mvar
+    _ -> return input
+    where
+        replaceVChanSerialPEnv :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> [(String, Value)] -> IO [(String, Value)]
+        replaceVChanSerialPEnv mvar [] = return []
+        replaceVChanSerialPEnv mvar (x:xs) = do
+            newval <- replaceVChanSerial mvar $ snd x
+            rest <- replaceVChanSerialPEnv mvar xs
+            return $ (fst x, newval):rest

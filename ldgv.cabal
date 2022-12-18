@@ -77,7 +77,6 @@ library
       Parsing.Grammar
       Parsing.Tokens
       ProcessEnvironment
-      SerializeValues
       Syntax
       Typechecker
       ValueParsing.ValueGrammar

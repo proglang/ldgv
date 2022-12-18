@@ -17,7 +17,7 @@ import Network.Socket
 -- import qualified Network.Socket as NSocket
 import Control.Concurrent (forkIO)
 import Data.Foldable (find)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Map as Map
 import ProcessEnvironment
 import qualified Control.Monad as M
@@ -25,7 +25,6 @@ import Control.Monad.Reader as R
 import Control.Applicative ((<|>))
 import Control.Exception
 import Kinds (Multiplicity(..))
-import qualified SerializeValues as SV
 
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
@@ -47,6 +46,9 @@ import qualified Networking.NetworkConnection as NCon
 -- import ProcessEnvironment
 import qualified Control.Concurrent as MVar
 import ProcessEnvironment (disableOldVChan)
+import Networking.NetworkConnection (NetworkConnection(ncPartnerUserID))
+import qualified Control.Concurrent as MVar
+import qualified Control.Concurrent as MVar
 -- import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.NetworkConnection as NCon
 
@@ -170,28 +172,25 @@ eval = \case
     w <- liftIO DC.newConnection
     nc1 <- liftIO $ NCon.newEmulatedConnection r w
     nc2 <- liftIO $ NCon.newEmulatedConnection w r
-    return $ VPair (VChan nc1) $ VChan nc2
+    mvar <- liftIO MVar.newEmptyMVar
+    liftIO $ MVar.putMVar mvar Map.empty
+    return $ VPair (VChan nc1 mvar) $ VChan nc2 mvar
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
-    liftIO $ putStrLn "Recieving value"
-    interpret' e >>= \v@(VChan ci) -> do
+    interpret' e >>= \v@(VChan ci mvar) -> do
       let dcRead = NCon.ncRead ci
-      liftIO $ putStrLn "Trying to read new value"
       valunclean <- liftIO $ DC.readUnreadMessage dcRead
-      liftIO $ putStrLn "Read new value"
-      val <- liftIO $ NC.replaceVChanSerial valunclean
-      liftIO $ putStrLn "Replaced Serial"
+      val <- liftIO $ NS.replaceVChanSerial mvar valunclean
       liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
       -- Disable the old channel and get a new one
       newV <- liftIO $ disableOldVChan v
       return $ VPair val newV
   End e -> do
-    liftIO $ putStrLn "Recieving value"
-    interpret' e >>= \v@(VChan ci) -> do
-      liftIO $ C.traceIO "Trying to close connection"
+    liftIO $ C.traceIO "Trying to close a connection"
+    interpret' e >>= \v@(VChan ci mvar) -> do
+      liftIO $ C.traceIO $ "Trying to close connection with:" ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID ci)
       liftIO $ NClient.closeConnection ci
-      liftIO $ C.traceIO "Trying to close connection"
 
       -- Disable the channel
       _ <- liftIO $ disableOldVChan v
@@ -223,7 +222,7 @@ eval = \case
           Nothing -> throw $ CommunicationPartnerNotFoundException newuser
           Just networkconnection -> do 
             liftIO $ C.traceIO "Client successfully accepted!"
-            return $ VChan networkconnection
+            return $ VChan networkconnection mvar
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e0 t e1 e2-> do
@@ -280,8 +279,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
 -- interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
-interpretApp _ (VSend v@(VChan cc)) w = do
-  liftIO $ putStrLn $ "Trying to send message:" ++ show w
+interpretApp _ (VSend v@(VChan cc _)) w = do
   liftIO $ NClient.sendMessage cc w
 
   -- Disable old VChan
