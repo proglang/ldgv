@@ -55,8 +55,9 @@ data Value
   | VInt Int
   | VDouble Double
   | VString String
-  | VChan (NCon.NetworkConnection Value) (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) --Maybe a "used" mvar to notify that this vchan should no longer be used
+  | VChan (NCon.NetworkConnection Value) (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) (MVar.MVar Bool) --Maybe a "used" mvar to notify that this vchan should no longer be used
   --                                                This is exclusively used to add VChanSerials into the map when in the interpreter
+  --                                                                                                    This is to mark a vchan as used (true if used)
   | VChanSerial ([Value], Int) ([Value], Int) String String (String, String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
@@ -70,9 +71,9 @@ data Value
                                                                                               -- Own Port Number
   deriving Eq
 
-disableOldVChan v = return v
-disableVChan v = return v
-disableVChans v = return v
+-- disableOldVChan v = return v
+-- disableVChan v = return v
+-- disableVChans v = return v
 
 {-
 disableOldVChan :: Value -> IO Value
@@ -87,11 +88,22 @@ disableOldVChan value = case value of
     MVar.putMVar mvar $ Map.insert (Data.Maybe.fromMaybe "" (NCon.ncPartnerUserID nc)) newNC ncmap
     return $ VChan newNC mvar
   _ -> return value
+-}
+
+disableOldVChan :: Value -> IO Value
+disableOldVChan value = case value of
+  VChan nc mvar used -> do
+      _ <- MVar.takeMVar used
+      MVar.putMVar used True
+      unused <- MVar.newEmptyMVar
+      MVar.putMVar unused False
+      return $ VChan nc mvar unused
+  _ -> return value
 
 
 disableVChan :: Value -> IO ()
 disableVChan value = case value of
-  VChan nc mvar -> do
+  VChan nc mvar _ -> do
     mbystate <- MVar.tryTakeMVar $ NCon.ncConnectionState nc  --I dont fully understand why this mvar isnt filled but lets bypass this problem
     case mbystate of
       Nothing -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
@@ -143,7 +155,6 @@ disableVChans input = case input of
             rest <- disableVChansPEnv xs
             return ()
             -- return $ (fst x, newval):rest
--}
 
 
 instance Show Value where

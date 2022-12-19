@@ -28,6 +28,7 @@ import Networking.NetworkConnection
 import qualified Networking.Common as NC
 import qualified Config
 import qualified Networking.NetworkConnection as NCon
+import qualified Control.Concurrent as MVar
 
 createServer :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
 createServer port = do
@@ -268,7 +269,9 @@ replaceVChanSerial mvar input = case input of
         ncmap <- MVar.takeMVar mvar
         MVar.putMVar mvar $ Map.insert p networkconnection ncmap
         NClient.sendNetworkMessage networkconnection $ RequestSync o
-        return $ VChan networkconnection mvar
+        used<- MVar.newEmptyMVar
+        MVar.putMVar used False
+        return $ VChan networkconnection mvar used
     _ -> return input
     where
         replaceVChanSerialPEnv :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> [(String, Value)] -> IO [(String, Value)]

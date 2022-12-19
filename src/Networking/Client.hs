@@ -23,6 +23,7 @@ import qualified Syntax
 import qualified Networking.Common as NC
 import Networking.Messages (Messages(RequestClose))
 import qualified Networking.NetworkConnection as NCon
+import qualified Control.Concurrent as MVar
 
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
@@ -127,7 +128,9 @@ initialConnect mvar hostname port ownport syntype= do
     networkconnectionmap <- MVar.takeMVar mvar 
     let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
     MVar.putMVar mvar newNetworkconnectionmap
-    return $ VChan newConnection mvar
+    used <- MVar.newEmptyMVar
+    MVar.putMVar used False
+    return $ VChan newConnection mvar used
 
 sendVChanMessages :: String -> String -> Value -> IO ()
 sendVChanMessages newhost newport input = case input of
@@ -140,7 +143,7 @@ sendVChanMessages newhost newport input = case input of
     VFuncCast v a b -> sendVChanMessages newhost newport v
     VRec penv a b c d -> sendVChanMessagesPEnv newhost newport penv
     VNewNatRec penv a b c d e f g -> sendVChanMessagesPEnv newhost newport penv
-    VChan nc _-> do 
+    VChan nc _ _-> do 
         sendNetworkMessage nc (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport)
         _ <- MVar.takeMVar $ ncConnectionState nc
         putStrLn $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport

@@ -108,7 +108,7 @@ replaceVChan input = case input of
     VNewNatRec penv a b c d e f g -> do 
         newpenv <- replaceVChanPEnv penv
         return $ VNewNatRec newpenv a b c d e f g
-    VChan nc _ -> do 
+    VChan nc _ _-> do 
         (r, rl, w, wl, pid, oid, h, p) <- serializeNetworkConnection nc
         return $ VChanSerial (r, rl) (w, wl) pid oid (h, p)
     _ -> return input

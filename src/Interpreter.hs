@@ -49,6 +49,8 @@ import ProcessEnvironment (disableOldVChan)
 import Networking.NetworkConnection (NetworkConnection(ncPartnerUserID))
 import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
+import qualified Control.Concurrent as MVar
+import qualified Control.Concurrent as MVar
 -- import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.NetworkConnection as NCon
 
@@ -64,6 +66,7 @@ data InterpreterException
   | DeserializationException String
   | NotAnExpectedValueException String Value
   | CommunicationPartnerNotFoundException String
+  | VChanIsUsedException String
   deriving Eq
 
 instance Show InterpreterException where
@@ -79,6 +82,7 @@ instance Show InterpreterException where
     (DeserializationException err) -> "DeserializationException: " ++ err
     (NotAnExpectedValueException expected val) -> "NotAnExpectedValueException: This expresion: (" ++ pshow val ++ ") is not of type: " ++ expected
     (CommunicationPartnerNotFoundException partner) -> "CommunicationPartnerNotFoundException: Partner:" ++ partner ++ " not found"
+    (VChanIsUsedException chan) -> "VChanIsUsedException: VChan " ++ chan ++ " is already used!"
 
 instance Exception InterpreterException
 
@@ -174,27 +178,35 @@ eval = \case
     nc2 <- liftIO $ NCon.newEmulatedConnection w r
     mvar <- liftIO MVar.newEmptyMVar
     liftIO $ MVar.putMVar mvar Map.empty
-    return $ VPair (VChan nc1 mvar) $ VChan nc2 mvar
+    used1 <- liftIO MVar.newEmptyMVar
+    liftIO $ MVar.putMVar used1 False
+    used2 <- liftIO MVar.newEmptyMVar
+    liftIO $ MVar.putMVar used2 False
+    return $ VPair (VChan nc1 mvar used1) $ VChan nc2 mvar used2
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
-    interpret' e >>= \v@(VChan ci mvar) -> do
-      let dcRead = NCon.ncRead ci
-      valunclean <- liftIO $ DC.readUnreadMessage dcRead
-      val <- liftIO $ NS.replaceVChanSerial mvar valunclean
-      liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
+    interpret' e >>= \v@(VChan ci mvar usedmvar) -> do
+      used <- liftIO $ MVar.readMVar usedmvar
+      if used then throw $ VChanIsUsedException $ show v else do
+        let dcRead = NCon.ncRead ci
+        valunclean <- liftIO $ DC.readUnreadMessage dcRead
+        val <- liftIO $ NS.replaceVChanSerial mvar valunclean
+        liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
-      -- Disable the old channel and get a new one
-      newV <- liftIO $ disableOldVChan v
-      return $ VPair val newV
+        -- Disable the old channel and get a new one
+        newV <- liftIO $ disableOldVChan v
+        return $ VPair val newV
   End e -> do
     liftIO $ C.traceIO "Trying to close a connection"
-    interpret' e >>= \v@(VChan ci mvar) -> do
-      liftIO $ C.traceIO $ "Trying to close connection with:" ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID ci)
-      liftIO $ NClient.closeConnection ci
+    interpret' e >>= \v@(VChan ci mvar usedmvar) -> do
+      used <- liftIO $ MVar.readMVar usedmvar
+      if used then throw $ VChanIsUsedException $ show v else do
+        liftIO $ C.traceIO $ "Trying to close connection with:" ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID ci)
+        liftIO $ NClient.closeConnection ci
 
-      -- Disable the channel
-      _ <- liftIO $ disableOldVChan v
-      return v
+        -- Disable the channel
+        _ <- liftIO $ disableOldVChan v
+        return v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   Create e -> do
     liftIO $ C.traceIO "Creating socket!"
@@ -222,7 +234,9 @@ eval = \case
           Nothing -> throw $ CommunicationPartnerNotFoundException newuser
           Just networkconnection -> do 
             liftIO $ C.traceIO "Client successfully accepted!"
-            return $ VChan networkconnection mvar
+            used <- liftIO MVar.newEmptyMVar
+            liftIO $ MVar.putMVar used False
+            return $ VChan networkconnection mvar used
       _ -> throw $ NotAnExpectedValueException "VServerSocket" val
 
   Connect e0 t e1 e2-> do
@@ -279,12 +293,14 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (const env') (interpret' es)
 -- interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
-interpretApp _ (VSend v@(VChan cc _)) w = do
-  liftIO $ NClient.sendMessage cc w
+interpretApp _ (VSend v@(VChan cc _ usedmvar)) w = do
+  used <- liftIO $ MVar.readMVar usedmvar
+  if used then throw $ VChanIsUsedException $ show v else do
+    liftIO $ NClient.sendMessage cc w
 
-  -- Disable old VChan
-  newV <- liftIO $ disableOldVChan v
-  return newV
+    -- Disable old VChan
+    newV <- liftIO $ disableOldVChan v
+    return newV
 interpretApp e _ _ = throw $ ApplicationException e
 
 interpretLit :: Literal -> Value
