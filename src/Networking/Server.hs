@@ -27,6 +27,7 @@ import qualified Networking.Client as NClient
 import Networking.NetworkConnection
 import qualified Networking.Common as NC
 import qualified Config
+import qualified Networking.NetworkConnection as NCon
 
 createServer :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
 createServer port = do
@@ -158,18 +159,9 @@ handleChangePartnerAddress mvar userid hostname port = do
     networkconnectionmap <- MVar.takeMVar mvar
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do  -- Change to current network address
-            let constate = ncConnectionState networkconnection
-            _ <- MVar.takeMVar constate
-            MVar.putMVar constate $ Networking.NetworkConnection.Connected hostname port
+            NCon.changePartnerAddress networkconnection hostname port
             -- For some reason constate doesn't seem to properly apply
             MVar.putMVar mvar networkconnectionmap
-            -- MVar.putMVar mvar $ Map.insert userid networkconnection networkconnectionmap
-            -- Maybe reinsert the networkconnection does the trick
-
-            -- Sync and request sync
-            -- NClient.sendNetworkMessage networkconnection (RequestSync $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection)
-            -- writevals <- ND.allMessages $ ncWrite networkconnection
-            -- NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals)
             putStrLn "Changed partner address!"
 
         Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that

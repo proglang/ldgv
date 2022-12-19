@@ -58,3 +58,8 @@ serializeNetworkConnection nc = do
         RedirectRequest address port -> return (address, port)
         _ -> return ("", "")
     return (readList, readUnread, writeList, writeUnread, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, Data.Maybe.fromMaybe "" $ ncOwnUserID nc, address, port)
+
+changePartnerAddress :: NetworkConnection a -> String -> String -> IO () 
+changePartnerAddress con hostname port = do
+    _ <- MVar.takeMVar $ ncConnectionState con
+    MVar.putMVar (ncConnectionState con) $ Connected hostname port

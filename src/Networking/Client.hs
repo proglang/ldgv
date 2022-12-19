@@ -22,20 +22,23 @@ import GHC.Exception
 import qualified Syntax
 import qualified Networking.Common as NC
 import Networking.Messages (Messages(RequestClose))
+import qualified Networking.NetworkConnection as NCon
 
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
-          catch (tryToSend networkconnection hostname port val) $ printConErr hostname port
+            valcleaned <- NC.replaceVChan val
+            DC.writeMessage (ncWrite networkconnection) valcleaned
+            catch (tryToSend networkconnection hostname port val valcleaned) $ printConErr hostname port
         NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
     -- MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
 
-tryToSend :: NetworkConnection Value -> String -> String -> Value -> IO ()
-tryToSend networkconnection hostname port val = do
+tryToSend :: NetworkConnection Value -> String -> String -> Value -> Value -> IO ()
+tryToSend networkconnection hostname port val valcleaned = do
     let hints = defaultHints {
             addrFlags = []
             , addrSocketType = Stream
@@ -45,9 +48,8 @@ tryToSend networkconnection hostname port val = do
     clientsocket <- NC.openSocketNC $ head addrInfo
     connect clientsocket $ addrAddress $ head addrInfo
     handle <- NC.getHandle clientsocket
-    valcleaned <- NC.replaceVChan val
+
     NC.sendMessage (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) handle
-    DC.writeMessage (ncWrite networkconnection) valcleaned
     sendVChanMessages hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
 
     disableVChans val -- Disables all sent VChans for the sending party
@@ -59,7 +61,8 @@ tryToSend networkconnection hostname port val = do
             Okay -> Config.traceIO "Message okay"
             Redirect host port -> do 
                 Config.traceIO "Communication partner changed address, resending"
-                tryToSend networkconnection host port val
+                NCon.changePartnerAddress networkconnection host port
+                tryToSend networkconnection host port val valcleaned
         Nothing -> Config.traceIO "Error when recieving response"
 
 
@@ -95,6 +98,7 @@ tryToSendNetworkMessage networkconnection hostname port message = do
             Okay -> Config.traceIO "Message okay"
             Redirect host port -> do 
                 Config.traceIO "Communication partner changed address, resending"
+                NCon.changePartnerAddress networkconnection host port
                 tryToSendNetworkMessage networkconnection host port message
         Nothing -> Config.traceIO "Error when recieving response"
 
@@ -151,18 +155,13 @@ sendVChanMessages newhost newport input = case input of
 
 
 closeConnection :: NetworkConnection Value -> IO ()
-closeConnection networkconnection = do
-    connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
+closeConnection con = do
+    connectionstate <- MVar.readMVar $ ncConnectionState con
     case connectionstate of
         NCon.Connected hostname port -> do
-            waitForAck networkconnection hostname port
-        NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
-        NCon.Emulated -> pure ()
-    where
-        waitForAck con hostname port = do
             connectionError <- MVar.newEmptyMVar
             MVar.putMVar connectionError False
-            catch ( tryToSendNetworkMessage networkconnection hostname port (RequestClose $ Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) ) (\exception -> do 
+            catch ( tryToSendNetworkMessage con hostname port (RequestClose $ Data.Maybe.fromMaybe "" $ ncOwnUserID con) ) (\exception -> do 
                 printConErr hostname port exception 
                 _ <- MVar.takeMVar connectionError -- If we cannot communicate with them just close the connection
                 MVar.putMVar connectionError True
@@ -175,4 +174,6 @@ closeConnection networkconnection = do
                     return () 
                 else do
                     threadDelay 1000000
-                    waitForAck con hostname port
+                    closeConnection con
+        NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
+        NCon.Emulated -> pure ()
