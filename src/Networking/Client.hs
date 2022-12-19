@@ -146,7 +146,7 @@ sendVChanMessages newhost newport input = case input of
     VChan nc _ _-> do 
         sendNetworkMessage nc (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport)
         _ <- MVar.takeMVar $ ncConnectionState nc
-        putStrLn $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
+        Config.traceIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
         MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest newhost newport
     _ -> return ()
     where

@@ -96,13 +96,10 @@ acceptClient mvar clientlist clientsocket = do
 
 checkRedirectRequest :: Map.Map String (NetworkConnection Value) -> String -> IO Bool
 checkRedirectRequest ncmap userid = do
-    putStrLn $ "Checking redirect request of user: " ++ userid
     case Map.lookup userid ncmap of
         Nothing -> do
-            putStrLn $ "Warning user " ++ userid ++ " not found when processing redirect request!"
             return False
         Just networkconnection -> do
-            putStrLn $ "Trying to check connectionstate of user: " ++ userid
             constate <- MVar.readMVar $ ncConnectionState networkconnection
             print constate
             case constate of
@@ -112,7 +109,6 @@ checkRedirectRequest ncmap userid = do
 
 sendRedirect ::  Handle -> Map.Map String (NetworkConnection Value) -> String -> IO ()
 sendRedirect handle ncmap userid = do
-    putStrLn "WARNING: Trying to send redirect!"
     case Map.lookup userid ncmap of
         Nothing -> return ()
         Just networkconnection -> do
@@ -163,7 +159,6 @@ handleChangePartnerAddress mvar userid hostname port = do
             NCon.changePartnerAddress networkconnection hostname port
             -- For some reason constate doesn't seem to properly apply
             MVar.putMVar mvar networkconnectionmap
-            putStrLn "Changed partner address!"
 
         Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
 

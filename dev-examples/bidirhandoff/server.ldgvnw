@@ -1,0 +1,35 @@
+-- Simple example of Label-Dependent Session Types
+-- Interprets addition of two numbers
+
+type SendInt : ! ~ssn = !Int. ?Int. !Int. ?Int. Unit
+type SendIntClient : ! ~ssn = !Int. ?Int. Unit
+type SendSendIntClient : ! ~ssn = !SendIntClient. Unit
+type SendIntServer : ! ~ssn = ?Int. !Int. Unit
+type SendSendIntServer : ! ~ssn = !SendIntServer. Unit
+
+val send2 (c: SendInt) =
+    let x = ((send c) 1) in
+    let <n, x2> = recv x in
+    let y = ((send x2) 41) in
+    let <m, y2> = recv y in
+    let y3 = end y2 in
+    (m + n)
+
+val add2 (c1: dualof SendInt) =
+    let <m, c2> = recv c1 in
+    let c22 = (send c2) 1300 in
+    let <n, c3> = recv c22 in
+    let c32 = (send c3) 37 in
+    let c4 = end c32 in
+    (m + n)
+
+val main : Int
+val main =
+    let sock = (create 4242) in
+    let con = (accept sock (dualof SendInt)) in
+    let <m, c2> = recv con in
+    let c22 = (send c2) 1300 in
+    let con2 = (accept sock (SendSendIntServer)) in
+    let con3 = ((send con2) c22) in
+    let con4 = end con3 in
+    (m)
