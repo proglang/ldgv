@@ -119,6 +119,7 @@ printConErr hostname port err = Config.traceIO $ "Communication Partner " ++ hos
 
 initialConnect :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> Syntax.Type -> IO Value
 initialConnect mvar hostname port ownport syntype= do
+    {-
     let hints = defaultHints {
                 addrFlags = []
               , addrSocketType = Stream
@@ -127,6 +128,8 @@ initialConnect mvar hostname port ownport syntype= do
     clientsocket <- NC.openSocketNC $ head addrInfo
     connect clientsocket $ addrAddress $ head addrInfo
     handle <- NC.getHandle clientsocket
+    -}
+    handle <- NC.getClientHandle hostname port
     ownuserid <- UserID.newRandomUserID
     Config.traceIO "Client connected: Introducing"
     NC.sendMessage (Messages.IntroduceClient ownuserid ownport syntype) handle
@@ -146,6 +149,8 @@ initialConnect mvar hostname port ownport syntype= do
     used <- MVar.newEmptyMVar
     MVar.putMVar used False
     return $ VChan newConnection mvar used
+
+
 
 sendVChanMessages :: String -> String -> Value -> IO ()
 sendVChanMessages newhost newport input = case input of

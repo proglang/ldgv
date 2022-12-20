@@ -12,6 +12,7 @@ import Control.Concurrent
 import GHC.IO.Handle
 import Control.Monad.IO.Class
 import System.IO
+import Control.Exception
 import qualified Control.Concurrent.Chan as Chan
 import qualified Control.Concurrent.MVar as MVar
 import ProcessEnvironment
@@ -67,6 +68,25 @@ getHandle socket = do
     hdl <- socketToHandle socket ReadWriteMode
     hSetBuffering hdl NoBuffering
     return hdl
+
+
+-- This waits until the handle is established
+getClientHandle :: String -> String -> IO Handle
+getClientHandle hostname port = do
+    catch ( do
+        let hints = defaultHints {
+                addrFlags = []
+              , addrSocketType = Stream
+            }   
+        addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
+        clientsocket <- openSocketNC $ head addrInfo
+        connect clientsocket $ addrAddress $ head addrInfo
+        getHandle clientsocket) $ expredirect hostname port
+    where
+        expredirect :: String -> String -> IOException -> IO Handle
+        expredirect hostname port e = do
+            threadDelay 1000000
+            getClientHandle hostname port  
 
 waitForServerIntroduction :: Handle -> IO String
 waitForServerIntroduction handle = do
