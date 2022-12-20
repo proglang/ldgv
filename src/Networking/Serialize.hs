@@ -36,6 +36,7 @@ instance Serializable Responses where
     Redirect host port -> serializeLabeledEntryMulti "NRedirect" host $ sLast port
     Okay -> return "NOkay"
     OkayClose -> return "NOkayClose"
+    OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
 
 instance Serializable Messages where
     serialize = \case

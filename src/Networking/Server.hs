@@ -65,33 +65,46 @@ acceptClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVa
 acceptClient mvar clientlist clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
     message <- hGetLine hdl
-    Config.traceIO $ "Recieved message:" ++ message
+    -- Config.traceNetIO $ "Recieved message:" ++ message
     case VT.runAlex message VG.parseMessages of
     -- case VT.runAlex message VG.parseValues of
         Left err -> Config.traceIO $ "Error during recieving a networkmessage: "++err
         Right deserialmessages -> do
-            let userid = getPartnerID deserialmessages
+            let userid = getUserID deserialmessages
             netcon <- MVar.takeMVar mvar
             redirectRequest <- checkRedirectRequest netcon userid
             MVar.putMVar mvar netcon
+            case Map.lookup userid netcon of 
+                Just networkcon -> do
+                    Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
+                Nothing -> do
+                    Config.traceNetIO "Recieved message from unknown connection!"
+            Config.traceNetIO $ "    Message: " ++ message
+
             if redirectRequest then sendRedirect hdl netcon userid else do
                 case deserialmessages of
                     NewValue userid val -> do
                         handleNewValue mvar userid val
+                        NC.sendMessage Messages.Okay hdl
                     IntroduceClient userid clientport syntype-> do
                         handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
+                        -- Okay message is handled in handle introduce
                     ChangePartnerAddress userid hostname port -> do
                         handleChangePartnerAddress mvar userid hostname port
+                        NC.sendMessage Messages.Okay hdl
                     RequestSync userid -> do
                         handleRequestSync mvar userid
+                        NC.sendMessage Messages.Okay hdl
                     SyncIncoming userid values -> do
                         handleSyncIncoming mvar userid values
+                        NC.sendMessage Messages.Okay hdl
                     RequestClose userid -> do
                         handleRequestClose mvar userid
+                        NC.sendMessage Messages.Okay hdl
                     _ -> do
                         serial <- NSerialize.serialize deserialmessages
                         Config.traceIO $ "Error unsupported networkmessage: "++ serial
-                NC.sendMessage Messages.Okay hdl
+                        NC.sendMessage Messages.Okay hdl
     hClose hdl
 
 checkRedirectRequest :: Map.Map String (NetworkConnection Value) -> String -> IO Bool
@@ -101,7 +114,6 @@ checkRedirectRequest ncmap userid = do
             return False
         Just networkconnection -> do
             constate <- MVar.readMVar $ ncConnectionState networkconnection
-            print constate
             case constate of
                 RedirectRequest _ _ -> return True
                 _ -> return False
@@ -142,7 +154,10 @@ handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
                 networkconnection <- newNetworkConnection userid serverid (hostaddressTypeToString hostname) clientport
                 let newnetworkconnectionmap = Map.insert userid networkconnection networkconnectionmap
                 MVar.putMVar mvar newnetworkconnectionmap
-                NC.sendMessage (Introduce serverid) hdl -- Answer with own serverid
+                -- NC.sendMessage (Introduce serverid) hdl -- Answer with own serverid
+                NC.sendMessage (Messages.OkayIntroduce serverid) hdl
+                repserial <- NSerialize.serialize $ Messages.OkayIntroduce serverid
+                Config.traceNetIO $ "    Response to "++ userid ++ ": " ++ repserial
                 -- Adds the new user to the users that can be accepted by the server
                 clientlistraw <- MVar.takeMVar clientlist
                 MVar.putMVar clientlist $ clientlistraw ++ [(userid, syntype)]
@@ -150,6 +165,7 @@ handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
             _ -> do
                 Config.traceIO "Error during recieving a networkmessage: only ipv4 is currently supported!"
                 MVar.putMVar mvar networkconnectionmap
+                NC.sendMessage Messages.Okay hdl
 
 handleChangePartnerAddress :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> IO ()
 handleChangePartnerAddress mvar userid hostname port = do
@@ -194,21 +210,6 @@ hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do
     let (a, b, c, d) = hostAddressToTuple hostaddress
     show a ++ "." ++ show b ++ "."++ show c ++ "." ++ show d
-
-waitForIntroduction :: Handle -> String -> IO String
-waitForIntroduction handle serverid = do
-    message <- hGetLine handle
-    case VT.runAlex message VG.parseMessages of
-        Left err -> do
-            Config.traceIO $ "Error during client introduction: "++err
-            throw $ NC.NoIntroductionException message
-        Right deserial -> case deserial of
-            Introduce partner -> do
-                NC.sendMessage (Messages.Introduce serverid) handle
-                return partner
-            _ -> do
-                Config.traceIO $ "Error during client introduction, wrong message: "++ message
-                throw $ NC.NoIntroductionException message
 
 findFittingClientMaybe :: MVar.MVar [(String, Syntax.Type)] -> Syntax.Type -> IO (Maybe String)
 findFittingClientMaybe clientlist desiredType = do

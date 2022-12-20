@@ -24,6 +24,8 @@ import qualified Networking.Common as NC
 import Networking.Messages (Messages(RequestClose))
 import qualified Networking.NetworkConnection as NCon
 import qualified Control.Concurrent as MVar
+import qualified Config
+import qualified Networking.Serialize as NSerialize
 
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
@@ -40,6 +42,10 @@ sendMessage networkconnection val = do
 
 tryToSend :: NetworkConnection Value -> String -> String -> Value -> Value -> IO ()
 tryToSend networkconnection hostname port val valcleaned = do
+    serializedValue <- NSerialize.serialize valcleaned
+    Config.traceNetIO $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection)
+    Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
+    Config.traceNetIO $ "    Message: " ++ serializedValue
     let hints = defaultHints {
             addrFlags = []
             , addrSocketType = Stream
@@ -80,6 +86,10 @@ sendNetworkMessage networkconnection message = do
 
 tryToSendNetworkMessage :: NetworkConnection Value -> String -> String -> Messages -> IO ()
 tryToSendNetworkMessage networkconnection hostname port message = do
+    serializedMessage <- NSerialize.serialize message
+    Config.traceNetIO $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection)
+    Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
+    Config.traceNetIO $ "    Message: " ++ serializedMessage
     let hints = defaultHints {
                 addrFlags = []
               , addrSocketType = Stream
@@ -122,6 +132,11 @@ initialConnect mvar hostname port ownport syntype= do
     NC.sendMessage (Messages.IntroduceClient ownuserid ownport syntype) handle
     introductionanswer <- NC.waitForServerIntroduction handle
     Config.traceIO "Finished Handshake"
+    
+    msgserial <- NSerialize.serialize $ Messages.IntroduceClient ownuserid ownport syntype
+    Config.traceNetIO $ "Sending message as: " ++ ownuserid ++ " to: " ++  introductionanswer
+    Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
+    Config.traceNetIO $ "    Message: " ++ msgserial
     hClose handle
             
     newConnection <- newNetworkConnection introductionanswer ownuserid hostname port
@@ -146,7 +161,7 @@ sendVChanMessages newhost newport input = case input of
     VChan nc _ _-> do 
         sendNetworkMessage nc (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport)
         _ <- MVar.takeMVar $ ncConnectionState nc
-        Config.traceIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
+        Config.traceNetIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
         MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest newhost newport
     _ -> return ()
     where

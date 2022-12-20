@@ -8,15 +8,17 @@ import Control.Monad.IO.Class
 selected :: String -> Bool
 selected ident = ident `elem` ["valueEquiv", "subtype"]
 
-data DebugLevel = DebugNone | DebugAll
+data DebugLevel = DebugNone | DebugNetwork | DebugAll
   deriving (Eq, Ord, Show)
 
+
 debugLevel :: DebugLevel
-debugLevel = DebugAll
--- debugLevel = DebugNone
+--debugLevel = DebugAll
+debugLevel = DebugNetwork
+--debugLevel = DebugNone
 
 trace :: String -> a -> a
-trace s a | debugLevel > DebugNone = D.trace s a
+trace s a | debugLevel > DebugNetwork = D.trace s a
           | otherwise = a
 
 traceOnly :: String -> String -> a -> a
@@ -30,17 +32,22 @@ traceOnlyM ident s
   | otherwise = pure ()
 
 traceM :: Applicative f => String -> f ()
-traceM s | debugLevel > DebugNone = D.traceM s
+traceM s | debugLevel > DebugNetwork = D.traceM s
          | otherwise = pure ()
 
 traceShowM :: (Show a, Applicative f) => a -> f ()
 traceShowM = traceM . show
 
 traceIO :: MonadIO m => String -> m ()
-traceIO s | debugLevel > DebugNone = liftIO $ D.traceIO s
+traceIO s | debugLevel > DebugNetwork = liftIO $ D.traceIO s
           | otherwise = pure ()
+
+traceNetIO :: MonadIO m => String -> m ()
+traceNetIO s | debugLevel > DebugNone = liftIO $ D.traceIO s
+          | otherwise = pure ()
+
 
 traceSuccess :: (Pretty a, Applicative f) => a -> f ()
 traceSuccess a
-  | debugLevel > DebugNone = traceM $ "Success: " ++ pshow a
+  | debugLevel > DebugNetwork = traceM $ "Success: " ++ pshow a
   | otherwise = traceM "Success"

@@ -126,6 +126,7 @@ import Networking.Messages
     nokay         { T _ T.NOkay}
     nrequestclose { T _ T.NRequestClose }
     nokayclose    { T _ T.NOkayClose}
+    nokayintroduce    { T _ T.NOkayIntroduce }
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -289,6 +290,7 @@ Messages : nintroduce '(' String ')' {Introduce $3}
 Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
           | nokay {Okay}
           | nokayclose {OkayClose}
+          | nokayintroduce '(' String ')' {OkayIntroduce $3}
 
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}

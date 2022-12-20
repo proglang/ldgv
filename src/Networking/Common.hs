@@ -40,7 +40,7 @@ instance Exception ServerException
 sendMessage :: NSerialize.Serializable a => a -> Handle -> IO ()
 sendMessage value handle = do
     serializedValue <- NSerialize.serialize value
-    Config.traceIO $ "Sending message:" ++ serializedValue
+    -- Config.traceIO $ "Sending message:" ++ serializedValue
     hPutStrLn handle (serializedValue ++" ")
 
 recieveMessage :: Handle -> IO (Maybe Messages)
@@ -62,8 +62,6 @@ recieveResponse handle = do
             return Nothing
         Right deserialmessage -> return $ Just deserialmessage
 
-
-
 getHandle :: Socket -> IO Handle
 getHandle socket = do
     hdl <- socketToHandle socket ReadWriteMode
@@ -73,12 +71,12 @@ getHandle socket = do
 waitForServerIntroduction :: Handle -> IO String
 waitForServerIntroduction handle = do
     message <- hGetLine handle
-    case VT.runAlex message VG.parseMessages of
+    case VT.runAlex message VG.parseResponses of
         Left err -> do 
             Config.traceIO $ "Error during server introduction: "++err
             throw $ NoIntroductionException message
         Right deserial -> case deserial of
-            Introduce partner -> do
+            OkayIntroduce partner -> do
                 return partner
             _ -> do 
                 Config.traceIO $ "Error during server introduction, wrong message: "++ message

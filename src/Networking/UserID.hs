@@ -12,5 +12,5 @@ mapToChar val
 
 -- This is "probably" unique
 newRandomUserID :: IO String
--- newRandomUserID = map mapToChar . take 8 . randomRs (0, 61) <$> getStdGen
-newRandomUserID = map mapToChar . take 128 . randomRs (0, 61) <$> getStdGen
+newRandomUserID = map mapToChar . take 8 . randomRs (0, 61) <$> newStdGen
+-- newRandomUserID = map mapToChar . take 128 . randomRs (0, 61) <$> newStdGen

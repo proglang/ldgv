@@ -139,6 +139,7 @@ tokens :-
   "NOkay"                               { tok $ const NOkay }
   "NRequestClose"                        { tok $ const NRequestClose }
   "NOkayClose"                               { tok $ const NOkayClose }
+  "NOkayIntroduce"                      { tok $ const NOkayIntroduce }
 
   Double\:[\-]?[0-9]+[\.][0-9]+                  { tok $ Double . read . (drop 7) }
   Int\:[\-]?[0-9]+                              { tok $ Int . read . (drop 4)}
@@ -264,6 +265,7 @@ data Token
   | NOkay
   | NRequestClose
   | NOkayClose
+  | NOkayIntroduce
 
   | String String
   | Int Int

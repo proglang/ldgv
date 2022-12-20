@@ -196,7 +196,6 @@ interpret Interpreter{ interpreterInputs = inputs, interpreterGradual = gradual 
     (\v -> "Error: " ++ show v)
     (\v -> "Result: " ++ show v)
     (res :: Either SomeException P.Value)
-  -- liftIO $ threadDelay 1000000
 
 compile :: CompileOpts -> Action ()
 compile co = do
@@ -257,7 +256,7 @@ parseFile mpath = do
     Just fp -> (fp,) <$> readFile fp
     
   -- Print declarations for debug
-  msgInfo . show $ parseDecls src
+  -- msgInfo . show $ parseDecls src
 
   case parseDecls src of
     Left err -> Nothing <$ formatMsg MsgError (Just name) err
