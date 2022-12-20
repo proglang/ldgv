@@ -22,13 +22,13 @@ getHandle socket = do
     return hdl
 
 -- recieveMessage :: Handle -> IO (Maybe a)
-recieveMessage :: Handle -> VT.Alex t -> b -> (String -> t -> IO b) -> IO b
+recieveMessage :: Handle -> VT.Alex t -> (String -> IO b) -> (String -> t -> IO b) -> IO b
 recieveMessage handle grammar fallbackResponse messageHandler = do
     message <- hGetLine handle
     case VT.runAlex message grammar of
         Left err -> do 
             Config.traceIO $ "Error during recieving a networkmessage: "++err
-            return fallbackResponse
+            fallbackResponse message 
         Right deserialmessage -> messageHandler message deserialmessage
 
 openSocketNC :: AddrInfo -> IO Socket
