@@ -257,8 +257,6 @@ eval = \case
               _ -> throw $ NotAnExpectedValueException "VInt" portVal
           _ -> throw $ NotAnExpectedValueException "VString" addressVal
       _ -> throw $ NotAnExpectedValueException "VServerSocket" serversocket
-    where
-      openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
   e -> throw $ NotImplementedException e
 
 -- Exp is only used for blame

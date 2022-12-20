@@ -64,6 +64,56 @@ acceptClients mvar clientlist socket = do
 acceptClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> IO ()
 acceptClient mvar clientlist clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
+    NC.recieveMessage hdl VG.parseMessages () $ handleClient mvar clientlist clientsocket hdl
+    hClose hdl
+
+
+handleClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> Messages -> IO ()
+handleClient mvar clientlist clientsocket hdl message deserialmessages = do
+    let userid = getUserID deserialmessages
+    netcon <- MVar.takeMVar mvar
+    redirectRequest <- checkRedirectRequest netcon userid
+    MVar.putMVar mvar netcon
+    case Map.lookup userid netcon of 
+        Just networkcon -> do
+            Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
+        Nothing -> do
+            Config.traceNetIO "Recieved message from unknown connection!"
+    Config.traceNetIO $ "    Message: " ++ message
+
+    if redirectRequest then sendRedirect hdl netcon userid else do
+        case deserialmessages of
+            NewValue userid val -> do
+                handleNewValue mvar userid val
+                NC.sendMessage Messages.Okay hdl
+            IntroduceClient userid clientport syntype-> do
+                handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
+                -- Okay message is handled in handle introduce
+            ChangePartnerAddress userid hostname port -> do
+                handleChangePartnerAddress mvar userid hostname port
+                NC.sendMessage Messages.Okay hdl
+            RequestSync userid -> do
+                handleRequestSync mvar userid
+                NC.sendMessage Messages.Okay hdl
+            SyncIncoming userid values -> do
+                handleSyncIncoming mvar userid values
+                NC.sendMessage Messages.Okay hdl
+            RequestClose userid -> do
+                handleRequestClose mvar userid
+                NC.sendMessage Messages.Okay hdl
+            _ -> do
+                serial <- NSerialize.serialize deserialmessages
+                Config.traceIO $ "Error unsupported networkmessage: "++ serial
+                NC.sendMessage Messages.Okay hdl
+
+
+{-
+
+
+-- In the nothing case we shoud wait a few seconds for other messages to resolve the issue
+acceptClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> IO ()
+acceptClient mvar clientlist clientsocket = do
+    hdl <- NC.getHandle $ fst clientsocket
     message <- hGetLine hdl
     -- Config.traceNetIO $ "Recieved message:" ++ message
     case VT.runAlex message VG.parseMessages of
@@ -106,6 +156,9 @@ acceptClient mvar clientlist clientsocket = do
                         Config.traceIO $ "Error unsupported networkmessage: "++ serial
                         NC.sendMessage Messages.Okay hdl
     hClose hdl
+
+
+-}
 
 checkRedirectRequest :: Map.Map String (NetworkConnection Value) -> String -> IO Bool
 checkRedirectRequest ncmap userid = do

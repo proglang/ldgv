@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Networking.Client where
 
 import qualified Config
@@ -27,12 +29,23 @@ import qualified Control.Concurrent as MVar
 import qualified Config
 import qualified Networking.Serialize as NSerialize
 
+
+newtype ClientException = NoIntroductionException String
+    deriving Eq
+
+instance Show ClientException where
+    show = \case
+        NoIntroductionException s -> "Partner didn't introduce itself, but sent: " ++ s
+
+instance Exception ClientException
+
+
 sendMessage :: NetworkConnection Value -> Value -> IO ()
 sendMessage networkconnection val = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
-            valcleaned <- NC.replaceVChan val
+            valcleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valcleaned
             catch (tryToSend networkconnection hostname port val valcleaned) $ printConErr hostname port
         NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
@@ -61,7 +74,7 @@ tryToSend networkconnection hostname port val valcleaned = do
 
     disableVChans val -- Disables all sent VChans for the sending party
     Config.traceIO "Waiting for response"
-    mbyresponse <- NC.recieveResponse handle
+    mbyresponse <- recieveResponse handle
     hClose handle
     case mbyresponse of
         Just response -> case response of
@@ -102,7 +115,7 @@ tryToSendNetworkMessage networkconnection hostname port message = do
     NC.sendMessage message handle
     
     Config.traceIO "Waiting for response"
-    mbyresponse <- NC.recieveResponse handle
+    mbyresponse <- recieveResponse handle
     hClose handle
     case mbyresponse of
         Just response -> case response of
@@ -129,11 +142,11 @@ initialConnect mvar hostname port ownport syntype= do
     connect clientsocket $ addrAddress $ head addrInfo
     handle <- NC.getHandle clientsocket
     -}
-    handle <- NC.getClientHandle hostname port
+    handle <- getClientHandle hostname port
     ownuserid <- UserID.newRandomUserID
     Config.traceIO "Client connected: Introducing"
     NC.sendMessage (Messages.IntroduceClient ownuserid ownport syntype) handle
-    introductionanswer <- NC.waitForServerIntroduction handle
+    introductionanswer <- waitForServerIntroduction handle
     Config.traceIO "Finished Handshake"
     
     msgserial <- NSerialize.serialize $ Messages.IntroduceClient ownuserid ownport syntype
@@ -200,3 +213,81 @@ closeConnection con = do
                     closeConnection con
         NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
         NCon.Emulated -> pure ()
+
+recieveResponse :: Handle -> IO (Maybe Responses)
+recieveResponse handle = do
+    message <- hGetLine handle
+    case VT.runAlex message VG.parseResponses of
+        Left err -> do 
+            Config.traceIO $ "Error during recieving a networkmessage: "++err
+            return Nothing
+        Right deserialmessage -> return $ Just deserialmessage
+
+
+-- This waits until the handle is established
+getClientHandle :: String -> String -> IO Handle
+getClientHandle hostname port = do
+    catch ( do
+        let hints = defaultHints {
+                addrFlags = []
+              , addrSocketType = Stream
+            }   
+        addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
+        clientsocket <- NC.openSocketNC $ head addrInfo
+        connect clientsocket $ addrAddress $ head addrInfo
+        NC.getHandle clientsocket) $ expredirect hostname port
+    where
+        expredirect :: String -> String -> IOException -> IO Handle
+        expredirect hostname port e = do
+            threadDelay 1000000
+            getClientHandle hostname port  
+
+replaceVChan :: Value -> IO Value
+replaceVChan input = case input of
+    VSend v -> do
+        nv <- replaceVChan v
+        return $ VSend nv
+    VPair v1 v2 -> do 
+        nv1 <- replaceVChan v1
+        nv2 <- replaceVChan v2
+        return $ VPair nv1 nv2
+    VFunc penv a b -> do
+        newpenv <- replaceVChanPEnv penv
+        return $ VFunc newpenv a b
+    VDynCast v g -> do 
+        nv <- replaceVChan v
+        return $ VDynCast nv g
+    VFuncCast v a b -> do 
+        nv <- replaceVChan v
+        return $ VFuncCast nv a b
+    VRec penv a b c d -> do 
+        newpenv <- replaceVChanPEnv penv
+        return $ VRec newpenv a b c d
+    VNewNatRec penv a b c d e f g -> do 
+        newpenv <- replaceVChanPEnv penv
+        return $ VNewNatRec newpenv a b c d e f g
+    VChan nc _ _-> do 
+        (r, rl, w, wl, pid, oid, h, p) <- serializeNetworkConnection nc
+        return $ VChanSerial (r, rl) (w, wl) pid oid (h, p)
+    _ -> return input
+    where
+        replaceVChanPEnv :: [(String, Value)] -> IO [(String, Value)]
+        replaceVChanPEnv [] = return []
+        replaceVChanPEnv (x:xs) = do 
+            newval <- replaceVChan $ snd x
+            rest <- replaceVChanPEnv xs
+            return $ (fst x, newval):rest
+
+waitForServerIntroduction :: Handle -> IO String
+waitForServerIntroduction handle = do
+    message <- hGetLine handle
+    case VT.runAlex message VG.parseResponses of
+        Left err -> do 
+            Config.traceIO $ "Error during server introduction: "++err
+            throw $ NoIntroductionException message
+        Right deserial -> case deserial of
+            OkayIntroduce partner -> do
+                return partner
+            _ -> do 
+                Config.traceIO $ "Error during server introduction, wrong message: "++ message
+                throw $ NoIntroductionException message
