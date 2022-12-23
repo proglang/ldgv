@@ -59,14 +59,12 @@ acceptClients mvar clientlist socket = do
     forkIO $ acceptClient mvar clientlist clientsocket
     acceptClients mvar clientlist socket
 
-
 -- In the nothing case we shoud wait a few seconds for other messages to resolve the issue
 acceptClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> IO ()
 acceptClient mvar clientlist clientsocket = do
     hdl <- NC.getHandle $ fst clientsocket
     NC.recieveMessage hdl VG.parseMessages (\_ -> return ()) $ handleClient mvar clientlist clientsocket hdl
     hClose hdl
-
 
 handleClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> Messages -> IO ()
 handleClient mvar clientlist clientsocket hdl message deserialmessages = do
@@ -106,7 +104,6 @@ handleClient mvar clientlist clientsocket hdl message deserialmessages = do
                 Config.traceIO $ "Error unsupported networkmessage: "++ serial
                 NC.sendMessage Messages.Okay hdl
 
-
 checkRedirectRequest :: Map.Map String (NetworkConnection Value) -> String -> IO Bool
 checkRedirectRequest ncmap userid = do
     case Map.lookup userid ncmap of
@@ -118,7 +115,6 @@ checkRedirectRequest ncmap userid = do
                 RedirectRequest _ _ -> return True
                 _ -> return False
 
-
 sendRedirect ::  Handle -> Map.Map String (NetworkConnection Value) -> String -> IO ()
 sendRedirect handle ncmap userid = do
     case Map.lookup userid ncmap of
@@ -128,8 +124,6 @@ sendRedirect handle ncmap userid = do
             case constate of
                 RedirectRequest host port -> NC.sendMessage (Messages.Redirect host port) handle
                 _ -> return ()
-
-
 
 handleNewValue :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Value -> IO ()
 handleNewValue mvar userid val = do
@@ -205,7 +199,6 @@ handleRequestClose mvar userid = do
         Nothing -> return ()
     MVar.putMVar mvar networkconnectionmap
 
-
 hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do
     let (a, b, c, d) = hostAddressToTuple hostaddress
@@ -234,7 +227,6 @@ findFittingClient clientlist desiredType = do
         Nothing -> do
             threadDelay 10000 -- Sleep for 10 ms to not hammer the CPU
             findFittingClient clientlist desiredType
-
 
 replaceVChanSerial :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> Value -> IO Value
 replaceVChanSerial mvar input = case input of

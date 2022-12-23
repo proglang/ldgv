@@ -294,7 +294,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
 interpretApp _ (VSend v@(VChan cc _ usedmvar)) w = do
   used <- liftIO $ MVar.readMVar usedmvar
   if used then throw $ VChanIsUsedException $ show v else do
-    liftIO $ NClient.sendMessage cc w
+    liftIO $ NClient.sendValue cc w
 
     -- Disable old VChan
     newV <- liftIO $ disableOldVChan v

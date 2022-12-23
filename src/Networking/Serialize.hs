@@ -55,7 +55,6 @@ instance Serializable (NCon.NetworkConnection Value) where
     (readList, readUnread) <- DC.serializeConnection $ NCon.ncRead con
     (writeList, writeUnread) <- DC.serializeConnection $ NCon.ncWrite con
 
-
     serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncPartnerUserID con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncOwnUserID con) $ sLast constate
 
 instance Serializable (NCon.DirectionalConnection Value) where
@@ -64,12 +63,10 @@ instance Serializable (NCon.DirectionalConnection Value) where
 
     serializeLabeledEntryMulti "SDirectionalConnection" msg $ sLast msgUnread
 
-
 instance Serializable NCon.ConnectionState where
   serialize = \case
     NCon.Connected hostname port -> serializeLabeledEntryMulti "SConnected" hostname $ sLast port
     _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
-
 
 instance Serializable Value where
   serialize = \case

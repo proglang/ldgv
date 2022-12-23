@@ -40,52 +40,22 @@ instance Show ClientException where
 instance Exception ClientException
 
 
-sendMessage :: NetworkConnection Value -> Value -> IO ()
-sendMessage networkconnection val = do
+sendValue :: NetworkConnection Value -> Value -> IO ()
+sendValue networkconnection val = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
             valcleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valcleaned
-            catch (tryToSend networkconnection hostname port val valcleaned) $ printConErr hostname port
+            -- catch (tryToSend networkconnection hostname port val valcleaned) $ printConErr hostname port
+            catch (do 
+                tryToSendNetworkMessage networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned)
+                sendVChanMessages hostname port val
+                disableVChans val
+                ) $ printConErr hostname port
         NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
     -- MVar.putMVar (ncConnectionState networkconnection) connectionstate
-
-
-tryToSend :: NetworkConnection Value -> String -> String -> Value -> Value -> IO ()
-tryToSend networkconnection hostname port val valcleaned = do
-    serializedValue <- NSerialize.serialize valcleaned
-    Config.traceNetIO $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection)
-    Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
-    Config.traceNetIO $ "    Message: " ++ serializedValue
-    let hints = defaultHints {
-            addrFlags = []
-            , addrSocketType = Stream
-        }
-    Config.traceIO $ "Trying to connect to: " ++ hostname ++":"++port
-    addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-    clientsocket <- NC.openSocketNC $ head addrInfo
-    connect clientsocket $ addrAddress $ head addrInfo
-    handle <- NC.getHandle clientsocket
-
-    NC.sendMessage (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) handle
-    sendVChanMessages hostname port val -- This sends a ChangeNetworkPartner Message if appropriate
-
-    disableVChans val -- Disables all sent VChans for the sending party
-    Config.traceIO "Waiting for response"
-    mbyresponse <- recieveResponse handle
-    hClose handle
-    case mbyresponse of
-        Just response -> case response of
-            Okay -> Config.traceIO "Message okay"
-            Redirect host port -> do
-                Config.traceIO "Communication partner changed address, resending"
-                NCon.changePartnerAddress networkconnection host port
-                tryToSend networkconnection host port val valcleaned
-        Nothing -> Config.traceIO "Error when recieving response"
-
-
 
 sendNetworkMessage :: NetworkConnection Value -> Messages -> IO ()
 sendNetworkMessage networkconnection message = do
@@ -153,8 +123,6 @@ initialConnect mvar hostname port ownport syntype= do
     MVar.putMVar used False
     return $ VChan newConnection mvar used
 
-
-
 sendVChanMessages :: String -> String -> Value -> IO ()
 sendVChanMessages newhost newport input = case input of
     VSend v -> sendVChanMessages newhost newport v
@@ -178,7 +146,6 @@ sendVChanMessages newhost newport input = case input of
         sendVChanMessagesPEnv newhost newport (x:xs) = do
             sendVChanMessages newhost newport $ snd x
             sendVChanMessagesPEnv newhost newport xs
-
 
 closeConnection :: NetworkConnection Value -> IO ()
 closeConnection con = do
@@ -208,8 +175,6 @@ closeConnection con = do
 recieveResponse :: Handle -> IO (Maybe Responses)
 recieveResponse handle = do
     NC.recieveMessage handle VG.parseResponses (\_ -> return Nothing) (\_ des -> return $ Just des)
-
-
 
 -- This waits until the handle is established
 getClientHandle :: String -> String -> IO Handle
@@ -264,7 +229,6 @@ replaceVChan input = case input of
             newval <- replaceVChan $ snd x
             rest <- replaceVChanPEnv xs
             return $ (fst x, newval):rest
-
 
 waitForServerIntroduction :: Handle -> IO String
 waitForServerIntroduction handle = do
