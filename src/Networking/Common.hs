@@ -21,7 +21,6 @@ getHandle socket = do
     hSetBuffering hdl NoBuffering
     return hdl
 
--- recieveMessage :: Handle -> IO (Maybe a)
 recieveMessage :: Handle -> VT.Alex t -> (String -> IO b) -> (String -> t -> IO b) -> IO b
 recieveMessage handle grammar fallbackResponse messageHandler = do
     message <- hGetLine handle
