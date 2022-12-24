@@ -25,11 +25,11 @@ val add2 (c1: dualof SendInt) =
 
 val main : Int
 val main =
-    let sock = (create 4343) in
-    let con = (connect sock SendInt "127.0.0.1" 4242 ) in  -- This cannot be localhost, since this might break on containerized images
+    -- let sock = (create 4343) in
+    let con = (connect 4343 SendInt "127.0.0.1" 4242 ) in  -- This cannot be localhost, since this might break on containerized images
     let x = ((send con) 1) in
     let <n, x2> = recv x in
-    let con2 = (connect sock SendSendIntClient "127.0.0.1" 4340) in
+    let con2 = (connect 4343 SendSendIntClient "127.0.0.1" 4340) in
     let con22 = ((send con2) x2) in
     let con23 = end con22 in
     (n)

@@ -24,7 +24,7 @@ import qualified Networking.NetworkConnection as Ncon
 -- import qualified Networking.Common as NC
 
 -- | the interpretation monad
-type InterpretM a = T.ReaderT PEnv IO a
+type InterpretM a = T.ReaderT (PEnv, MVar.MVar (Map.Map Int ServerSocket)) IO a
 
 extendEnv :: String -> Value -> PEnv -> PEnv
 extendEnv = curry (:)
@@ -45,6 +45,7 @@ data FuncType = FuncType PEnv String S.Type S.Type
 instance Show FuncType where
   show (FuncType _ s t1 t2) = "FuncType " ++ show s ++ " " ++ show t1 ++ " " ++ show t2
 
+type ServerSocket = (MVar.MVar (Map.Map String (NCon.NetworkConnection Value)), MVar.MVar [(String, Type)], String)
 
 type ValueRepr = String
 

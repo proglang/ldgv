@@ -8,7 +8,7 @@ type SendSendOneInt : ! ~ssn = !SendOneInt. Unit
 
 val main : Int
 val main =
-    let sock = (create 4343) in
+    let sock = 4343 in
     let con = (connect sock (dualof SendSendOneInt) "127.0.0.1" 4242) in
     let <oneint, c2> = recv con in
     let <result, c3> = recv oneint in

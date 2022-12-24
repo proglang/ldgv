@@ -21,7 +21,7 @@ val add2 (c1: dualof SendInt) (c3: SendSendOneInt)=
 -- Hier problematisch ldgv hat noch kein Konzept wie beim akzeptieren zwischen verschiedenen Types ungerschieden werden kann
 val main : Int
 val main =
-    let sock = (create 4242) in
+    let sock = 4242 in
     let con1 = (accept sock (dualof SendInt)) in
     let con2 = (accept sock (SendSendOneInt)) in
     add2 con1 con2

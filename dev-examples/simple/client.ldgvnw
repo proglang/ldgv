@@ -45,6 +45,6 @@ val lServer (c : TServer) : End =
 
 val main : Int
 val main =
-    let sock = (create 4343) in
+    let sock = 4343 in
     let con = (connect sock TClient "127.0.0.1" 4242 ) in
     ((lClient con) 42)

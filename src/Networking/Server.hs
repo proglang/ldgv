@@ -29,6 +29,7 @@ import qualified Networking.Common as NC
 import qualified Config
 import qualified Networking.NetworkConnection as NCon
 import qualified Control.Concurrent as MVar
+import ProcessEnvironment (ServerSocket)
 
 createServer :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
 createServer port = do
@@ -268,3 +269,19 @@ replaceVChanSerial mvar input = case input of
             newval <- replaceVChanSerial mvar $ snd x
             rest <- replaceVChanSerialPEnv mvar xs
             return $ (fst x, newval):rest
+
+ensureSocket :: Int -> MVar.MVar (Map.Map Int ServerSocket) -> IO ServerSocket
+ensureSocket port socketsmvar = do
+    sockets <- MVar.takeMVar socketsmvar
+    case Map.lookup port sockets of
+        Just socket -> do
+            MVar.putMVar socketsmvar sockets
+            return socket
+        Nothing -> do
+            Config.traceIO "Creating socket!"
+            (mvar, clientlist) <- createServer port
+            Config.traceIO "Socket created"
+            let newsocket = (mvar, clientlist, show port)
+            let updatedMap = Map.insert port newsocket sockets
+            MVar.putMVar socketsmvar updatedMap
+            return newsocket

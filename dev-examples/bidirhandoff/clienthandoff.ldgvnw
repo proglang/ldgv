@@ -25,8 +25,8 @@ val add2 (c1: dualof SendInt) =
 
 val main : Int
 val main =
-    let sock = (create 4340) in
-    let con = (accept sock (dualof SendSendIntClient)) in  -- This cannot be localhost, since this might break on containerized images
+    -- let sock = (create 4340) in
+    let con = (accept 4340 (dualof SendSendIntClient)) in  -- This cannot be localhost, since this might break on containerized images
     let <talk, y> = (recv con) in
     let x = ((send talk) 41) in
     let <n, x2> = recv x in

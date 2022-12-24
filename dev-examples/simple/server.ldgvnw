@@ -44,7 +44,7 @@ val lServer (c : TServer) : End =
 
 val main : Unit
 val main =
-    let sock = (create 4242) in
+    let sock = 4242 in
     let con = (accept sock (dualof TClient)) in
     let e = lServer con in
     let ee = end e in

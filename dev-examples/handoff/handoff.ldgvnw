@@ -20,8 +20,8 @@ val add2 (c1: dualof SendInt) =
 
 val main : Unit
 val main =
-    let con = (create 4343) in
-    let sock = (accept con (dualof SendSendOneInt)) in
-    let <oneint, c2> = recv sock in
+    -- let con = (create 4343) in
+    let con = (accept 4343 (dualof SendSendOneInt)) in
+    let <oneint, c2> = recv con in
     send2 oneint
 

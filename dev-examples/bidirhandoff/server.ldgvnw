@@ -25,11 +25,11 @@ val add2 (c1: dualof SendInt) =
 
 val main : Int
 val main =
-    let sock = (create 4242) in
-    let con = (accept sock (dualof SendInt)) in
+    -- let sock = (create 4242) in
+    let con = (accept 4242 (dualof SendInt)) in
     let <m, c2> = recv con in
     let c22 = (send c2) 1300 in
-    let con2 = (accept sock (SendSendIntServer)) in
+    let con2 = (accept 4242 (SendSendIntServer)) in
     let con3 = ((send con2) c22) in
     let con4 = end con3 in
     (m)
