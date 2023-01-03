@@ -31,25 +31,41 @@ import qualified Networking.NetworkConnection as NCon
 import qualified Control.Concurrent as MVar
 import ProcessEnvironment (ServerSocket)
 
+newtype ServerException = CouldntBindSocket Int
+    deriving Eq
+
+instance Show ServerException where
+    show = \case
+        CouldntBindSocket port -> "Couldn't bind socket to port " ++ show port
+
+instance Exception ServerException
+
 createServer :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
 createServer port = do
     serverid <- UserID.newRandomUserID
-    sock <- liftIO $ socket AF_INET Stream 0
-    liftIO $ setSocketOption sock ReuseAddr 1
+    sock <- socket AF_INET Stream 0
+    setSocketOption sock ReuseAddr 1
     let hints = defaultHints {
             addrFlags = [AI_PASSIVE]
           , addrSocketType = Stream
     }
-    addrInfo <- liftIO $ getAddrInfo (Just hints) Nothing $ Just $ show port
+    addrInfo <- getAddrInfo (Just hints) Nothing $ Just $ show port
 
-    liftIO $ bind sock $ addrAddress $ head addrInfo
-    liftIO $ listen sock 2
-    mvar <- MVar.newEmptyMVar
-    MVar.putMVar mvar Map.empty
-    clientlist <- MVar.newEmptyMVar
-    MVar.putMVar clientlist []
-    forkIO $ acceptClients mvar clientlist sock
-    return (mvar, clientlist)
+    case getIPv4AddrInfo addrInfo of
+        Just info -> do
+            bind sock $ addrAddress info
+            listen sock 2
+            mvar <- MVar.newEmptyMVar
+            MVar.putMVar mvar Map.empty
+            clientlist <- MVar.newEmptyMVar
+            MVar.putMVar clientlist []
+            forkIO $ acceptClients mvar clientlist sock
+            return (mvar, clientlist)
+        Nothing -> throw $ CouldntBindSocket port
+
+getIPv4AddrInfo :: [AddrInfo] -> Maybe AddrInfo
+getIPv4AddrInfo [] = Nothing
+getIPv4AddrInfo (x:xs) = if addrFamily x == AF_INET then Just x else getIPv4AddrInfo xs
 
 acceptClients :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> IO ()
 acceptClients mvar clientlist socket = do
