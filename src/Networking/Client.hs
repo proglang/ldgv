@@ -74,7 +74,8 @@ tryToSendNetworkMessage networkconnection hostname port message = do
     Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
     Config.traceNetIO $ "    Message: " ++ serializedMessage
     let hints = defaultHints {
-                addrFlags = []
+                addrFamily = AF_INET
+              , addrFlags = []
               , addrSocketType = Stream
             }
     Config.traceIO $ "Trying to connect to: " ++ hostname ++":"++port
