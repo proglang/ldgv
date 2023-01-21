@@ -28,6 +28,7 @@ import qualified Networking.NetworkConnection as NCon
 import qualified Control.Concurrent as MVar
 import qualified Config
 import qualified Networking.Serialize as NSerialize
+import Control.Monad
 
 
 newtype ClientException = NoIntroductionException String
@@ -40,8 +41,8 @@ instance Show ClientException where
 instance Exception ClientException
 
 
-sendValue :: NetworkConnection Value -> Value -> IO ()
-sendValue networkconnection val = do
+sendValue :: NetworkConnection Value -> Value -> Int -> IO ()
+sendValue networkconnection val resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
@@ -49,7 +50,7 @@ sendValue networkconnection val = do
             DC.writeMessage (ncWrite networkconnection) valcleaned
             -- catch (tryToSend networkconnection hostname port val valcleaned) $ printConErr hostname port
             catch (do 
-                tryToSendNetworkMessage networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned)
+                tryToSendNetworkMessage networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) resendOnError
                 sendVChanMessages hostname port val
                 disableVChans val
                 ) $ printConErr hostname port
@@ -57,18 +58,18 @@ sendValue networkconnection val = do
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
     -- MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
-sendNetworkMessage :: NetworkConnection Value -> Messages -> IO ()
-sendNetworkMessage networkconnection message = do
+sendNetworkMessage :: NetworkConnection Value -> Messages -> Int -> IO ()
+sendNetworkMessage networkconnection message resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
-            catch ( tryToSendNetworkMessage networkconnection hostname port message ) $ printConErr hostname port
+            catch ( tryToSendNetworkMessage networkconnection hostname port message resendOnError) $ printConErr hostname port
         NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
         NCon.Emulated -> pure ()
     --MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
-tryToSendNetworkMessage :: NetworkConnection Value -> String -> String -> Messages -> IO ()
-tryToSendNetworkMessage networkconnection hostname port message = do
+tryToSendNetworkMessage :: NetworkConnection Value -> String -> String -> Messages -> Int -> IO ()
+tryToSendNetworkMessage networkconnection hostname port message resendOnError = do
     serializedMessage <- NSerialize.serialize message
     Config.traceNetIO $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection)
     Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
@@ -78,24 +79,61 @@ tryToSendNetworkMessage networkconnection hostname port message = do
               , addrFlags = []
               , addrSocketType = Stream
             }
-    Config.traceIO $ "Trying to connect to: " ++ hostname ++":"++port
-    addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-    clientsocket <- NC.openSocketNC $ head addrInfo
-    connect clientsocket $ addrAddress $ head addrInfo
-    handle <- NC.getHandle clientsocket
-    NC.sendMessage message handle
+    response <- MVar.newEmptyMVar 
+    forkIO (do 
+        Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
+        addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
+        Config.traceNetIO "Trying to open socket"
+        clientsocket <- NC.openSocketNC $ head addrInfo
+        Config.traceNetIO "Trying to connect"
+        -- This sometimes fails
+        connect clientsocket $ addrAddress $ head addrInfo
+        Config.traceNetIO "Connected"
+        handle <- NC.getHandle clientsocket
+        Config.traceNetIO "Trying to send!"
+        NC.sendMessage message handle
 
-    Config.traceIO "Waiting for response"
-    mbyresponse <- recieveResponse handle
-    hClose handle
+        Config.traceNetIO "Waiting for response"
+        mbyresponse <- recieveResponse handle
+        hClose handle
+        MVar.putMVar response mbyresponse
+        )
+    mbyresponse <- getResp response 10
+    
+
     case mbyresponse of
         Just response -> case response of
-            Okay -> Config.traceIO "Message okay"
+            Okay -> Config.traceNetIO $ "Message okay: "++serializedMessage
             Redirect host port -> do
-                Config.traceIO "Communication partner changed address, resending"
+                Config.traceNetIO "Communication partner changed address, resending"
                 NCon.changePartnerAddress networkconnection host port
-                tryToSendNetworkMessage networkconnection host port message
-        Nothing -> Config.traceIO "Error when recieving response"
+                tryToSendNetworkMessage networkconnection host port message resendOnError
+            Wait -> do
+                Config.traceNetIO "Communication out of sync lets wait!"
+                threadDelay 1000000
+                tryToSendNetworkMessage networkconnection hostname port message resendOnError
+            _ -> Config.traceNetIO "Unknown communication error"
+
+        Nothing -> do 
+            Config.traceNetIO "Error when recieving response"
+            connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
+            case connectionstate of
+                NCon.Connected newhostname newport -> if resendOnError /= 0 then do
+                        Config.traceNetIO $ "Old communication partner offline! New communication partner: " ++ newhostname ++ ":" ++ newport
+                        tryToSendNetworkMessage networkconnection newhostname newport message (resendOnError-1)
+                        else Config.traceNetIO "Old communication partner offline! No longer retrying"
+
+                _ -> Config.traceNetIO "Error when sending message: This channel is disconnected while sending"
+    where
+        getResp mvar count = do
+            res <- tryTakeMVar mvar
+            case res of
+                Just response -> return response
+                Nothing -> if count /= 0 then do
+                    threadDelay 100000
+                    getResp mvar (count-1)
+                    else return Nothing
+
 
 printConErr :: String -> String -> IOException -> IO ()
 printConErr hostname port err = Config.traceIO $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
@@ -136,10 +174,18 @@ sendVChanMessages newhost newport input = case input of
     VRec penv a b c d -> sendVChanMessagesPEnv newhost newport penv
     VNewNatRec penv a b c d e f g -> sendVChanMessagesPEnv newhost newport penv
     VChan nc _ _-> do
+        {-
         sendNetworkMessage nc (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport)
         _ <- MVar.takeMVar $ ncConnectionState nc
         Config.traceNetIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
+        MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest newhost newport-}
+
+        
+        oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
         MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest newhost newport
+        tempnetcon <- NCon.newNetworkConnectionAllowingMaybe (NCon.ncPartnerUserID nc) (NCon.ncOwnUserID nc) (NCon.csHostname oldconnectionstate) (NCon.csPort oldconnectionstate)
+        sendNetworkMessage tempnetcon (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport) 5
+        Config.traceNetIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
     _ -> return ()
     where
         sendVChanMessagesPEnv :: String -> String -> [(String, Value)] -> IO ()
@@ -155,7 +201,7 @@ closeConnection con = do
         NCon.Connected hostname port -> do
             connectionError <- MVar.newEmptyMVar
             MVar.putMVar connectionError False
-            catch ( tryToSendNetworkMessage con hostname port (RequestClose $ Data.Maybe.fromMaybe "" $ ncOwnUserID con) ) (\exception -> do
+            catch ( tryToSendNetworkMessage con hostname port (RequestClose $ Data.Maybe.fromMaybe "" $ ncOwnUserID con) 0) (\exception -> do
                 printConErr hostname port exception
                 _ <- MVar.takeMVar connectionError -- If we cannot communicate with them just close the connection
                 MVar.putMVar connectionError True
@@ -175,7 +221,22 @@ closeConnection con = do
 
 recieveResponse :: Handle -> IO (Maybe Responses)
 recieveResponse handle = do
-    NC.recieveMessage handle VG.parseResponses (\_ -> return Nothing) (\_ des -> return $ Just des)
+    retVal <- MVar.newEmptyMVar 
+    forkIO $ NC.recieveMessage handle VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
+    waitForResponse retVal 100
+    where
+        waitForResponse :: MVar.MVar (Maybe Responses) -> Int -> IO (Maybe Responses)
+        waitForResponse mvar count = do
+            result <- MVar.tryTakeMVar mvar
+            case result of
+                Just mbyResponse -> do 
+                    -- Config.traceNetIO "Got response"
+                    return mbyResponse
+                Nothing -> if count /= 0 then do
+                    -- Config.traceNetIO $ "Waiting for response: " ++ show count
+                    threadDelay 10000
+                    waitForResponse mvar (count-1)
+                    else return Nothing
 
 -- This waits until the handle is established
 getClientHandle :: String -> String -> IO Handle

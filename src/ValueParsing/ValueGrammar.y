@@ -122,11 +122,13 @@ import Networking.Messages
     nsyncincoming { T _ T.NSyncIncoming }
     nrequestsync  { T _ T.NRequestSync }
     nchangepartneraddress {T _ T.NChangePartnerAddress }
+    nintroducenewpartneraddress {T _ T.NIntroduceNewPartnerAddress}
     nredirect     { T _ T.NRedirect}
     nokay         { T _ T.NOkay}
     nrequestclose { T _ T.NRequestClose }
     nokayclose    { T _ T.NOkayClose}
     nokayintroduce    { T _ T.NOkayIntroduce }
+    nwait           { T _ T.NWait}
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -285,12 +287,14 @@ Messages : nintroduce '(' String ')' {Introduce $3}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
          | nrequestsync '(' String ')' {RequestSync $3}
          | nchangepartneraddress '(' String ')' '(' String ')' '(' String ')' {ChangePartnerAddress $3 $6 $9}
+         | nintroducenewpartneraddress '(' String ')' '(' String ')' {IntroduceNewPartnerAddress $3 $6}
          | nrequestclose '(' String ')' {RequestClose $3}
 
 Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
           | nokay {Okay}
           | nokayclose {OkayClose}
           | nokayintroduce '(' String ')' {OkayIntroduce $3}
+          | nwait {Wait}
 
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}

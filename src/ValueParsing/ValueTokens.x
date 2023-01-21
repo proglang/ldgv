@@ -135,11 +135,13 @@ tokens :-
   "NSyncIncoming"                       { tok $ const NSyncIncoming }
   "NRequestSync"                        { tok $ const NRequestSync }
   "NChangePartnerAddress"               { tok $ const NChangePartnerAddress }
+  "NIntroduceNewPartnerAddress"         { tok $ const NIntroduceNewPartnerAddress}
   "NRedirect"                           { tok $ const NRedirect }
   "NOkay"                               { tok $ const NOkay }
   "NRequestClose"                        { tok $ const NRequestClose }
   "NOkayClose"                               { tok $ const NOkayClose }
   "NOkayIntroduce"                      { tok $ const NOkayIntroduce }
+  "NWait"                               { tok $ const NWait}
 
   Double\:[\-]?[0-9]+[\.][0-9]+                  { tok $ Double . read . (drop 7) }
   Int\:[\-]?[0-9]+                              { tok $ Int . read . (drop 4)}
@@ -261,11 +263,13 @@ data Token
   | NSyncIncoming
   | NRequestSync
   | NChangePartnerAddress
+  | NIntroduceNewPartnerAddress
   | NRedirect
   | NOkay
   | NRequestClose
   | NOkayClose
   | NOkayIntroduce
+  | NWait
 
   | String String
   | Int Int

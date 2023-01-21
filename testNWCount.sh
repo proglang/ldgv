@@ -1,0 +1,8 @@
+for i in {1..100}; do
+    clear; echo "$i Add"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/add/server.ldgvnw & stack run ldgv -- interpret < dev-examples/add/client.ldgvnw & wait);
+    clear; echo "$i Simple"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/simple/server.ldgvnw & stack run ldgv -- interpret < dev-examples/simple/client.ldgvnw & wait);
+    clear; echo "$i Bidirectional"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/bidirectional/server.ldgvnw & stack run ldgv -- interpret < dev-examples/bidirectional/client.ldgvnw & wait);
+    clear; echo "$i Handoff"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/handoff/server.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff/handoff.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff/client.ldgvnw & wait);
+    clear; echo "$i Handoff2"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/handoff2/server.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff2/handoff.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff2/client.ldgvnw & wait); 
+    clear; echo "$i Bidirhandoff"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/bidirhandoff/server.ldgvnw & stack run ldgv -- interpret < dev-examples/bidirhandoff/serverhandoff.ldgvnw & stack run ldgv -- interpret < dev-examples/bidirhandoff/clienthandoff.ldgvnw & stack run ldgv -- interpret < dev-examples/bidirhandoff/client.ldgvnw & wait); 
+done

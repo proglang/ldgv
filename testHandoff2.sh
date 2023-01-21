@@ -1,0 +1,2 @@
+clear; echo "Handoff2"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/handoff2/server.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff2/handoff.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff2/client.ldgvnw & wait); 
+exit;

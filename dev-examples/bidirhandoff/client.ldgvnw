@@ -12,7 +12,7 @@ val send2 (c: SendInt) =
     let <n, x2> = recv x in
     let y = ((send x2) 41) in
     let <m, y2> = recv y in
-    let y3 = end y2 in
+    -- let y3 = end y2 in
     (m + n)
 
 val add2 (c1: dualof SendInt) =
@@ -20,7 +20,7 @@ val add2 (c1: dualof SendInt) =
     let c22 = (send c2) 1300 in
     let <n, c3> = recv c22 in
     let c32 = (send c3) 37 in
-    let c4 = end c32 in
+    -- let c4 = end c32 in
     (m + n)
 
 val main : Int
@@ -31,6 +31,6 @@ val main =
     let <n, x2> = recv x in
     let con2 = (connect 4343 SendSendIntClient "127.0.0.1" 4340) in
     let con22 = ((send con2) x2) in
-    let con23 = end con22 in
+    -- let con23 = end con22 in
     (n)
     

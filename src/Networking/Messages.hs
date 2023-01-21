@@ -18,6 +18,7 @@ data Messages
     | SyncIncoming UserID [Value]
     | RequestSync UserID
     | ChangePartnerAddress UserID Hostname Port
+    | IntroduceNewPartnerAddress UserID Port
     | RequestClose UserID
     deriving Eq
 
@@ -26,6 +27,7 @@ data Responses
     | Okay
     | OkayClose
     | OkayIntroduce UserID
+    | Wait
 
 getUserID :: Messages -> String
 getUserID = \case
@@ -37,6 +39,4 @@ getUserID = \case
     RequestSync p -> p
     ChangePartnerAddress p _ _ -> p
     RequestClose p -> p
-
-
-
+    IntroduceNewPartnerAddress p _ -> p

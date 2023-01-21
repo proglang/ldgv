@@ -6,6 +6,7 @@ import Interpreter
 import ProcessEnvironment
 import Control.Monad.Reader (runReaderT)
 import Test.Hspec
+import Control.Concurrent.MVar
 
 shouldParseDecl :: HasCallStack => String -> Decl -> Expectation
 shouldParseDecl source expected =
@@ -18,7 +19,8 @@ raiseFailure msg = do
 
 shouldInterpretTo :: [Decl] -> Value -> Expectation
 shouldInterpretTo givenDecls expectedValue = do
-  value <- runReaderT (interpretDecl givenDecls) []
+  mvar <- newEmptyMVar
+  value <- runReaderT (interpretDecl givenDecls) ([], mvar)
   value `shouldBe` expectedValue
 
 shouldThrowCastException :: [Decl] -> Expectation
@@ -26,12 +28,17 @@ shouldThrowCastException givenDecls =
   let isCastException :: InterpreterException -> Bool
       isCastException (CastException _) = True
       isCastException _ = False
-  in runReaderT (interpretDecl givenDecls) [] `shouldThrow` isCastException
+  in do 
+    mvar <- newEmptyMVar
+    runReaderT (interpretDecl givenDecls) ([], mvar) `shouldThrow` isCastException
 
 shouldThrowInterpreterException :: Decl -> InterpreterException -> Expectation
-shouldThrowInterpreterException given except = runReaderT (interpretDecl [given]) [] `shouldThrow` (== except)
+shouldThrowInterpreterException given except = do 
+  mvar <- newEmptyMVar
+  runReaderT (interpretDecl [given]) ([], mvar) `shouldThrow` (== except)
 
 shouldInterpretTypeTo :: Type -> NFType -> Expectation
 shouldInterpretTypeTo t expected = do
-  nft <- runReaderT (evalType t) []
+  mvar <- newEmptyMVar
+  nft <- runReaderT (evalType t) ([], mvar)
   nft `shouldBe` expected

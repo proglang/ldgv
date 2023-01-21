@@ -37,17 +37,19 @@ instance Serializable Responses where
     Okay -> return "NOkay"
     OkayClose -> return "NOkayClose"
     OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
+    Wait -> return "NWait"
 
 instance Serializable Messages where
-    serialize = \case
-        Introduce p -> serializeLabeledEntry "NIntroduce" p
-        IntroduceClient p port t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sLast t
-        IntroduceServer p -> serializeLabeledEntry "NIntroduceServer" p
-        NewValue p v -> serializeLabeledEntryMulti "NNewValue" p $ sLast v
-        SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
-        RequestSync p -> serializeLabeledEntry "NRequestSync" p
-        ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
-        RequestClose p -> serializeLabeledEntry "NRequestClose" p
+  serialize = \case
+      Introduce p -> serializeLabeledEntry "NIntroduce" p
+      IntroduceClient p port t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sLast t
+      IntroduceServer p -> serializeLabeledEntry "NIntroduceServer" p
+      NewValue p v -> serializeLabeledEntryMulti "NNewValue" p $ sLast v
+      SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
+      RequestSync p -> serializeLabeledEntry "NRequestSync" p
+      ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
+      IntroduceNewPartnerAddress u p -> serializeLabeledEntryMulti "NIntroduceNewPartnerAddress" u $ sLast p
+      RequestClose p -> serializeLabeledEntry "NRequestClose" p
 
 instance Serializable (NCon.NetworkConnection Value) where
   serialize con = do 
@@ -65,7 +67,7 @@ instance Serializable (NCon.DirectionalConnection Value) where
 
 instance Serializable NCon.ConnectionState where
   serialize = \case
-    NCon.Connected hostname port -> serializeLabeledEntryMulti "SConnected" hostname $ sLast port
+    NCon.Connected hostname port-> serializeLabeledEntryMulti "SConnected" hostname $ sLast port
     _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
 
 instance Serializable Value where

@@ -24,6 +24,16 @@ newNetworkConnection partnerID ownID hostname port = do
     MVar.putMVar reqClose False
     return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate reqClose
 
+newNetworkConnectionAllowingMaybe :: Maybe String -> Maybe String -> String -> String -> IO (NetworkConnection a)
+newNetworkConnectionAllowingMaybe partnerID ownID hostname port = do
+    read <- newConnection
+    write <- newConnection
+    connectionstate <- MVar.newEmptyMVar 
+    MVar.putMVar connectionstate $ Connected hostname port
+    reqClose <- MVar.newEmptyMVar 
+    MVar.putMVar reqClose False
+    return $ NetworkConnection read write partnerID ownID connectionstate reqClose
+
 
 createNetworkConnection :: [a] -> Int -> [a] -> Int -> Maybe String -> Maybe String -> String -> String -> IO (NetworkConnection a)
 createNetworkConnection readList readNew writeList writeNew partnerID ownID hostname port = do
