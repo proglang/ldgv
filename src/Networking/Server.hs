@@ -66,8 +66,10 @@ acceptClients mvar clientlist socket ownport = do
 acceptClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> String -> IO ()
 acceptClient mvar clientlist clientsocket ownport = do
     hdl <- NC.getHandle $ fst clientsocket
-    NC.recieveMessage hdl VG.parseMessages (\_ -> return ()) $ handleClient mvar clientlist clientsocket hdl ownport
-    hClose hdl
+    NC.recieveMessage hdl VG.parseMessages (\_ -> hClose hdl) (\msg des -> void $ forkIO ( do 
+        handleClient mvar clientlist clientsocket hdl ownport msg des
+        hClose hdl
+        ))
 
 handleClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Messages -> IO ()
 handleClient mvar clientlist clientsocket hdl ownport message deserialmessages = do

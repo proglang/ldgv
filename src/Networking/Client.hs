@@ -80,8 +80,10 @@ tryToSendNetworkMessage networkconnection hostname port message resendOnError = 
               , addrFlags = []
               , addrSocketType = Stream
             }
+    connectionsuccessful <- MVar.newEmptyMVar
+    MVar.putMVar connectionsuccessful False
     response <- MVar.newEmptyMVar 
-    forkIO (do 
+    threadid <- forkIO (do 
         Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
         addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
         -- Config.traceNetIO "Trying to open socket"
@@ -89,6 +91,8 @@ tryToSendNetworkMessage networkconnection hostname port message resendOnError = 
         -- Config.traceNetIO "Trying to connect"
         -- This sometimes fails
         connect clientsocket $ addrAddress $ head addrInfo
+        _ <- MVar.takeMVar connectionsuccessful
+        MVar.putMVar connectionsuccessful True
         -- Config.traceNetIO "Connected"
         handle <- NC.getHandle clientsocket
         -- Config.traceNetIO "Trying to send!"
@@ -99,7 +103,7 @@ tryToSendNetworkMessage networkconnection hostname port message resendOnError = 
         hClose handle
         MVar.putMVar response mbyresponse
         )
-    mbyresponse <- getResp response 10
+    mbyresponse <- getResp threadid connectionsuccessful response 10
 
     case mbyresponse of
         Just response -> case response of
@@ -115,7 +119,7 @@ tryToSendNetworkMessage networkconnection hostname port message resendOnError = 
                 tryToSendNetworkMessage networkconnection host port message resendOnError
             Wait -> do
                 Config.traceNetIO "Communication out of sync lets wait!"
-                threadDelay 1000000
+                threadDelay 100000
                 tryToSendNetworkMessage networkconnection hostname port message resendOnError
             _ -> Config.traceNetIO "Unknown communication error"
 
@@ -130,14 +134,20 @@ tryToSendNetworkMessage networkconnection hostname port message resendOnError = 
 
                 _ -> Config.traceNetIO "Error when sending message: This channel is disconnected while sending"
     where
-        getResp mvar count = do
-            res <- tryTakeMVar mvar
+        getResp :: ThreadId -> MVar.MVar Bool -> MVar.MVar (Maybe Responses) -> Int -> IO (Maybe Responses)
+        getResp threadid connectedmvar mbyResponse count = do
+            res <- tryTakeMVar mbyResponse
             case res of
                 Just response -> return response
                 Nothing -> if count /= 0 then do
                     threadDelay 100000
-                    getResp mvar (count-1)
-                    else return Nothing
+                    connected <- MVar.readMVar connectedmvar
+                    if connected then getResp threadid connectedmvar mbyResponse (count-1) else do
+                        killThread threadid
+                        return Nothing
+                    else do 
+                        killThread threadid
+                        return Nothing
 
 
 printConErr :: String -> String -> IOException -> IO ()
