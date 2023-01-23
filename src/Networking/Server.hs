@@ -30,6 +30,8 @@ import qualified Config
 import qualified Networking.NetworkConnection as NCon
 import qualified Control.Concurrent as MVar
 import ProcessEnvironment (ServerSocket)
+import qualified Networking.Client as NC
+import Control.Monad
 
 createServer :: Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
 createServer port = do
@@ -78,9 +80,8 @@ handleClient mvar clientlist clientsocket hdl ownport message deserialmessages =
             Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
             if redirectRequest then sendRedirect hdl netcon userid else do
                 case deserialmessages of
-                    NewValue userid val -> do
-                        handleNewValue mvar userid val
-                        NC.sendMessage Messages.Okay hdl
+                    NewValue userid count val -> do
+                        handleNewValue mvar userid count val hdl
                     IntroduceClient userid clientport syntype-> do
                         handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
                         -- Okay message is handled in handle introduce
@@ -120,10 +121,13 @@ handleClient mvar clientlist clientsocket hdl ownport message deserialmessages =
                     IntroduceClient userid clientport syntype-> do
                         handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
                         -- Okay message is handled in handle introduce
+                    IntroduceNewPartnerAddress userid port -> do
+                        NC.sendMessage Messages.Okay hdl
+                        -- We don't know them yet, but should know them as soon as we get the message from the former comm partner
                     _ -> do
                         serial <- NSerialize.serialize deserialmessages
                         Config.traceIO $ "Error unsupported networkmessage: "++ serial
-                        Config.traceIO $ "This is probably a timing issue! Lets resend later"
+                        Config.traceIO "This is probably a timing issue! Lets resend later"
                         NC.sendMessage Messages.Wait hdl
     Config.traceNetIO $ "    Message: " ++ message
 
@@ -150,13 +154,16 @@ sendRedirect handle ncmap userid = do
                 RedirectRequest host port -> NC.sendMessage (Messages.Redirect host port) handle
                 _ -> return ()
 
-handleNewValue :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Value -> IO ()
-handleNewValue mvar userid val = do
+handleNewValue :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Int -> Value -> Handle -> IO ()
+handleNewValue mvar userid count val hdl = do
     networkconnectionmap <- MVar.takeMVar mvar
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do
-            ND.writeMessage (ncRead networkconnection) val
+            success <- ND.writeMessageIfNext (ncRead networkconnection) count val
+            NC.sendMessage Messages.Okay hdl
+            unless success $ NC.sendNetworkMessage networkconnection (Messages.RequestSync $ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) 5
         Nothing -> do
+            NC.sendMessage Messages.Okay hdl
             Config.traceIO "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
     MVar.putMVar mvar networkconnectionmap
 

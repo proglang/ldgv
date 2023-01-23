@@ -141,6 +141,7 @@ tokens :-
   "NRequestClose"                        { tok $ const NRequestClose }
   "NOkayClose"                               { tok $ const NOkayClose }
   "NOkayIntroduce"                      { tok $ const NOkayIntroduce }
+  "NOkaySync"                           { tok $ const NOkaySync }
   "NWait"                               { tok $ const NWait}
 
   Double\:[\-]?[0-9]+[\.][0-9]+                  { tok $ Double . read . (drop 7) }
@@ -269,6 +270,7 @@ data Token
   | NRequestClose
   | NOkayClose
   | NOkayIntroduce
+  | NOkaySync
   | NWait
 
   | String String

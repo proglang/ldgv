@@ -128,6 +128,7 @@ import Networking.Messages
     nrequestclose { T _ T.NRequestClose }
     nokayclose    { T _ T.NOkayClose}
     nokayintroduce    { T _ T.NOkayIntroduce }
+    nokaysync       { T _ T.NOkaySync }
     nwait           { T _ T.NWait}
     
     gunit         { T _ T.GUnit }
@@ -283,7 +284,7 @@ GType : gunit {GUnit}
 Messages : nintroduce '(' String ')' {Introduce $3}
          | nintroduceclient '(' String ')' '(' String ')' '(' Type ')' {IntroduceClient $3 $6 $9}
          | nintroduceserver '(' String ')' {IntroduceServer $3}
-         | nnewvalue '(' String ')''(' Values ')' {NewValue $3 $6}
+         | nnewvalue '(' String ')' '(' int ')' '(' Values ')' {NewValue $3 $6 $9}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
          | nrequestsync '(' String ')' {RequestSync $3}
          | nchangepartneraddress '(' String ')' '(' String ')' '(' String ')' {ChangePartnerAddress $3 $6 $9}
@@ -294,6 +295,7 @@ Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
           | nokay {Okay}
           | nokayclose {OkayClose}
           | nokayintroduce '(' String ')' {OkayIntroduce $3}
+          | nokaysync '(' SValuesArray ')' {OkaySync $3}
           | nwait {Wait}
 
 

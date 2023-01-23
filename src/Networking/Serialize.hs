@@ -37,6 +37,7 @@ instance Serializable Responses where
     Okay -> return "NOkay"
     OkayClose -> return "NOkayClose"
     OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
+    OkaySync vs -> serializeLabeledEntry "NOkaySync" vs
     Wait -> return "NWait"
 
 instance Serializable Messages where
@@ -44,7 +45,7 @@ instance Serializable Messages where
       Introduce p -> serializeLabeledEntry "NIntroduce" p
       IntroduceClient p port t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sLast t
       IntroduceServer p -> serializeLabeledEntry "NIntroduceServer" p
-      NewValue p v -> serializeLabeledEntryMulti "NNewValue" p $ sLast v
+      NewValue p c v -> serializeLabeledEntryMulti "NNewValue" p $ sNext c $ sLast v
       SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
       RequestSync p -> serializeLabeledEntry "NRequestSync" p
       ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port

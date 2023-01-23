@@ -49,13 +49,14 @@ sendValue networkconnection val resendOnError = do
             valcleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valcleaned
             -- catch (tryToSend networkconnection hostname port val valcleaned) $ printConErr hostname port
-            catch (do 
-                tryToSendNetworkMessage networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) valcleaned) resendOnError
+            catch (do  
+                messagesCount <- DC.countMessages $ ncWrite networkconnection
+                tryToSendNetworkMessage networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
                 sendVChanMessages hostname port val
                 disableVChans val
                 ) $ printConErr hostname port
-        NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
+        _ -> Config.traceIO "Error when sending message: This channel is disconnected"
     -- MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
 sendNetworkMessage :: NetworkConnection Value -> Messages -> Int -> IO ()
@@ -64,8 +65,8 @@ sendNetworkMessage networkconnection message resendOnError = do
     case connectionstate of
         NCon.Connected hostname port -> do
             catch ( tryToSendNetworkMessage networkconnection hostname port message resendOnError) $ printConErr hostname port
-        NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
         NCon.Emulated -> pure ()
+        _ -> Config.traceIO "Error when sending message: This channel is disconnected"
     --MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
 tryToSendNetworkMessage :: NetworkConnection Value -> String -> String -> Messages -> Int -> IO ()
@@ -215,8 +216,8 @@ closeConnection con = do
                 else do
                     threadDelay 1000000
                     closeConnection con
-        NCon.Disconnected -> Config.traceIO "Error when sending message: This channel is disconnected"
         NCon.Emulated -> pure ()
+        _ -> Config.traceIO "Error when sending message: This channel is disconnected"
 
 
 recieveResponse :: Handle -> IO (Maybe Responses)

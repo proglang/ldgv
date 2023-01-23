@@ -14,7 +14,7 @@ data Messages
     = Introduce UserID
     | IntroduceClient UserID Port Type
     | IntroduceServer UserID
-    | NewValue UserID Value
+    | NewValue UserID Int Value
     | SyncIncoming UserID [Value]
     | RequestSync UserID
     | ChangePartnerAddress UserID Hostname Port
@@ -27,6 +27,7 @@ data Responses
     | Okay
     | OkayClose
     | OkayIntroduce UserID
+    | OkaySync [Value]
     | Wait
 
 getUserID :: Messages -> String
@@ -34,7 +35,7 @@ getUserID = \case
     Introduce p -> p
     IntroduceClient p _ _ -> p
     IntroduceServer p -> p
-    NewValue p _ -> p
+    NewValue p _ _ -> p
     SyncIncoming p _ -> p
     RequestSync p -> p
     ChangePartnerAddress p _ _ -> p
