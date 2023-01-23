@@ -89,8 +89,8 @@ handleClient mvar clientlist clientsocket hdl ownport message deserialmessages =
                         handleChangePartnerAddress mvar userid hostname port ownport
                         NC.sendMessage Messages.Okay hdl
                     RequestSync userid -> do
-                        handleRequestSync mvar userid
-                        NC.sendMessage Messages.Okay hdl
+                        handleRequestSync mvar userid hdl
+                        -- NC.sendMessage Messages.Okay hdl
                     SyncIncoming userid values -> do
                         handleSyncIncoming mvar userid values
                         NC.sendMessage Messages.Okay hdl
@@ -206,13 +206,14 @@ handleChangePartnerAddress mvar userid hostname port ownport = do
 
         Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
 
-handleRequestSync :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> IO ()
-handleRequestSync mvar userid = do
+handleRequestSync :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Handle -> IO ()
+handleRequestSync mvar userid hdl = do
     networkconnectionmap <- MVar.readMVar mvar
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do  -- Change to current network address
             writevals <- ND.allMessages $ ncWrite networkconnection
-            NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals) 5
+            NC.sendMessage (Messages.OkaySync writevals) hdl 
+            -- NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals) 5
         othing -> return ()
 
 handleSyncIncoming :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> [Value] -> IO ()

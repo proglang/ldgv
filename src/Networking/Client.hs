@@ -84,27 +84,31 @@ tryToSendNetworkMessage networkconnection hostname port message resendOnError = 
     forkIO (do 
         Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
         addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-        Config.traceNetIO "Trying to open socket"
+        -- Config.traceNetIO "Trying to open socket"
         clientsocket <- NC.openSocketNC $ head addrInfo
-        Config.traceNetIO "Trying to connect"
+        -- Config.traceNetIO "Trying to connect"
         -- This sometimes fails
         connect clientsocket $ addrAddress $ head addrInfo
-        Config.traceNetIO "Connected"
+        -- Config.traceNetIO "Connected"
         handle <- NC.getHandle clientsocket
-        Config.traceNetIO "Trying to send!"
+        -- Config.traceNetIO "Trying to send!"
         NC.sendMessage message handle
 
-        Config.traceNetIO "Waiting for response"
+        -- Config.traceNetIO "Waiting for response"
         mbyresponse <- recieveResponse handle
         hClose handle
         MVar.putMVar response mbyresponse
         )
     mbyresponse <- getResp response 10
-    
 
     case mbyresponse of
         Just response -> case response of
             Okay -> Config.traceNetIO $ "Message okay: "++serializedMessage
+            OkaySync history -> do
+                Config.traceNetIO $ "Message okay: "++serializedMessage
+                serializedResponse <- NSerialize.serialize response
+                Config.traceNetIO $ "Got syncronization values: "++serializedResponse
+                DC.syncMessages (ncRead networkconnection) history
             Redirect host port -> do
                 Config.traceNetIO "Communication partner changed address, resending"
                 NCon.changePartnerAddress networkconnection host port
