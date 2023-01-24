@@ -6,13 +6,13 @@ type SendInt : ! ~ssn = !Int. !Int. Unit
 val send2 (c: SendInt) =
     let x = ((send c) 1) in
     let y = ((send x) 42) in
-    let z = end y in
+    -- let z = end y in
     ()
 
 val add2 (c1: dualof SendInt) =
     let <m, c2> = recv c1 in
     let <n, c3> = recv c2 in
-    let c4 = end c3 in
+    -- let c4 = end c3 in
     (m + n)
 
 

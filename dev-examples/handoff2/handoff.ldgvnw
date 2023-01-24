@@ -12,7 +12,7 @@ val main =
     let con = (connect sock (dualof SendSendOneInt) "127.0.0.1" 4242) in
     let <oneint, c2> = recv con in
     let <result, c3> = recv oneint in
-    let c4 = end c2 in
-    let c5 = end c3 in
+    -- let c4 = end c2 in
+    -- let c5 = end c3 in
     result
 

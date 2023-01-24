@@ -19,7 +19,7 @@ val lClient (d : TClient) (x : Int) : Int =
     let d2 = (send d1) x in
     let <r,d3> = recv d2 in
     let <xx,zz> = recv d3 in
-    let zzz = end zz in
+    -- let zzz = end zz in
     r
 
 type TServer : ! ~ssn =
@@ -47,5 +47,5 @@ val main =
     let sock = 4242 in
     let con = (accept sock (dualof TClient)) in
     let e = lServer con in
-    let ee = end e in
+    -- let ee = end e in
     ()
