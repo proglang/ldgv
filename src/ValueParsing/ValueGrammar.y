@@ -24,6 +24,7 @@ import Networking.Messages
 %name parseValues Values
 %name parseMessages Messages
 %name parseResponses Responses
+%name parseConversation ConversationSession
 -- %name parseSStringTypeElement SStringTypeElement
 -- %name parseSStringTypeElements SStringTypeElements
 -- %name parseSStringTypeArray SStringTypeArray
@@ -130,6 +131,8 @@ import Networking.Messages
     nokayintroduce    { T _ T.NOkayIntroduce }
     nokaysync       { T _ T.NOkaySync }
     nwait           { T _ T.NWait}
+    nconversationmessage { T _ T.NConversationMessage}
+    nconversationresponse { T _ T.NConversationResponse}
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -297,6 +300,9 @@ Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
           | nokayintroduce '(' String ')' {OkayIntroduce $3}
           | nokaysync '(' SValuesArray ')' {OkaySync $3}
           | nwait {Wait}
+
+ConversationSession : nconversationmessage '(' String ')' '(' Messages ')' {ConversationMessage $3 $6}
+                    | nconversationresponse '(' String ')' '(' Responses ')' {ConversationResponse $3 $6}
 
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}

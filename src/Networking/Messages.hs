@@ -8,6 +8,7 @@ import Syntax
 type UserID = String
 type Hostname = String
 type Port = String
+type ConversationID = String
 
 -- I need to add the Port to every introduction so I can answer oder alles muss mit einem okay quitiert werden, dann kann die antwort gesendet werden
 data Messages
@@ -29,6 +30,10 @@ data Responses
     | OkayIntroduce UserID
     | OkaySync [Value]
     | Wait
+
+data ConversationSession
+    = ConversationMessage ConversationID Messages
+    | ConversationResponse ConversationID Responses
 
 getUserID :: Messages -> String
 getUserID = \case

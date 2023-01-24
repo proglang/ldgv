@@ -7,6 +7,7 @@ import ProcessEnvironment
 import Control.Monad.Reader (runReaderT)
 import Test.Hspec
 import Control.Concurrent.MVar
+import qualified Data.Map as Map
 
 shouldParseDecl :: HasCallStack => String -> Decl -> Expectation
 shouldParseDecl source expected =
@@ -19,8 +20,11 @@ raiseFailure msg = do
 
 shouldInterpretTo :: [Decl] -> Value -> Expectation
 shouldInterpretTo givenDecls expectedValue = do
-  mvar <- newEmptyMVar
-  value <- runReaderT (interpretDecl givenDecls) ([], mvar)
+  sockets <- newEmptyMVar
+  handles <- newEmptyMVar
+  putMVar sockets Map.empty
+  putMVar handles Map.empty
+  value <- runReaderT (interpretDecl givenDecls) ([], (sockets, handles))
   value `shouldBe` expectedValue
 
 shouldThrowCastException :: [Decl] -> Expectation
@@ -29,16 +33,25 @@ shouldThrowCastException givenDecls =
       isCastException (CastException _) = True
       isCastException _ = False
   in do 
-    mvar <- newEmptyMVar
-    runReaderT (interpretDecl givenDecls) ([], mvar) `shouldThrow` isCastException
+    sockets <- newEmptyMVar
+    handles <- newEmptyMVar
+    putMVar sockets Map.empty
+    putMVar handles Map.empty
+    runReaderT (interpretDecl givenDecls) ([], (sockets, handles)) `shouldThrow` isCastException
 
 shouldThrowInterpreterException :: Decl -> InterpreterException -> Expectation
 shouldThrowInterpreterException given except = do 
-  mvar <- newEmptyMVar
-  runReaderT (interpretDecl [given]) ([], mvar) `shouldThrow` (== except)
+  sockets <- newEmptyMVar
+  handles <- newEmptyMVar
+  putMVar sockets Map.empty
+  putMVar handles Map.empty
+  runReaderT (interpretDecl [given]) ([], (sockets, handles)) `shouldThrow` (== except)
 
 shouldInterpretTypeTo :: Type -> NFType -> Expectation
 shouldInterpretTypeTo t expected = do
-  mvar <- newEmptyMVar
-  nft <- runReaderT (evalType t) ([], mvar)
+  sockets <- newEmptyMVar
+  handles <- newEmptyMVar
+  putMVar sockets Map.empty
+  putMVar handles Map.empty
+  nft <- runReaderT (evalType t) ([], (sockets, handles))
   nft `shouldBe` expected

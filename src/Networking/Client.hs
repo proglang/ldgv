@@ -56,7 +56,7 @@ sendValue networkconnection val resendOnError = do
                 disableVChans val
                 ) $ printConErr hostname port
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
-        _ -> Config.traceIO "Error when sending message: This channel is disconnected"
+        _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
     -- MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
 sendNetworkMessage :: NetworkConnection Value -> Messages -> Int -> IO ()
@@ -66,7 +66,7 @@ sendNetworkMessage networkconnection message resendOnError = do
         NCon.Connected hostname port -> do
             catch ( tryToSendNetworkMessage networkconnection hostname port message resendOnError) $ printConErr hostname port
         NCon.Emulated -> pure ()
-        _ -> Config.traceIO "Error when sending message: This channel is disconnected"
+        _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
     --MVar.putMVar (ncConnectionState networkconnection) connectionstate
 
 tryToSendNetworkMessage :: NetworkConnection Value -> String -> String -> Messages -> Int -> IO ()

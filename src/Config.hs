@@ -11,11 +11,18 @@ selected ident = ident `elem` ["valueEquiv", "subtype"]
 data DebugLevel = DebugNone | DebugNetwork | DebugAll
   deriving (Eq, Ord, Show)
 
-
 debugLevel :: DebugLevel
 --debugLevel = DebugAll
 debugLevel = DebugNetwork
 --debugLevel = DebugNone
+
+
+data NetworkingMethod = NetworkingStateless | NetworkingFast
+  deriving (Eq, Ord, Show)
+
+networkingMethod :: NetworkingMethod
+networkingMethod = NetworkingStateless
+
 
 trace :: String -> a -> a
 trace s a | debugLevel > DebugNetwork = D.trace s a

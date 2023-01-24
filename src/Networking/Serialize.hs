@@ -31,6 +31,11 @@ class Serializable a where
   serialize :: a -> IO String
 
 
+instance Serializable ConversationSession where
+  serialize = \case
+    ConversationMessage c m -> serializeLabeledEntryMulti "NConversationMessage" c $ sLast m
+    ConversationResponse c r -> serializeLabeledEntryMulti "NConversationResponse" c $ sLast r 
+
 instance Serializable Responses where
   serialize = \case
     Redirect host port -> serializeLabeledEntryMulti "NRedirect" host $ sLast port

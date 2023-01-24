@@ -1,4 +1,4 @@
-for i in {1..100}; do
+for i in {1..1000}; do
     clear; echo "$i Add"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/add/server.ldgvnw & stack run ldgv -- interpret < dev-examples/add/client.ldgvnw & wait);
     clear; echo "$i Simple"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/simple/server.ldgvnw & stack run ldgv -- interpret < dev-examples/simple/client.ldgvnw & wait);
     clear; echo "$i Bidirectional"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/bidirectional/server.ldgvnw & stack run ldgv -- interpret < dev-examples/bidirectional/client.ldgvnw & wait);
