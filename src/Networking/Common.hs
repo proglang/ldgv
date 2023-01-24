@@ -26,9 +26,11 @@ recieveMessage handle grammar fallbackResponse messageHandler = do
     message <- hGetLine handle
     case VT.runAlex message grammar of
         Left err -> do 
-            Config.traceIO $ "Error during recieving a networkmessage: "++err
+            Config.traceNetIO $ "Error during recieving a networkmessage: "++err
             fallbackResponse message 
-        Right deserialmessage -> messageHandler message deserialmessage
+        Right deserialmessage -> do 
+            Config.traceNetIO $ "New superficially valid message recieved: "++message
+            messageHandler message deserialmessage
 
 openSocketNC :: AddrInfo -> IO Socket
 openSocketNC addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)

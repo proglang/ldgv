@@ -26,3 +26,4 @@ cabal.project.local~
 stack.yaml.lock
 result
 exclude
+result*

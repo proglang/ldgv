@@ -10,7 +10,7 @@ data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a,
 data ConnectionState = Connected {csHostname :: String, csPort :: String}
                      | Disconnected
                      | Emulated
-                     | RedirectRequest {csHostname :: String, csPort :: String} -- Asks to redirect to this connection
+                     | RedirectRequest {csHostname :: String, csPort :: String, csRedirectHostname :: String, csRedirectPort :: String} -- Asks to redirect to this connection
     deriving (Eq, Show)
 
 
@@ -65,7 +65,7 @@ serializeNetworkConnection nc = do
     (writeList, writeUnread) <- serializeConnection $ ncWrite nc
     (address, port) <- case constate of
         Connected address port -> return (address, port)
-        RedirectRequest address port -> return (address, port)
+        RedirectRequest address port _ _-> return (address, port)
         _ -> return ("", "")
     return (readList, readUnread, writeList, writeUnread, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, Data.Maybe.fromMaybe "" $ ncOwnUserID nc, address, port)
 

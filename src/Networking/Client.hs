@@ -46,13 +46,13 @@ sendValue networkconnection val resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
+            sendVChanMessages hostname port val
             valcleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valcleaned
+            messagesCount <- DC.countMessages $ ncWrite networkconnection
             -- catch (tryToSend networkconnection hostname port val valcleaned) $ printConErr hostname port
             catch (do  
-                messagesCount <- DC.countMessages $ ncWrite networkconnection
                 tryToSendNetworkMessage networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
-                sendVChanMessages hostname port val
                 disableVChans val
                 ) $ printConErr hostname port
         NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
@@ -119,17 +119,21 @@ tryToSendNetworkMessage networkconnection hostname port message resendOnError = 
                 tryToSendNetworkMessage networkconnection host port message resendOnError
             Wait -> do
                 Config.traceNetIO "Communication out of sync lets wait!"
-                threadDelay 100000
+                threadDelay 1000000
                 tryToSendNetworkMessage networkconnection hostname port message resendOnError
             _ -> Config.traceNetIO "Unknown communication error"
 
         Nothing -> do 
             Config.traceNetIO "Error when recieving response"
             connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
+            connectedToPeer <- MVar.readMVar connectionsuccessful
+            unless connectedToPeer $ Config.traceNetIO "Not connected to peer"
+            Config.traceNetIO $ "Original message: " ++ serializedMessage
             case connectionstate of
-                NCon.Connected newhostname newport -> if resendOnError /= 0 then do
+                NCon.Connected newhostname newport -> if resendOnError /= 0 && connectedToPeer then do
                         Config.traceNetIO $ "Old communication partner offline! New communication partner: " ++ newhostname ++ ":" ++ newport
-                        tryToSendNetworkMessage networkconnection newhostname newport message (resendOnError-1)
+                        threadDelay 1000000
+                        tryToSendNetworkMessage networkconnection newhostname newport message $ max (resendOnError-1) (-1)
                         else Config.traceNetIO "Old communication partner offline! No longer retrying"
 
                 _ -> Config.traceNetIO "Error when sending message: This channel is disconnected while sending"
@@ -142,7 +146,7 @@ tryToSendNetworkMessage networkconnection hostname port message resendOnError = 
                 Nothing -> if count /= 0 then do
                     threadDelay 100000
                     connected <- MVar.readMVar connectedmvar
-                    if connected then getResp threadid connectedmvar mbyResponse (count-1) else do
+                    if connected then getResp threadid connectedmvar mbyResponse $ max (count-1) (-1) else do
                         killThread threadid
                         return Nothing
                     else do 
@@ -197,9 +201,9 @@ sendVChanMessages newhost newport input = case input of
 
         
         oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
-        MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest newhost newport
-        tempnetcon <- NCon.newNetworkConnectionAllowingMaybe (NCon.ncPartnerUserID nc) (NCon.ncOwnUserID nc) (NCon.csHostname oldconnectionstate) (NCon.csPort oldconnectionstate)
-        sendNetworkMessage tempnetcon (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport) 5
+        MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest (NCon.csHostname oldconnectionstate) (NCon.csPort oldconnectionstate) newhost newport
+        -- tempnetcon <- NCon.newNetworkConnectionAllowingMaybe (NCon.ncPartnerUserID nc) (NCon.ncOwnUserID nc) (NCon.csHostname oldconnectionstate) (NCon.csPort oldconnectionstate)
+        -- sendNetworkMessage tempnetcon (Messages.ChangePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) newhost newport) 5
         Config.traceNetIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
     _ -> return ()
     where
