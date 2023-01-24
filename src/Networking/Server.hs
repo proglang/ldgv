@@ -76,14 +76,14 @@ acceptClient mvar clientlist clientsocket ownport = do
 handleClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Messages -> IO ()
 handleClient mvar clientlist clientsocket hdl ownport message deserialmessages = do
     let userid = getUserID deserialmessages
-    Config.traceNetIO $ show ownport ++ " Entering redirect handler for message: "++ message
+    -- Config.traceNetIO $ show ownport ++ " Entering redirect handler for message: "++ message
     netcon <- MVar.takeMVar mvar
-    Config.traceNetIO $ show ownport ++ " Entered redirect handler for message: "++ message
+    -- Config.traceNetIO $ show ownport ++ " Entered redirect handler for message: "++ message
     redirectRequest <- checkRedirectRequest netcon userid
-    Config.traceNetIO $ show ownport ++ " Redirect request" ++ show redirectRequest
-    Config.traceNetIO $ show ownport ++ " Leaving redirect handler for message: " ++ message 
+    -- Config.traceNetIO $ show ownport ++ " Redirect request" ++ show redirectRequest
+    -- Config.traceNetIO $ show ownport ++ " Leaving redirect handler for message: " ++ message 
     MVar.putMVar mvar netcon
-    Config.traceNetIO $ show ownport ++ " Left redirect handler for message: " ++ message 
+    -- Config.traceNetIO $ show ownport ++ " Left redirect handler for message: " ++ message 
     case Map.lookup userid netcon of 
         Just networkcon -> do
             Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " (" ++ ownport ++ ") from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
@@ -174,21 +174,21 @@ handleNewValue :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String
 handleNewValue mvar userid count val ownport hdl = do
     -- networkconnectionmap <- MVar.takeMVar mvar
     networkconnectionmap <- MVar.readMVar mvar
-    Config.traceNetIO $ show ownport ++ " Entered NewValue handler"
+    -- Config.traceNetIO $ show ownport ++ " Entered NewValue handler"
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do
-            Config.traceNetIO $ show ownport ++ " Reading message"
+            -- Config.traceNetIO $ show ownport ++ " Reading message"
             success <- ND.writeMessageIfNext (ncRead networkconnection) count val
-            if success then Config.traceNetIO $ show ownport ++ " Message valid" else Config.traceNetIO $ show ownport ++ " Message invalid"
+            -- if success then Config.traceNetIO $ show ownport ++ " Message valid" else Config.traceNetIO $ show ownport ++ " Message invalid"
             unless success $ NC.sendNetworkMessage networkconnection (Messages.RequestSync $ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) (-1)
-            Config.traceNetIO $ show ownport ++ " Contacting peers"
+            -- Config.traceNetIO $ show ownport ++ " Contacting peers"
             contactNewPeers val ownport
-            Config.traceNetIO $ show ownport ++ " Contacted peers"
+            -- Config.traceNetIO $ show ownport ++ " Contacted peers"
             NC.sendMessage Messages.Okay hdl
         Nothing -> do
             NC.sendMessage Messages.Okay hdl
             Config.traceNetIO "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
-    Config.traceNetIO $ show ownport ++ " Leaving NewValue handler"
+    -- Config.traceNetIO $ show ownport ++ " Leaving NewValue handler"
     -- MVar.putMVar mvar networkconnectionmap
 
 contactNewPeers :: Value -> String -> IO ()

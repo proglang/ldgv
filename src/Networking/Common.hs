@@ -29,7 +29,7 @@ recieveMessage handle grammar fallbackResponse messageHandler = do
             Config.traceNetIO $ "Error during recieving a networkmessage: "++err
             fallbackResponse message 
         Right deserialmessage -> do 
-            Config.traceNetIO $ "New superficially valid message recieved: "++message
+            -- Config.traceNetIO $ "New superficially valid message recieved: "++message
             messageHandler message deserialmessage
 
 openSocketNC :: AddrInfo -> IO Socket
