@@ -1,0 +1,29 @@
+-- Simple example of Label-Dependent Session Types
+-- Interprets addition of two numbers
+
+type SendInt : ! ~ssn = !Int. !Int. Unit
+type SendOneInt : ! ~ssn = ?Int. Unit
+type SendSendOneInt : ! ~ssn = !SendOneInt. ?SendOneInt. Unit
+-- type SendOneIntInv : ! ~ssn = ?Int. Unit
+
+val send2 (c: SendInt) =
+    let x = ((send c) 1) in
+    let y = ((send x) 42) in
+    -- let z = end y in
+    ()
+
+val add2 (c1: dualof SendInt) (c3: SendSendOneInt)=
+    let <m, c2> = recv c1 in
+    let y = ((send c3) c2) in
+    let <oneint, x> = recv y in
+    let <n, z> = recv oneint in
+    -- let z = end y in
+    (m+n)
+
+-- Hier problematisch ldgv hat noch kein Konzept wie beim akzeptieren zwischen verschiedenen Types ungerschieden werden kann
+val main : Int
+val main =
+    let sock = 4242 in
+    let con1 = (accept sock (dualof SendInt)) in
+    let con2 = (accept sock (SendSendOneInt)) in
+    add2 con1 con2

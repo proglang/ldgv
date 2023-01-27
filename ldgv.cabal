@@ -1,6 +1,6 @@
 cabal-version: 1.18
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.34.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -70,6 +70,8 @@ library
       Networking.DirectionalConnection
       Networking.Messages
       Networking.NetworkConnection
+      Networking.NetworkingMethod.Fast
+      Networking.NetworkingMethod.Stateless
       Networking.Serialize
       Networking.Server
       Networking.UserID

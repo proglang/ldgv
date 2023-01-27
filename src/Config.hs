@@ -16,13 +16,13 @@ debugLevel :: DebugLevel
 debugLevel = DebugNetwork
 --debugLevel = DebugNone
 
-
+{-
 data NetworkingMethod = NetworkingStateless | NetworkingFast
   deriving (Eq, Ord, Show)
 
 networkingMethod :: NetworkingMethod
 networkingMethod = NetworkingStateless
-
+-}
 
 trace :: String -> a -> a
 trace s a | debugLevel > DebugNetwork = D.trace s a
