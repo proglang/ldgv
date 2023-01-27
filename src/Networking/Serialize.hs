@@ -9,7 +9,7 @@ import Syntax
 import Kinds
 import Data.Set
 import Control.Exception
-import ProcessEnvironment
+import ProcessEnvironmentTypes
 import Networking.Messages
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkConnection as NCon 

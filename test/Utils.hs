@@ -4,6 +4,9 @@ import Parsing
 import Syntax
 import Interpreter
 import ProcessEnvironment
+import ProcessEnvironmentTypes
+import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import qualified Networking.NetworkingMethod.Stateless as Stateless
 import Control.Monad.Reader (runReaderT)
 import Test.Hspec
 import Control.Concurrent.MVar
@@ -21,9 +24,8 @@ raiseFailure msg = do
 shouldInterpretTo :: [Decl] -> Value -> Expectation
 shouldInterpretTo givenDecls expectedValue = do
   sockets <- newEmptyMVar
-  handles <- newEmptyMVar
+  handles <- Stateless.createActiveConnections
   putMVar sockets Map.empty
-  putMVar handles Map.empty
   value <- runReaderT (interpretDecl givenDecls) ([], (sockets, handles))
   value `shouldBe` expectedValue
 
@@ -34,24 +36,21 @@ shouldThrowCastException givenDecls =
       isCastException _ = False
   in do 
     sockets <- newEmptyMVar
-    handles <- newEmptyMVar
+    handles <- Stateless.createActiveConnections
     putMVar sockets Map.empty
-    putMVar handles Map.empty
     runReaderT (interpretDecl givenDecls) ([], (sockets, handles)) `shouldThrow` isCastException
 
 shouldThrowInterpreterException :: Decl -> InterpreterException -> Expectation
 shouldThrowInterpreterException given except = do 
   sockets <- newEmptyMVar
-  handles <- newEmptyMVar
+  handles <- Stateless.createActiveConnections
   putMVar sockets Map.empty
-  putMVar handles Map.empty
   runReaderT (interpretDecl [given]) ([], (sockets, handles)) `shouldThrow` (== except)
 
 shouldInterpretTypeTo :: Type -> NFType -> Expectation
 shouldInterpretTypeTo t expected = do
   sockets <- newEmptyMVar
-  handles <- newEmptyMVar
+  handles <- Stateless.createActiveConnections
   putMVar sockets Map.empty
-  putMVar handles Map.empty
   nft <- runReaderT (evalType t) ([], (sockets, handles))
   nft `shouldBe` expected

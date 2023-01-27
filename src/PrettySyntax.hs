@@ -7,6 +7,7 @@ module PrettySyntax (Pretty(), pretty, pshow) where
 import Kinds
 import Syntax
 import ProcessEnvironment
+import ProcessEnvironmentTypes
 
 import Data.Text.Prettyprint.Doc
 import qualified Data.Set as Set

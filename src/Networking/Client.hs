@@ -4,7 +4,7 @@ module Networking.Client where
 
 import qualified Config
 import Networking.NetworkConnection as NCon
-import ProcessEnvironment
+import ProcessEnvironmentTypes
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import Networking.Messages

@@ -7,7 +7,7 @@ import qualified Data.Set as Set
 
 import Kinds
 import Syntax
-import ProcessEnvironment
+import ProcessEnvironmentTypes
 import ValueParsing.ValueTokens (T(..))
 import qualified ValueParsing.ValueTokens as T
 import Networking.Messages

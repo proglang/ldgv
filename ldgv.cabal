@@ -71,6 +71,7 @@ library
       Networking.Messages
       Networking.NetworkConnection
       Networking.NetworkingMethod.Fast
+      Networking.NetworkingMethod.NetworkingMethodCommon
       Networking.NetworkingMethod.Stateless
       Networking.Serialize
       Networking.Server
@@ -79,6 +80,7 @@ library
       Parsing.Grammar
       Parsing.Tokens
       ProcessEnvironment
+      ProcessEnvironmentTypes
       Syntax
       Typechecker
       ValueParsing.ValueGrammar

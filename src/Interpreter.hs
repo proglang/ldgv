@@ -20,6 +20,7 @@ import Data.Foldable (find)
 import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Map as Map
 import ProcessEnvironment
+import Networking.NetworkingMethod.NetworkingMethodCommon
 import qualified Control.Monad as M
 import Control.Monad.Reader as R
 import Control.Applicative ((<|>))
@@ -45,7 +46,8 @@ import qualified Networking.NetworkConnection as NCon
 -- import ProcessEnvironment (CommunicationChannel(CommunicationChannel, ccChannelState, ccPartnerUserID), ConnectionInfo (ciReadChannel, ciWriteChannel))
 -- import ProcessEnvironment
 import qualified Control.Concurrent as MVar
-import ProcessEnvironment (disableOldVChan)
+import ProcessEnvironment
+import ProcessEnvironmentTypes
 import Networking.NetworkConnection (NetworkConnection(ncPartnerUserID))
 import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
@@ -55,6 +57,9 @@ import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
 -- import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.NetworkConnection as NCon
+
+import qualified Networking.NetworkingMethod.Stateless as NetMethod
+-- import qualified Networking.NetworkingMethod.Fast as NetMethod
 
 data InterpreterException
   = MathException String
@@ -95,10 +100,9 @@ blame exp = throw $ CastException exp
 interpret :: [Decl] -> IO Value
 interpret decls = do 
   sockets <- MVar.newEmptyMVar
-  handles <- MVar.newEmptyMVar 
+  activeConnections <- NetMethod.createActiveConnections
   MVar.putMVar sockets Map.empty
-  MVar.putMVar handles Map.empty
-  R.runReaderT (interpretDecl decls) ([], (sockets, handles))
+  R.runReaderT (interpretDecl decls) ([], (sockets, activeConnections))
 
 interpretDecl :: [Decl] -> InterpretM Value
 interpretDecl (DFun "main" _ e _:_) = interpret' e
@@ -153,8 +157,8 @@ eval = \case
     case v of
       VPair {} -> do
         C.traceIO $ "Interpreting pair cast expression: Value(" ++ show v ++ ") NFType(" ++ show nft1 ++ ") NFType(" ++ show nft2 ++ ")"
-        (env, (sockets, handles)) <- ask
-        v' <- lift $ reducePairCast sockets handles v (toNFPair nft1) (toNFPair nft2)
+        (env, (sockets, activeConnections)) <- ask
+        v' <- lift $ reducePairCast sockets activeConnections v (toNFPair nft1) (toNFPair nft2)
         maybe (blame cast) return v'
       _ -> let v' = reduceCast v nft1 nft2 in maybe (blame cast) return v'
   Var s -> ask >>= \(env, _) -> maybe (throw $ LookupException s) (liftIO . pure) (lookup s env)
@@ -233,7 +237,7 @@ eval = \case
     val <- interpret' e
     case val of
       VInt port -> do
-        (env, (sockets, handles)) <- ask
+        (env, (sockets, activeConnections)) <- ask
         (mvar, clientlist, ownport) <- liftIO $ NS.ensureSocket port sockets
         -- newuser <- liftIO $ Chan.readChan chan
         liftIO $ C.traceIO "Searching for correct communicationpartner"
@@ -257,7 +261,7 @@ eval = \case
     val <- interpret' e0
     case val of
       VInt port -> do
-        (env, (sockets, handles)) <- ask
+        (env, (sockets, activeConnections)) <- ask
         (networkconmapmvar, chan, ownport) <- liftIO $ NS.ensureSocket port sockets
         addressVal <- interpret' e1
         case addressVal of
@@ -414,19 +418,19 @@ toNFPair :: NFType -> NFType
 toNFPair (NFGType (GPair)) = NFPair (FuncType [] "x" TDyn TDyn)
 toNFPair t = t
 
-reducePairCast :: MVar.MVar (Map.Map Int ServerSocket) -> MVar.MVar ActiveConnections -> Value -> NFType -> NFType -> IO (Maybe Value)
-reducePairCast sockets handles (VPair v w) (NFPair (FuncType penv s t1 t2)) (NFPair (FuncType penv' s' t1' t2')) = do
-  mv' <- reduceComponent sockets handles v (penv, t1) (penv', t1')
+reducePairCast :: MVar.MVar (Map.Map Int ServerSocket) -> ActiveConnections -> Value -> NFType -> NFType -> IO (Maybe Value)
+reducePairCast sockets activeConnections (VPair v w) (NFPair (FuncType penv s t1 t2)) (NFPair (FuncType penv' s' t1' t2')) = do
+  mv' <- reduceComponent sockets activeConnections v (penv, t1) (penv', t1')
   case mv' of
     Nothing -> return Nothing
     Just v' -> do
-      mw' <- reduceComponent sockets handles w ((s, v) : penv, t2) ((s', v') : penv', t2')
+      mw' <- reduceComponent sockets activeConnections w ((s, v) : penv, t2) ((s', v') : penv', t2')
       return $ liftM2 VPair mv' mw'
   where
-    reduceComponent :: MVar.MVar (Map.Map Int ServerSocket) -> MVar.MVar ActiveConnections -> Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)
-    reduceComponent sockets handles v (penv, t) (penv', t') = do
-      nft  <- R.runReaderT (evalType t)  (penv, (sockets, handles))
-      nft' <- R.runReaderT (evalType t') (penv', (sockets, handles))
+    reduceComponent :: MVar.MVar (Map.Map Int ServerSocket) -> ActiveConnections -> Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)
+    reduceComponent sockets activeConnections v (penv, t) (penv', t') = do
+      nft  <- R.runReaderT (evalType t)  (penv, (sockets, activeConnections))
+      nft' <- R.runReaderT (evalType t') (penv', (sockets, activeConnections))
       return $ reduceCast v nft nft'
 reducePairCast _ _ _ _ _ = return Nothing
 

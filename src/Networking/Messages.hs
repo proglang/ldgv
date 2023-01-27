@@ -2,8 +2,12 @@
 
 module Networking.Messages where
 
-import ProcessEnvironment
+import ProcessEnvironmentTypes
 import Syntax
+import GHC.IO.Handle
+import qualified Control.Concurrent.Chan as Chan
+import qualified Control.Concurrent.MVar as MVar
+import qualified Data.Map as Map
 
 type UserID = String
 type Hostname = String

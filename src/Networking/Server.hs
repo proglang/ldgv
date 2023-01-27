@@ -15,7 +15,7 @@ import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.Common as NC
 import qualified Networking.Serialize as NSerialize
-import ProcessEnvironment
+import ProcessEnvironmentTypes
 import qualified Syntax
 
 import Control.Exception
@@ -29,7 +29,6 @@ import qualified Networking.Common as NC
 import qualified Config
 import qualified Networking.NetworkConnection as NCon
 import qualified Control.Concurrent as MVar
-import ProcessEnvironment (ServerSocket)
 import qualified Networking.Client as NC
 import Control.Monad
 
