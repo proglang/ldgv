@@ -19,19 +19,19 @@ import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
 import qualified Syntax
 
-type ConnectionHandler = MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Messages -> IO ()
+type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Messages -> IO ()
 
 
-sendMessage :: NSerialize.Serializable a => a -> Handle -> IO ()
-sendMessage value handle = do
+sendMessage :: NSerialize.Serializable a => Handle -> a -> IO ()
+sendMessage handle value = do
     serializedValue <- NSerialize.serialize value
     hPutStrLn handle (serializedValue ++" ")
 
-sendResponse :: NSerialize.Serializable a => a -> Handle -> IO ()
+sendResponse :: NSerialize.Serializable a => Handle -> a -> IO ()
 sendResponse = sendMessage
 
-recieveMessage :: Handle -> VT.Alex t -> (String -> IO b) -> (String -> t -> IO b) -> IO b
-recieveMessage handle grammar fallbackResponse messageHandler = do
+recieveMessageInternal :: Handle -> VT.Alex t -> (String -> IO b) -> (String -> t -> IO b) -> IO b
+recieveMessageInternal handle grammar fallbackResponse messageHandler = do
     message <- hGetLine handle
     case VT.runAlex message grammar of
         Left err -> do
@@ -41,7 +41,7 @@ recieveMessage handle grammar fallbackResponse messageHandler = do
             -- Config.traceNetIO $ "New superficially valid message recieved: "++message
             messageHandler message deserialmessage
 
-startConversation :: a -> String -> String -> Int -> Int -> IO (Maybe Handle)
+startConversation :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Handle)
 startConversation _ hostname port waitTime tries = do
     let hints = defaultHints {
                 addrFamily = AF_INET
@@ -59,39 +59,62 @@ startConversation _ hostname port waitTime tries = do
         )
     getFromNetworkThread threadid handleMVar waitTime tries
 
-acceptConversations :: a -> ConnectionHandler -> Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
-acceptConversations _ connectionhandler port = do
-    -- serverid <- UserID.newRandomUserID
-    sock <- socket AF_INET Stream 0
-    setSocketOption sock ReuseAddr 1
-    let hints = defaultHints {
-            addrFamily = AF_INET
-          , addrFlags = [AI_PASSIVE]
-          , addrSocketType = Stream
-    }
-    addrInfo <- getAddrInfo (Just hints) Nothing $ Just $ show port
-    bind sock $ addrAddress $ head addrInfo
-    listen sock 1024
-    mvar <- MVar.newEmptyMVar
-    MVar.putMVar mvar Map.empty
-    clientlist <- MVar.newEmptyMVar
-    MVar.putMVar clientlist []
-    forkIO $ acceptClients connectionhandler mvar clientlist sock $ show port
-    return (mvar, clientlist)
-    where
-        acceptClients :: ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> String -> IO ()
-        acceptClients connectionhandler mvar clientlist socket ownport = do
+waitForConversation :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Handle)
+waitForConversation ac hostname port waitTime tries = do
+    mbyHandle <- startConversation ac hostname port waitTime tries
+    case mbyHandle of
+        Just handle -> return mbyHandle
+        Nothing -> waitForConversation ac hostname port waitTime tries
+
+
+acceptConversations :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> MVar.MVar (Map.Map Int ServerSocket) -> IO ServerSocket
+acceptConversations ac connectionhandler port socketsmvar = do
+    sockets <- MVar.takeMVar socketsmvar
+    case Map.lookup port sockets of
+        Just socket -> do
+            MVar.putMVar socketsmvar sockets
+            return socket
+        Nothing -> do
+            Config.traceIO "Creating socket!"
+            (mvar, clientlist) <- createServer ac connectionhandler port
+            Config.traceIO "Socket created"
+            let newsocket = (mvar, clientlist, show port)
+            let updatedMap = Map.insert port newsocket sockets
+            MVar.putMVar socketsmvar updatedMap
+            return newsocket
+    where 
+        createServer :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
+        createServer activeCons connectionhandler port = do
+            -- serverid <- UserID.newRandomUserID
+            sock <- socket AF_INET Stream 0
+            setSocketOption sock ReuseAddr 1
+            let hints = defaultHints {
+                    addrFamily = AF_INET
+                , addrFlags = [AI_PASSIVE]
+                , addrSocketType = Stream
+            }
+            addrInfo <- getAddrInfo (Just hints) Nothing $ Just $ show port
+            bind sock $ addrAddress $ head addrInfo
+            listen sock 1024
+            mvar <- MVar.newEmptyMVar
+            MVar.putMVar mvar Map.empty
+            clientlist <- MVar.newEmptyMVar
+            MVar.putMVar clientlist []
+            forkIO $ acceptClients activeCons connectionhandler mvar clientlist sock $ show port
+            return (mvar, clientlist)
+        acceptClients :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> String -> IO ()
+        acceptClients activeCons connectionhandler mvar clientlist socket ownport = do
             Config.traceIO "Waiting for clients"
             clientsocket <- accept socket
             Config.traceIO "Accepted new client"
 
-            forkIO $ acceptClient connectionhandler mvar clientlist clientsocket ownport
-            acceptClients connectionhandler mvar clientlist socket ownport
+            forkIO $ acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport
+            acceptClients activeCons connectionhandler mvar clientlist socket ownport
 
-        acceptClient :: ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> String -> IO ()
-        acceptClient connectionhandler mvar clientlist clientsocket ownport = do
+        acceptClient :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> String -> IO ()
+        acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
             hdl <- getSocketFromHandle $ fst clientsocket
-            recieveMessage hdl VG.parseMessages (\_ -> return ()) $ connectionhandler mvar clientlist clientsocket hdl ownport
+            recieveMessageInternal hdl VG.parseMessages (\_ -> return ()) $ connectionhandler activeCons mvar clientlist clientsocket hdl ownport
             hClose hdl  
 
 
@@ -114,19 +137,22 @@ getFromNetworkThreadWithModification func threadid mvar waitTime currentTry = do
 recieveResponse :: Handle -> Int -> Int -> IO (Maybe Responses)
 recieveResponse handle waitTime tries = do
     retVal <- MVar.newEmptyMVar
-    threadid <- forkIO $ recieveMessage handle VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
+    threadid <- forkIO $ recieveMessageInternal handle VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
     getFromNetworkThreadWithModification id threadid retVal waitTime tries
 
 recieveNewMessage :: Handle -> IO (Handle, String, Messages)
 recieveNewMessage handle = do
-    recieveMessage handle VG.parseMessages (\_ -> recieveNewMessage handle) $ \s des -> return (handle, s, des)
+    recieveMessageInternal handle VG.parseMessages (\_ -> recieveNewMessage handle) $ \s des -> return (handle, s, des)
     
 
 endConversation :: Handle -> Int -> Int -> IO ()
 endConversation handle waitTime tries = do 
-    finished <- MVar.newEmptyMVar
-    threadid <- forkIO $ hClose handle >> MVar.putMVar finished True
-    _ <- getFromNetworkThread threadid finished waitTime tries
+    forkIO (do 
+        finished <- MVar.newEmptyMVar
+        threadid <- forkIO $ hClose handle >> MVar.putMVar finished True
+        _ <- getFromNetworkThread threadid finished waitTime tries
+        return ()
+        )
     return ()
 
 createActiveConnections :: IO ActiveConnectionsStateless

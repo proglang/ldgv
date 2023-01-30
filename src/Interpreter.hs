@@ -58,7 +58,8 @@ import qualified Control.Concurrent as MVar
 -- import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.NetworkConnection as NCon
 
-import qualified Networking.NetworkingMethod.Stateless as NetMethod
+import qualified Data.Bifunctor
+-- import qualified Networking.NetworkingMethod.Stateless as NetMethod
 -- import qualified Networking.NetworkingMethod.Fast as NetMethod
 
 data InterpreterException
@@ -98,19 +99,19 @@ blame exp = throw $ CastException exp
 
 -- | interpret the "main" value in an ldgv file given over stdin
 interpret :: [Decl] -> IO Value
-interpret decls = do 
+interpret decls = do
   sockets <- MVar.newEmptyMVar
-  activeConnections <- NetMethod.createActiveConnections
+  activeConnections <- NC.createActiveConnections
   MVar.putMVar sockets Map.empty
   R.runReaderT (interpretDecl decls) ([], (sockets, activeConnections))
 
 interpretDecl :: [Decl] -> InterpretM Value
 interpretDecl (DFun "main" _ e _:_) = interpret' e
-interpretDecl (DFun name [] e _:decls) = interpret' e >>= \v -> local (\(env, sock) -> ((extendEnv name v) env, sock)) (interpretDecl decls)
+interpretDecl (DFun name [] e _:decls) = interpret' e >>= \v -> local (Data.Bifunctor.first (extendEnv name v)) (interpretDecl decls)
 interpretDecl (DFun name binds e _:decls) =
   let lambda = foldr (\(mul, id, ty) -> Lam mul id ty) e binds
-  in interpret' lambda >>= \v -> local (\(env, sock) -> ((extendEnv name v) env, sock)) (interpretDecl decls)
-interpretDecl (DType name _ _ t:decls) = local (\(env, sock) -> ((extendEnv name $ VType t) env, sock)) (interpretDecl decls)
+  in interpret' lambda >>= \v -> local (Data.Bifunctor.first (extendEnv name v)) (interpretDecl decls)
+interpretDecl (DType name _ _ t:decls) = local (Data.Bifunctor.first (extendEnv name $ VType t)) (interpretDecl decls)
 interpretDecl (_:decls) = interpretDecl decls
 interpretDecl [] = throw $ LookupException "main"
 
@@ -136,13 +137,13 @@ eval = \case
       VInt 0 -> interpret' e2
       VInt 1 -> do
         zero <- interpret' e2
-        R.local (\(env, sock) -> ((extendEnv i1 (VInt 0) . extendEnv i2 zero) env, sock)) (interpret' e3)
+        R.local (Data.Bifunctor.first (extendEnv i1 (VInt 0) . extendEnv i2 zero)) (interpret' e3)
       VInt n -> do
         -- interpret the n-1 case i2 and add it to the env
         -- together with n before interpreting the body e3
         let lowerEnv = extendEnv i1 (VInt $ n-1)
-        lower <- R.local (\(env,sock) -> (lowerEnv env, sock)) (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
-        R.local (\(env, sock) -> ((extendEnv i2 lower . lowerEnv) env, sock)) (interpret' e3)
+        lower <- R.local (Data.Bifunctor.first lowerEnv) (interpret' $ NatRec (Var i1) e2 i1 t1 i2 t e3)
+        R.local (Data.Bifunctor.first (extendEnv i2 lower . lowerEnv)) (interpret' e3)
       _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
   NewNatRec f n tid ty ez x es -> ask >>= \(env, _) -> return $ VNewNatRec env f n tid ty ez x es
   Lam _ i _ e -> ask >>= \(env, sock) -> return $ VFunc env i e
@@ -162,7 +163,7 @@ eval = \case
         maybe (blame cast) return v'
       _ -> let v' = reduceCast v nft1 nft2 in maybe (blame cast) return v'
   Var s -> ask >>= \(env, _) -> maybe (throw $ LookupException s) (liftIO . pure) (lookup s env)
-  Let s e1 e2 -> interpret' e1 >>= \v -> R.local (\(env, sock) -> ((extendEnv s v env), sock)) (interpret' e2)
+  Let s e1 e2 -> interpret' e1 >>= \v -> R.local (Data.Bifunctor.first (extendEnv s v)) (interpret' e2)
   Math m -> interpretMath m
   Lit l -> return (interpretLit l)
   e@(App e1 e2) -> do
@@ -172,9 +173,9 @@ eval = \case
     interpretApp e val arg
   Pair mul s e1 e2 -> do
     v1 <- interpret' e1
-    v2 <- R.local (\(env, sock) -> ((extendEnv s v1 env), sock)) (interpret' e2)
+    v2 <- R.local (Data.Bifunctor.first (extendEnv s v1)) (interpret' e2)
     return $ VPair v1 v2
-  LetPair s1 s2 e1 e2 -> interpret' e1 >>= \(VPair v1 v2) -> R.local (\(env, sock) -> ((extendEnv s2 v2 . extendEnv s1 v1) env, sock)) (interpret' e2)
+  LetPair s1 s2 e1 e2 -> interpret' e1 >>= \(VPair v1 v2) -> R.local (Data.Bifunctor.first (extendEnv s2 v2 . extendEnv s1 v1)) (interpret' e2)
   fst@(Fst e) -> interpret' e >>= \(VPair s1 s2) -> return s1
   snd@(Snd e) -> interpret' e >>= \(VPair s1 s2) -> return s2
   Fork e -> do
@@ -202,7 +203,8 @@ eval = \case
       if used then throw $ VChanIsUsedException $ show v else do
         let dcRead = NCon.ncRead ci
         valunclean <- liftIO $ DC.readUnreadMessage dcRead
-        val <- liftIO $ NS.replaceVChanSerial mvar valunclean
+        (env, (sockets, activeConnections)) <- ask
+        val <- liftIO $ NS.replaceVChanSerial activeConnections mvar valunclean
         liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
         -- Disable the old channel and get a new one
@@ -220,17 +222,18 @@ eval = \case
         _ <- liftIO $ disableOldVChan v
         return v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
-  Create e -> do
+  {- Create e -> do
     liftIO $ C.traceIO "Creating socket!"
 
     val <- interpret' e
     case val of
       VInt port -> do
-        (mvar, clientlist) <- liftIO $ NS.createServer port
+        (_, (_, activeConnections)) <- ask
+        (mvar, clientlist) <- liftIO $ NetMethod.acceptConversations activeConnections NS.handleClient port
         liftIO $ C.traceIO "Socket created"
         return $ VServerSocket mvar clientlist $ show port
       _ -> throw $ NotAnExpectedValueException "VInt" val
-
+  -}
   Accept e t -> do
     liftIO $ C.traceIO "Accepting new client!"
 
@@ -238,7 +241,7 @@ eval = \case
     case val of
       VInt port -> do
         (env, (sockets, activeConnections)) <- ask
-        (mvar, clientlist, ownport) <- liftIO $ NS.ensureSocket port sockets
+        (mvar, clientlist, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets
         -- newuser <- liftIO $ Chan.readChan chan
         liftIO $ C.traceIO "Searching for correct communicationpartner"
         newuser <- liftIO $ NS.findFittingClient clientlist t -- There is still an issue
@@ -246,7 +249,7 @@ eval = \case
         networkconnectionmap <- liftIO $ MVar.readMVar mvar
         case Map.lookup newuser networkconnectionmap of
           Nothing -> throw $ CommunicationPartnerNotFoundException newuser
-          Just networkconnection -> do 
+          Just networkconnection -> do
             liftIO $ C.traceIO "Client successfully accepted!"
             used <- liftIO MVar.newEmptyMVar
             liftIO $ MVar.putMVar used False
@@ -257,19 +260,18 @@ eval = \case
     r <- liftIO DC.newConnection
     w <- liftIO DC.newConnection
     liftIO $ C.traceIO "Client trying to connect"
-
     val <- interpret' e0
     case val of
       VInt port -> do
         (env, (sockets, activeConnections)) <- ask
-        (networkconmapmvar, chan, ownport) <- liftIO $ NS.ensureSocket port sockets
+        (networkconmapmvar, chan, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets
         addressVal <- interpret' e1
         case addressVal of
           VString address -> do
             portVal <- interpret' e2
             case portVal of
               VInt port -> do
-                liftIO $ NClient.initialConnect networkconmapmvar address (show port) ownport t
+                liftIO $ NClient.initialConnect activeConnections networkconmapmvar address (show port) ownport t
               _ -> throw $ NotAnExpectedValueException "VInt" portVal
           _ -> throw $ NotAnExpectedValueException "VString" addressVal
       _ -> throw $ NotAnExpectedValueException "VInt" val
@@ -277,7 +279,7 @@ eval = \case
 
 -- Exp is only used for blame
 interpretApp :: Exp -> Value -> Value -> InterpretM Value
-interpretApp _ (VFunc env s exp) w = R.local (\(cenv, sock) -> ((const $ extendEnv s w env) cenv, sock)) (interpret' exp)
+interpretApp _ (VFunc env s exp) w = R.local (Data.Bifunctor.first (const $ extendEnv s w env)) (interpret' exp)
 interpretApp e (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2')) w' = do
   (env0, socketMVar) <- ask
   let
@@ -288,7 +290,7 @@ interpretApp e (VFuncCast v (FuncType penv s t1 t2) (FuncType penv' s' t1' t2'))
       nft1' <- R.runReaderT (evalType t1') (penv', socketMVar)
       w <- maybe (blame e) return (reduceCast w' nft1' nft1)
       nft2' <- R.runReaderT (evalType t2') (extendEnv s' w' penv', socketMVar)
-      nft2  <- R.runReaderT (evalType t2)  (extendEnv s  w  penv, socketMVar) 
+      nft2  <- R.runReaderT (evalType t2)  (extendEnv s  w  penv, socketMVar)
       u  <- R.runReaderT (interpretApp e v w) (env0, socketMVar)
       u' <- maybe (blame e) return (reduceCast u nft2 nft2')
       C.traceIO ("Function cast in application results in: " ++ show u')
@@ -299,18 +301,19 @@ interpretApp e rec@(VRec env f n1 e1 e0) (VInt n)
   | n == 0 = interpret' e0
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f rec env)
-    R.local (\(env,sock) -> ((const env') env, sock)) (interpret' e1)
+    R.local (Data.Bifunctor.first (const env')) (interpret' e1)
 interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  < 0 = throw RecursorNotNatException
   | n == 0 = interpret' ez
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
-    R.local (\(env,sock) -> ((const env') env, sock)) (interpret' es)
+    R.local (Data.Bifunctor.first (const env')) (interpret' es)
 -- interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
 interpretApp _ (VSend v@(VChan cc _ usedmvar)) w = do
   used <- liftIO $ MVar.readMVar usedmvar
   if used then throw $ VChanIsUsedException $ show v else do
-    liftIO $ NClient.sendValue cc w (-1)
+    (env, (sockets, activeConnections)) <- ask
+    liftIO $ NClient.sendValue activeConnections cc w (-1)
 
     -- Disable old VChan
     newV <- liftIO $ disableOldVChan v
@@ -365,7 +368,7 @@ evalType = \case
         else
           let lower = TNatRec (Lit $ LNat (n-1)) t1 tid t2
           in do
-            R.local (\(env, sock) -> (extendEnv tid (VType lower) env, sock)) (evalType t2)
+            R.local (Data.Bifunctor.first (extendEnv tid (VType lower))) (evalType t2)
       _ -> throw $ RecursorException "Evaluation of 'natrec x...' must yield Nat value"
   TName _ s -> ask >>= \(env, _) -> maybe (throw $ LookupException s) (\(VType t) -> evalType t) (lookup s env)
   TLab ls -> return $ NFGType $ GLabel $ labelsFromList ls

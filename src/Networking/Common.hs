@@ -9,12 +9,28 @@ import qualified Networking.Serialize as NSerialize
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
+import qualified Networking.NetworkingMethod.Stateless as NetMethod
 
-sendMessage :: NSerialize.Serializable a => a -> Handle -> IO ()
-sendMessage value handle = do
-    serializedValue <- NSerialize.serialize value
-    hPutStrLn handle (serializedValue ++" ")
 
+
+-- The compiler sadly compains when these things get eta reduced :/
+sendMessage con ser = NetMethod.sendMessage con ser
+
+sendResponse con ser = NetMethod.sendResponse con ser
+
+startConversation activeCons host port waitTime tries = NetMethod.startConversation activeCons host port waitTime tries
+
+waitForConversation activeCons host port waitTime tries = NetMethod.waitForConversation activeCons host port waitTime tries
+
+createActiveConnections = NetMethod.createActiveConnections
+
+acceptConversations activeCons connectionhandler port socketsmvar = NetMethod.acceptConversations activeCons connectionhandler port socketsmvar
+
+recieveResponse con waitTime tries = NetMethod.recieveResponse con waitTime tries
+
+endConversation con waitTime tries = NetMethod.endConversation con waitTime tries
+
+{-
 getHandle :: Socket -> IO Handle
 getHandle socket = do
     hdl <- socketToHandle socket ReadWriteMode
@@ -34,3 +50,4 @@ recieveMessage handle grammar fallbackResponse messageHandler = do
 
 openSocketNC :: AddrInfo -> IO Socket
 openSocketNC addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+-}
