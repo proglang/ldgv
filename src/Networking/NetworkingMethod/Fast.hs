@@ -21,8 +21,11 @@ import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
 import qualified Networking.NetworkingMethod.Stateless as Stateless
 import ProcessEnvironmentTypes
+import qualified Control.Concurrent.SSem as SSem
 
-type Conversation = (String, Handle, MVar.MVar (Map.Map String (String, Responses)))
+type Conversation = (String, Handle, MVar.MVar (Map.Map String (String, Responses)), SSem.SSem)
+
+type ConnectionHandler = ActiveConnectionsFast -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Conversation -> String -> String -> Messages -> IO ()
 
 -- type NetworkAddress = (String, String)
 --  deriving (Eq, Show, Ord)
@@ -31,39 +34,53 @@ type Conversation = (String, Handle, MVar.MVar (Map.Map String (String, Response
 
 
 sendMessage ::  Conversation -> Messages -> IO ()
-sendMessage conversation@(cid, handle, responses) value = Stateless.sendMessage handle (ConversationMessage cid value) 
+sendMessage conversation@(cid, handle, responses, sem) value = SSem.withSem sem $ Stateless.sendMessage handle (ConversationMessage cid value) 
 
 sendResponse :: Conversation -> Responses -> IO ()
-sendResponse conversation@(cid, handle, responses) value = Stateless.sendResponse handle (ConversationResponse cid value) 
+sendResponse conversation@(cid, handle, responses, sem) value = SSem.withSem sem $ Stateless.sendResponse handle (ConversationResponse cid value) 
 
 conversationHandler :: Handle -> IO Connection
 conversationHandler handle = do
     chan <- Chan.newChan 
     mvar <- MVar.newEmptyMVar
-    forkIO $ forever $ Stateless.recieveMessageInternal handle VG.parseConversation (\_ -> return ()) (\mes des -> case des of
-        ConversationMessage cid message -> Chan.writeChan chan (cid, (mes, message))
-        ConversationResponse cid response -> do
-            mymap <- MVar.takeMVar mvar
-            MVar.putMVar mvar $ Map.insert cid (mes, response) mymap
+    MVar.putMVar mvar Map.empty
+    sem <- SSem.new 1
+    forkIO $ forever (do 
+        -- Config.traceNetIO "Waiting for new conversation"
+        Stateless.recieveMessageInternal handle VG.parseConversation (\_ -> return ()) (\mes des -> do 
+            -- Config.traceNetIO "Got new conversation"  
+            case des of
+                ConversationMessage cid message -> Chan.writeChan chan (cid, (mes, message))
+                ConversationResponse cid response -> do
+                    -- Config.traceNetIO "Trying to take mvar"
+                    mymap <- MVar.takeMVar mvar
+                    MVar.putMVar mvar $ Map.insert cid (mes, response) mymap
+                    -- Config.traceNetIO "Set responses mvar"
+            )
         )
-    return (handle, chan, mvar)
+    return (handle, chan, mvar, sem)
 
 
 recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Responses)
-recieveResponse conversation@(cid, handle, mvar) waitTime tries = do
+recieveResponse conversation@(cid, handle, mvar, sem) waitTime tries = do
+    -- Config.traceNetIO "Trying to take mvar for responses mvar"
     responsesMap <- MVar.takeMVar mvar
+    -- Config.traceNetIO "Got MVar for responses"
     case Map.lookup cid responsesMap of
         Just (messages, deserial) -> do 
             MVar.putMVar mvar $ Map.delete cid responsesMap
             return $ Just deserial
         Nothing -> do 
             MVar.putMVar mvar responsesMap
-            if tries /= 0 then recieveResponse conversation waitTime $ max (tries-1) (-1) else return Nothing
+            if tries /= 0 then do
+                -- Config.traceNetIO "Nothing yet retrying!" 
+                threadDelay waitTime
+                recieveResponse conversation waitTime $ max (tries-1) (-1) else return Nothing
 
 recieveNewMessage :: Connection -> IO (Conversation, String, Messages)
-recieveNewMessage connection@(handle, chan, mvar) = do
+recieveNewMessage connection@(handle, chan, mvar, sem) = do
     (cid, (serial, deserial)) <- Chan.readChan chan
-    return ((cid, handle, mvar), serial, deserial)
+    return ((cid, handle, mvar, sem), serial, deserial)
     
 
 startConversation :: ActiveConnectionsFast -> String -> String -> Int -> Int -> IO (Maybe Conversation)
@@ -71,20 +88,27 @@ startConversation acmvar hostname port waitTime tries = do
     conversationid <- newRandomUserID
     connectionMap <- MVar.takeMVar acmvar
     case Map.lookup (hostname, port) connectionMap of
-        Just (handle, chan, mvar) -> do
+        Just (handle, chan, mvar, sem) -> do
             MVar.putMVar acmvar connectionMap
-            return $ Just (conversationid, handle, mvar)
+            return $ Just (conversationid, handle, mvar, sem)
         Nothing -> do
             statelessActiveCons <- Stateless.createActiveConnections 
             mbyNewHandle <- Stateless.startConversation statelessActiveCons hostname port waitTime tries
             case mbyNewHandle of
                 Just handle -> do 
-                    newconnection@(handle, chan, mvar) <- conversationHandler handle
+                    newconnection@(handle, chan, mvar, sem) <- conversationHandler handle
                     MVar.putMVar acmvar $ Map.insert (hostname, port) newconnection connectionMap
-                    return $ Just (conversationid, handle, mvar)
+                    return $ Just (conversationid, handle, mvar, sem)
                 Nothing -> do 
                     MVar.putMVar acmvar connectionMap
                     return Nothing
+
+waitForConversation :: ActiveConnectionsFast -> String -> String -> Int -> Int -> IO (Maybe Conversation)
+waitForConversation ac hostname port waitTime tries = do
+    mbyHandle <- startConversation ac hostname port waitTime tries
+    case mbyHandle of
+        Just handle -> return mbyHandle
+        Nothing -> waitForConversation ac hostname port waitTime tries
 
 createActiveConnections :: IO ActiveConnectionsFast
 createActiveConnections = do
@@ -92,41 +116,64 @@ createActiveConnections = do
     MVar.putMVar activeConnections Map.empty
     return activeConnections
 
-{-
-acceptConversations :: ActiveConnectionsFast -> ConnectionHandler -> Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
-acceptConversations ActiveConnectionsFast connectionhandler port = do
-    sock <- socket AF_INET Stream 0
-    setSocketOption sock ReuseAddr 1
-    let hints = defaultHints {
-            addrFamily = AF_INET
-          , addrFlags = [AI_PASSIVE]
-          , addrSocketType = Stream
-    }
-    addrInfo <- getAddrInfo (Just hints) Nothing $ Just $ show port
-    bind sock $ addrAddress $ head addrInfo
-    listen sock 1024
-    mvar <- MVar.newEmptyMVar
-    MVar.putMVar mvar Map.empty
-    clientlist <- MVar.newEmptyMVar
-    MVar.putMVar clientlist []
-    forkIO $ acceptClients connectionhandler mvar clientlist sock $ show port
-    return (mvar, clientlist)
+
+acceptConversations :: ActiveConnectionsFast -> ConnectionHandler -> Int -> MVar.MVar (Map.Map Int ServerSocket) -> IO ServerSocket
+acceptConversations ac connectionhandler port socketsmvar = do
+    sockets <- MVar.takeMVar socketsmvar
+    case Map.lookup port sockets of
+        Just socket -> do
+            MVar.putMVar socketsmvar sockets
+            return socket
+        Nothing -> do
+            Config.traceIO "Creating socket!"
+            (mvar, clientlist) <- createServer ac connectionhandler port
+            Config.traceIO "Socket created"
+            let newsocket = (mvar, clientlist, show port)
+            let updatedMap = Map.insert port newsocket sockets
+            MVar.putMVar socketsmvar updatedMap
+            return newsocket
     where
+        createServer :: ActiveConnectionsFast -> ConnectionHandler -> Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
+        createServer activeCons connectionhandler port = do
+            -- serverid <- UserID.newRandomUserID
+            sock <- socket AF_INET Stream 0
+            setSocketOption sock ReuseAddr 1
+            let hints = defaultHints {
+                    addrFamily = AF_INET
+                , addrFlags = [AI_PASSIVE]
+                , addrSocketType = Stream
+            }
+            addrInfo <- getAddrInfo (Just hints) Nothing $ Just $ show port
+            bind sock $ addrAddress $ head addrInfo
+            listen sock 1024
+            mvar <- MVar.newEmptyMVar
+            MVar.putMVar mvar Map.empty
+            clientlist <- MVar.newEmptyMVar
+            MVar.putMVar clientlist []
+            forkIO $ acceptClients activeCons connectionhandler mvar clientlist sock $ show port
+            return (mvar, clientlist)
+
         acceptClients :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> String -> IO ()
-        acceptClients ActiveConnectionsFast connectionhandler mvar clientlist socket ownport = do
+        acceptClients activeCons connectionhandler mvar clientlist socket ownport = do
             Config.traceIO "Waiting for clients"
             clientsocket <- accept socket
             Config.traceIO "Accepted new client"
 
-            forkIO $ acceptClient activeConections connectionhandler mvar clientlist clientsocket ownport
-            acceptClients ActiveConnectionsFast connectionhandler mvar clientlist socket ownport
+            forkIO $ acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport
+            acceptClients activeCons connectionhandler mvar clientlist socket ownport
 
         acceptClient :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> String -> IO ()
-        acceptClient ActiveConnectionsFast connectionhandler mvar clientlist clientsocket ownport = do
-            hdl <- NC.getHandle $ fst clientsocket
-            NC.recieveMessage hdl VG.parseMessages (\_ -> return ()) $ connectionhandler mvar clientlist clientsocket hdl ownport
-            hClose hdl  
--}
+        acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
+            hdl <- Stateless.getSocketFromHandle $ fst clientsocket
+            connection@(handle, chan, responsesMvar, sem) <- conversationHandler hdl
+            -- NC.recieveMessage hdl VG.parseMessages (\_ -> return ()) $ connectionhandler mvar clientlist clientsocket hdl ownport
+            forkIO $ forever (do 
+                (conversationid, (serial, deserial)) <- Chan.readChan chan
+                connectionhandler activeCons mvar clientlist clientsocket (conversationid, hdl, responsesMvar, sem) ownport serial deserial
+                )
+            return ()
+            -- hClose hdl  
+
 
 endConversation :: Conversation -> Int -> Int -> IO ()
 endConversation _ _ _ = return ()

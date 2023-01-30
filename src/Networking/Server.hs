@@ -37,7 +37,7 @@ import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 -- import Networking.NetworkingMethod.Stateless (acceptConversations)
 -- import qualified Networking.NetworkingMethod.Fast as NetMethod
 
-handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Messages -> IO ()
+handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Messages -> IO ()
 handleClient activeCons mvar clientlist clientsocket hdl ownport message deserialmessages = do
     let userid = getUserID deserialmessages
     -- Config.traceNetIO $ show ownport ++ " Entering redirect handler for message: "++ message
@@ -124,7 +124,7 @@ checkRedirectRequest ncmap userid = do
                 RedirectRequest {} -> return True
                 _ -> return False
 
-sendRedirect ::  Handle -> Map.Map String (NetworkConnection Value) -> String -> IO ()
+sendRedirect ::  NC.ConversationOrHandle -> Map.Map String (NetworkConnection Value) -> String -> IO ()
 sendRedirect handle ncmap userid = do
     case Map.lookup userid ncmap of
         Nothing -> return ()
@@ -136,7 +136,7 @@ sendRedirect handle ncmap userid = do
                     NC.sendResponse  handle (Messages.Redirect host port)
                 _ -> return ()
 
-handleNewValue :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Int -> Value -> String -> Handle -> IO ()
+handleNewValue :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Int -> Value -> String -> NC.ConversationOrHandle -> IO ()
 handleNewValue activeCons mvar userid count val ownport hdl = do
     -- networkconnectionmap <- MVar.takeMVar mvar
     networkconnectionmap <- MVar.readMVar mvar
@@ -206,7 +206,7 @@ contactNewPeers activeCons input ownport = case input of
             -- return $ (fst x, newval):rest
             return ()
 
-handleIntroduceClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Syntax.Type -> IO ()
+handleIntroduceClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Syntax.Type -> IO ()
 handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype = do
     networkconnectionmap <- MVar.takeMVar mvar
     case Map.lookup userid networkconnectionmap of
@@ -245,7 +245,7 @@ handleChangePartnerAddress activeCons mvar userid hostname port ownport = do
 
         Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
 
-handleRequestSync :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Handle -> IO ()
+handleRequestSync :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> NC.ConversationOrHandle -> IO ()
 handleRequestSync mvar userid hdl = do
     networkconnectionmap <- MVar.readMVar mvar
     case Map.lookup userid networkconnectionmap of

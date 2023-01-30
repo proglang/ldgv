@@ -180,14 +180,17 @@ initialConnect activeCons mvar hostname port ownport syntype= do
     case mbycon of
         Just con -> do
             ownuserid <- UserID.newRandomUserID
-            Config.traceIO "Client connected: Introducing"
+            Config.traceNetIO "Client connected: Introducing"
             NC.sendMessage con (Messages.IntroduceClient ownuserid ownport syntype)
+            Config.traceNetIO "Client connected: send message"
             mbyintroductionanswer <- NC.recieveResponse con 10000 (-1)
+            Config.traceNetIO "Client connected: got answer"
             NC.endConversation con 10000 10
+            Config.traceNetIO "Client disconnected!"
             case mbyintroductionanswer of
                 Just introduction -> case introduction of
                     OkayIntroduce introductionanswer -> do
-                        Config.traceIO "Finished Handshake"
+                        Config.traceNetIO "Finished Handshake"
                         msgserial <- NSerialize.serialize $ Messages.IntroduceClient ownuserid ownport syntype
                         Config.traceNetIO $ "Sending message as: " ++ ownuserid ++ " to: " ++  introductionanswer
                         Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port

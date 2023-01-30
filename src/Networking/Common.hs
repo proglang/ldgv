@@ -9,9 +9,12 @@ import qualified Networking.Serialize as NSerialize
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
-import qualified Networking.NetworkingMethod.Stateless as NetMethod
+import qualified Networking.NetworkingMethod.Fast as NetMethod
 
 
+type ConversationOrHandle = NetMethod.Conversation 
+
+-- type ConversationOrHandle = Handle
 
 -- The compiler sadly compains when these things get eta reduced :/
 sendMessage con ser = NetMethod.sendMessage con ser
