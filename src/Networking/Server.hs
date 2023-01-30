@@ -98,10 +98,12 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                     IntroduceClient userid clientport syntype-> do
                         handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
                         -- Okay message is handled in handle introduce
+                    {-
                     IntroduceNewPartnerAddress userid port -> do
                         -- NC.sendResponse Messages.Okay hdl
                         NC.sendResponse hdl Messages.Wait
                         -- We don't know them yet, but should know them as soon as we get the message from the former comm partner
+                    -}
                     _ -> do
                         serial <- NSerialize.serialize deserialmessages
                         Config.traceIO $ "Error unsupported networkmessage: "++ serial
@@ -141,6 +143,8 @@ handleNewValue activeCons mvar userid count val ownport hdl = do
     -- Config.traceNetIO $ show ownport ++ " Entered NewValue handler"
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do
+            ND.lockInterpreterReads (ncRead networkconnection)
+            -- Config.traceNetIO "ENTERED READ LOCK"
             -- Config.traceNetIO $ show ownport ++ " Reading message"
             success <- ND.writeMessageIfNext (ncRead networkconnection) count val
             -- if success then Config.traceNetIO $ show ownport ++ " Message valid" else Config.traceNetIO $ show ownport ++ " Message invalid"
@@ -149,6 +153,8 @@ handleNewValue activeCons mvar userid count val ownport hdl = do
             contactNewPeers activeCons val ownport
             -- Config.traceNetIO $ show ownport ++ " Contacted peers"
             NC.sendResponse hdl Messages.Okay
+            ND.unlockInterpreterReads (ncRead networkconnection)
+            -- Config.traceNetIO "LEFT READ LOCK"
         Nothing -> do
             NC.sendResponse hdl Messages.Okay
             Config.traceNetIO "Error during recieving a networkmessage: Introduction is needed prior to sending values!"

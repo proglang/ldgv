@@ -35,7 +35,7 @@ recieveMessageInternal handle grammar fallbackResponse messageHandler = do
     message <- hGetLine handle
     case VT.runAlex message grammar of
         Left err -> do
-            Config.traceNetIO $ "Error during recieving a networkmessage: "++err
+            Config.traceNetIO $ "Error during recieving a networkmessage: "++err++" Malformed message: " ++ message
             fallbackResponse message
         Right deserialmessage -> do
             -- Config.traceNetIO $ "New superficially valid message recieved: "++message
@@ -147,12 +147,9 @@ recieveNewMessage handle = do
 
 endConversation :: Handle -> Int -> Int -> IO ()
 endConversation handle waitTime tries = do 
-    forkIO (do 
-        finished <- MVar.newEmptyMVar
-        threadid <- forkIO $ hClose handle >> MVar.putMVar finished True
-        _ <- getFromNetworkThread threadid finished waitTime tries
-        return ()
-        )
+    finished <- MVar.newEmptyMVar
+    threadid <- forkIO $ hClose handle >> MVar.putMVar finished True
+    _ <- getFromNetworkThread threadid finished waitTime tries
     return ()
 
 createActiveConnections :: IO ActiveConnectionsStateless

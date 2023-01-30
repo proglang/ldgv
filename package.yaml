@@ -63,6 +63,7 @@ library:
   - network
   - network-run
   - random
+  - SafeSemaphore >=0.10.1
 
 tests:
   ldgv-test:

@@ -143,7 +143,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             when (Data.Maybe.isNothing mbycon) $ Config.traceNetIO "Not connected to peer"
             Config.traceNetIO $ "Original message: " ++ serializedMessage
             case connectionstate of
-                NCon.Connected newhostname newport -> if resendOnError /= 0 then do
+                NCon.Connected newhostname newport -> if resendOnError /= 0 && Data.Maybe.isJust mbycon then do
                         Config.traceNetIO $ "Old communication partner offline! New communication partner: " ++ newhostname ++ ":" ++ newport
                         threadDelay 1000000
                         tryToSendNetworkMessage activeCons networkconnection newhostname newport message $ max (resendOnError-1) (-1)
