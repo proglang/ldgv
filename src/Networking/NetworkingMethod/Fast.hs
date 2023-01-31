@@ -64,7 +64,9 @@ conversationHandlerChangeHandle handle chan mvar sem = do
                 ConversationCloseAll -> do
                     MVar.takeMVar isClosed
                     MVar.putMVar isClosed True
-                    forkIO $ hClose handle
+                    forkIO (do 
+                        closed <- hIsClosed handle
+                        unless closed $ hClose handle)
                     return ()
             )
         )

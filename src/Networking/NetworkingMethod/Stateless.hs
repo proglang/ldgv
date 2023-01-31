@@ -9,6 +9,7 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Map as Map
 import qualified Data.Maybe
 import Control.Concurrent
+import Control.Monad
 
 import Networking.Messages
 import Networking.NetworkConnection
@@ -32,6 +33,7 @@ sendResponse = sendMessage
 
 recieveMessageInternal :: Handle -> VT.Alex t -> (String -> IO b) -> (String -> t -> IO b) -> IO b
 recieveMessageInternal handle grammar fallbackResponse messageHandler = do
+    waitWhileEOF handle
     message <- hGetLine handle
     case VT.runAlex message grammar of
         Left err -> do
@@ -40,6 +42,16 @@ recieveMessageInternal handle grammar fallbackResponse messageHandler = do
         Right deserialmessage -> do
             -- Config.traceNetIO $ "New superficially valid message recieved: "++message
             messageHandler message deserialmessage
+
+
+waitWhileEOF :: Handle -> IO ()
+waitWhileEOF handle = do
+    isEOF <- hIsEOF handle
+    when isEOF (do 
+        threadDelay 10000
+        waitWhileEOF handle
+        )
+
 
 startConversation :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Handle)
 startConversation _ hostname port waitTime tries = do
