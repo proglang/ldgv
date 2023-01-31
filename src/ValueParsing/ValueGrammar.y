@@ -133,6 +133,7 @@ import Networking.Messages
     nwait           { T _ T.NWait}
     nconversationmessage { T _ T.NConversationMessage}
     nconversationresponse { T _ T.NConversationResponse}
+    nconversationcloseall { T _ T.NConversationCloseAll }
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -303,6 +304,7 @@ Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
 
 ConversationSession : nconversationmessage '(' String ')' '(' Messages ')' {ConversationMessage $3 $6}
                     | nconversationresponse '(' String ')' '(' Responses ')' {ConversationResponse $3 $6}
+                    | nconversationcloseall {ConversationCloseAll}
 
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}

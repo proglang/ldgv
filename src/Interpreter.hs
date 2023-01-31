@@ -103,8 +103,9 @@ interpret decls = do
   sockets <- MVar.newEmptyMVar
   activeConnections <- NC.createActiveConnections
   MVar.putMVar sockets Map.empty
-  R.runReaderT (interpretDecl decls) ([], (sockets, activeConnections))
-  -- TODO Add check here to close all connections, and optionally synt to assure a good ending
+  result <- R.runReaderT (interpretDecl decls) ([], (sockets, activeConnections))
+  NC.sayGoodbye activeConnections
+  return result
 
 interpretDecl :: [Decl] -> InterpretM Value
 interpretDecl (DFun "main" _ e _:_) = interpret' e

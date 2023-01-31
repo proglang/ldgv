@@ -34,7 +34,8 @@ class Serializable a where
 instance Serializable ConversationSession where
   serialize = \case
     ConversationMessage c m -> serializeLabeledEntryMulti "NConversationMessage" c $ sLast m
-    ConversationResponse c r -> serializeLabeledEntryMulti "NConversationResponse" c $ sLast r 
+    ConversationResponse c r -> serializeLabeledEntryMulti "NConversationResponse" c $ sLast r
+    ConversationCloseAll -> return "NConversationCloseAll"
 
 instance Serializable Responses where
   serialize = \case

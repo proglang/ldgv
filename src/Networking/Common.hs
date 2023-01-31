@@ -9,6 +9,7 @@ import qualified Networking.Serialize as NSerialize
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
+-- import qualified Networking.NetworkingMethod.Stateless as NetMethod
 import qualified Networking.NetworkingMethod.Fast as NetMethod
 
 
@@ -32,6 +33,8 @@ acceptConversations activeCons connectionhandler port socketsmvar = NetMethod.ac
 recieveResponse con waitTime tries = NetMethod.recieveResponse con waitTime tries
 
 endConversation con waitTime tries = NetMethod.endConversation con waitTime tries
+
+sayGoodbye con = NetMethod.sayGoodbye con
 
 {-
 getHandle :: Socket -> IO Handle

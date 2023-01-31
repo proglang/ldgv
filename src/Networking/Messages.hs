@@ -38,6 +38,7 @@ data Responses
 data ConversationSession
     = ConversationMessage ConversationID Messages
     | ConversationResponse ConversationID Responses
+    | ConversationCloseAll
 
 getUserID :: Messages -> String
 getUserID = \case

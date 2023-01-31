@@ -145,6 +145,7 @@ tokens :-
   "NWait"                               { tok $ const NWait}
   "NConversationMessage"                { tok $ const NConversationMessage }
   "NConversationResponse"               { tok $ const NConversationResponse }
+  "NConversationCloseAll"               { tok $ const NConversationCloseAll }
 
   Double\:[\-]?[0-9]+[\.][0-9]+                  { tok $ Double . read . (drop 7) }
   Int\:[\-]?[0-9]+                              { tok $ Int . read . (drop 4)}
@@ -276,6 +277,7 @@ data Token
   | NWait
   | NConversationMessage
   | NConversationResponse
+  | NConversationCloseAll
 
   | String String
   | Int Int

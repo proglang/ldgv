@@ -161,5 +161,10 @@ openSocketNC addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol
 getSocketFromHandle :: Socket -> IO Handle
 getSocketFromHandle socket = do
     hdl <- socketToHandle socket ReadWriteMode
-    hSetBuffering hdl NoBuffering
+    -- hSetBuffering hdl NoBuffering
+    hSetBuffering hdl LineBuffering 
     return hdl
+
+
+sayGoodbye :: ActiveConnectionsStateless -> IO ()
+sayGoodbye _ = return ()

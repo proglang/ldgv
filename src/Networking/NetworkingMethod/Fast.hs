@@ -45,7 +45,12 @@ conversationHandler handle = do
     mvar <- MVar.newEmptyMVar
     MVar.putMVar mvar Map.empty
     sem <- SSem.new 1
-    forkIO $ forever (do 
+    conversationHandlerChangeHandle handle chan mvar sem
+
+conversationHandlerChangeHandle handle chan mvar sem = do
+    isClosed <- MVar.newEmptyMVar
+    MVar.putMVar isClosed False
+    forkIO $ whileNotMVar isClosed (do 
         -- Config.traceNetIO "Waiting for new conversation"
         Stateless.recieveMessageInternal handle VG.parseConversation (\_ -> return ()) (\mes des -> do 
             -- Config.traceNetIO "Got new conversation"  
@@ -56,9 +61,22 @@ conversationHandler handle = do
                     mymap <- MVar.takeMVar mvar
                     MVar.putMVar mvar $ Map.insert cid (mes, response) mymap
                     -- Config.traceNetIO "Set responses mvar"
+                ConversationCloseAll -> do
+                    MVar.takeMVar isClosed
+                    MVar.putMVar isClosed True
+                    forkIO $ hClose handle
+                    return ()
             )
         )
-    return (handle, chan, mvar, sem)
+    return (handle, isClosed, chan, mvar, sem)
+    where 
+        whileNotMVar :: MVar.MVar Bool -> IO () -> IO ()
+        whileNotMVar mvar func = do
+            shouldStop <- MVar.readMVar mvar
+            unless shouldStop (do
+                _ <- func
+                whileNotMVar mvar func
+                )
 
 
 recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Responses)
@@ -78,7 +96,7 @@ recieveResponse conversation@(cid, handle, mvar, sem) waitTime tries = do
                 recieveResponse conversation waitTime $ max (tries-1) (-1) else return Nothing
 
 recieveNewMessage :: Connection -> IO (Conversation, String, Messages)
-recieveNewMessage connection@(handle, chan, mvar, sem) = do
+recieveNewMessage connection@(handle, isClosed, chan, mvar, sem) = do
     (cid, (serial, deserial)) <- Chan.readChan chan
     return ((cid, handle, mvar, sem), serial, deserial)
     
@@ -88,15 +106,28 @@ startConversation acmvar hostname port waitTime tries = do
     conversationid <- newRandomUserID
     connectionMap <- MVar.takeMVar acmvar
     case Map.lookup (hostname, port) connectionMap of
-        Just (handle, chan, mvar, sem) -> do
-            MVar.putMVar acmvar connectionMap
-            return $ Just (conversationid, handle, mvar, sem)
+        Just (handle, isClosed, chan, mvar, sem) -> do
+            handleClosed <- MVar.readMVar isClosed
+            if handleClosed then do
+                statelessActiveCons <- Stateless.createActiveConnections 
+                mbyNewHandle <- Stateless.startConversation statelessActiveCons hostname port waitTime tries
+                case mbyNewHandle of
+                    Just handle -> do 
+                        newconnection@(handle, isClosed, chan, mvar, sem) <- conversationHandlerChangeHandle handle chan mvar sem
+                        MVar.putMVar acmvar $ Map.insert (hostname, port) newconnection connectionMap
+                        return $ Just (conversationid, handle, mvar, sem)
+                    Nothing -> do 
+                        MVar.putMVar acmvar connectionMap
+                        return Nothing
+            else do
+                MVar.putMVar acmvar connectionMap
+                return $ Just (conversationid, handle, mvar, sem)
         Nothing -> do
             statelessActiveCons <- Stateless.createActiveConnections 
             mbyNewHandle <- Stateless.startConversation statelessActiveCons hostname port waitTime tries
             case mbyNewHandle of
                 Just handle -> do 
-                    newconnection@(handle, chan, mvar, sem) <- conversationHandler handle
+                    newconnection@(handle, isClosed, chan, mvar, sem) <- conversationHandler handle
                     MVar.putMVar acmvar $ Map.insert (hostname, port) newconnection connectionMap
                     return $ Just (conversationid, handle, mvar, sem)
                 Nothing -> do 
@@ -165,7 +196,7 @@ acceptConversations ac connectionhandler port socketsmvar = do
         acceptClient :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> String -> IO ()
         acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
             hdl <- Stateless.getSocketFromHandle $ fst clientsocket
-            connection@(handle, chan, responsesMvar, sem) <- conversationHandler hdl
+            connection@(handle, isClosed, chan, responsesMvar, sem) <- conversationHandler hdl
             -- NC.recieveMessage hdl VG.parseMessages (\_ -> return ()) $ connectionhandler mvar clientlist clientsocket hdl ownport
             forkIO $ forever (do 
                 (conversationid, (serial, deserial)) <- Chan.readChan chan
@@ -177,4 +208,25 @@ acceptConversations ac connectionhandler port socketsmvar = do
 
 endConversation :: Conversation -> Int -> Int -> IO ()
 endConversation _ _ _ = return ()
+
+sayGoodbye :: ActiveConnectionsFast -> IO ()
+sayGoodbye activeCons = do 
+    activeConsMap <- MVar.readMVar activeCons
+    let connections = Map.elems activeConsMap
+    runAll sayGoodbyeConnection connections
+    where 
+        sayGoodbyeConnection :: Connection -> IO ()
+        sayGoodbyeConnection connection@(handle, isClosed, messages, responses, sem) = do 
+            handleClosed <- MVar.readMVar isClosed
+            unless handleClosed $ SSem.withSem sem $ Stateless.sendMessage handle ConversationCloseAll
+            unless handleClosed $ SSem.withSem sem $ hPutStr handle " "
+            hFlushAll handle
+            forkIO $ hClose handle
+            return ()
+        runAll _ [] = return ()
+        runAll f (x:xs) = do
+            _ <- f x
+            runAll f xs
+            
+
 
