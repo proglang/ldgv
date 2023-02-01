@@ -87,7 +87,6 @@ tokens :-
   "ERecv"                               { tok $ const ERecv }
   "ECase"                               { tok $ const ECase }
   "ECast"                               { tok $ const ECast }
-  "EEnd"                                { tok $ const EEnd }
 
   "MAdd"                                { tok $ const MAdd }
   "MSub"                                { tok $ const MSub }
@@ -128,9 +127,7 @@ tokens :-
   "SDirectionalConnection"              { tok $ const SDirectionalConnection}
   "SConnected"                          { tok $ const SConnected}
 
-  "NIntroduce"                          { tok $ const NIntroduce }
   "NIntroduceClient"                    { tok $ const NIntroduceClient }
-  "NIntroduceServer"                    { tok $ const NIntroduceServer }
   "NNewValue"                           { tok $ const NNewValue }
   "NSyncIncoming"                       { tok $ const NSyncIncoming }
   "NRequestSync"                        { tok $ const NRequestSync }
@@ -216,7 +213,6 @@ data Token
   | ERecv
   | ECase
   | ECast
-  | EEnd
 
   | MAdd
   | MSub
@@ -260,9 +256,7 @@ data Token
   | SDirectionalConnection
   | SConnected
 
-  | NIntroduce
   | NIntroduceClient
-  | NIntroduceServer
   | NNewValue
   | NSyncIncoming
   | NRequestSync

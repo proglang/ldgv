@@ -48,9 +48,7 @@ instance Serializable Responses where
 
 instance Serializable Messages where
   serialize = \case
-      Introduce p -> serializeLabeledEntry "NIntroduce" p
       IntroduceClient p port t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sLast t
-      IntroduceServer p -> serializeLabeledEntry "NIntroduceServer" p
       NewValue p c v -> serializeLabeledEntryMulti "NNewValue" p $ sNext c $ sLast v
       SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
       RequestSync p -> serializeLabeledEntry "NRequestSync" p
@@ -150,10 +148,8 @@ instance Serializable Exp where
     Case e arr -> serializeLabeledEntryMulti "ECase" e $ sLast arr
     Cast e t1 t2 -> serializeLabeledEntryMulti "ECast" e $ sNext t1 $ sLast t2
 
-    Create e -> serializeLabeledEntry "ECreate" e
     Connect e0 t e1 e2 -> serializeLabeledEntryMulti "EConnect" e0 $ sNext t $ sNext e1 $ sLast e2
     Accept e t -> serializeLabeledEntryMulti "EAccept" e $ sLast t
-    End e -> serializeLabeledEntry "EEnd" e
 
 instance Serializable (MathOp Exp) where
   serialize = \case

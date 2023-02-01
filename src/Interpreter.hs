@@ -212,30 +212,7 @@ eval = \case
         -- Disable the old channel and get a new one
         newV <- liftIO $ disableOldVChan v
         return $ VPair val newV
-  End e -> do
-    liftIO $ C.traceIO "Trying to close a connection"
-    interpret' e >>= \v@(VChan ci mvar usedmvar) -> do
-      used <- liftIO $ MVar.readMVar usedmvar
-      if used then throw $ VChanIsUsedException $ show v else do
-        liftIO $ C.traceIO $ "Trying to close connection with:" ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID ci)
-        liftIO $ NClient.closeConnection ci
-
-        -- Disable the channel
-        _ <- liftIO $ disableOldVChan v
-        return v
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
-  {- Create e -> do
-    liftIO $ C.traceIO "Creating socket!"
-
-    val <- interpret' e
-    case val of
-      VInt port -> do
-        (_, (_, activeConnections)) <- ask
-        (mvar, clientlist) <- liftIO $ NetMethod.acceptConversations activeConnections NS.handleClient port
-        liftIO $ C.traceIO "Socket created"
-        return $ VServerSocket mvar clientlist $ show port
-      _ -> throw $ NotAnExpectedValueException "VInt" val
-  -}
   Accept e t -> do
     liftIO $ C.traceIO "Accepting new client!"
 

@@ -16,9 +16,7 @@ type ConversationID = String
 
 -- I need to add the Port to every introduction so I can answer oder alles muss mit einem okay quitiert werden, dann kann die antwort gesendet werden
 data Messages
-    = Introduce UserID
-    | IntroduceClient UserID Port Type
-    | IntroduceServer UserID
+    = IntroduceClient UserID Port Type
     | NewValue UserID Int Value
     | SyncIncoming UserID [Value]
     | RequestSync UserID
@@ -42,9 +40,7 @@ data ConversationSession
 
 getUserID :: Messages -> String
 getUserID = \case
-    Introduce p -> p
     IntroduceClient p _ _ -> p
-    IntroduceServer p -> p
     NewValue p _ _ -> p
     SyncIncoming p _ -> p
     RequestSync p -> p
