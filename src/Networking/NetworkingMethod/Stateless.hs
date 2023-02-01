@@ -10,6 +10,7 @@ import qualified Data.Map as Map
 import qualified Data.Maybe
 import Control.Concurrent
 import Control.Monad
+import Control.Exception
 
 import Networking.Messages
 import Networking.NetworkConnection
@@ -46,11 +47,14 @@ recieveMessageInternal handle grammar fallbackResponse messageHandler = do
 
 waitWhileEOF :: Handle -> IO ()
 waitWhileEOF handle = do
-    isEOF <- hIsEOF handle
+    isEOF <- catch (hIsEOF handle) onException
     when isEOF (do 
         threadDelay 10000
         waitWhileEOF handle
         )
+    where
+        onException :: IOException -> IO Bool
+        onException _ = return True
 
 
 startConversation :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Handle)
@@ -61,15 +65,19 @@ startConversation _ hostname port waitTime tries = do
               , addrSocketType = Stream
             }
     handleMVar <- MVar.newEmptyMVar
-    threadid <- forkIO (do
+    threadid <- forkIO $ catch (do
         Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
         addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
         clientsocket <- openSocketNC $ head addrInfo
         connect clientsocket $ addrAddress $ head addrInfo
         handle <- getSocketFromHandle clientsocket
         MVar.putMVar handleMVar handle
-        )
+        ) $ printConErr hostname port
     getFromNetworkThread threadid handleMVar waitTime tries
+
+
+printConErr :: String -> String -> IOException -> IO ()
+printConErr hostname port err = Config.traceIO $ "startConversation: Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
 
 waitForConversation :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Handle)
 waitForConversation ac hostname port waitTime tries = do

@@ -10,6 +10,7 @@ import qualified Data.Maybe
 import qualified Data.Map as Map
 import Control.Concurrent
 import Control.Monad
+import Control.Exception
 
 import Networking.Messages
 import Networking.NetworkConnection
@@ -62,11 +63,12 @@ conversationHandlerChangeHandle handle chan mvar sem = do
                     MVar.putMVar mvar $ Map.insert cid (mes, response) mymap
                     -- Config.traceNetIO "Set responses mvar"
                 ConversationCloseAll -> do
+                    Config.traceNetIO $ "Recieved Message: " ++ mes
                     MVar.takeMVar isClosed
                     MVar.putMVar isClosed True
-                    forkIO (do 
+                    forkIO $ catch (do 
                         closed <- hIsClosed handle
-                        unless closed $ hClose handle)
+                        unless closed $ hClose handle) onException
                     return ()
             )
         )
@@ -79,6 +81,9 @@ conversationHandlerChangeHandle handle chan mvar sem = do
                 _ <- func
                 whileNotMVar mvar func
                 )
+        onException :: IOException -> IO ()
+        onException _ = return ()
+
 
 
 recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Responses)
@@ -223,12 +228,14 @@ sayGoodbye activeCons = do
             unless handleClosed $ SSem.withSem sem $ Stateless.sendMessage handle ConversationCloseAll
             unless handleClosed $ SSem.withSem sem $ hPutStr handle " "
             hFlushAll handle
-            forkIO $ hClose handle
+            forkIO $ catch (hClose handle) onException
             return ()
         runAll _ [] = return ()
         runAll f (x:xs) = do
             _ <- f x
             runAll f xs
+        onException :: IOException -> IO ()
+        onException _ = return ()
             
 
 

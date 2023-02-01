@@ -119,6 +119,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
 
                 _ -> Config.traceNetIO "Error when sending message: This channel is disconnected while sending"
 
+
 printConErr :: String -> String -> IOException -> IO ()
 printConErr hostname port err = Config.traceIO $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
 
@@ -131,17 +132,12 @@ initialConnect activeCons mvar hostname port ownport syntype= do
     case mbycon of
         Just con -> do
             ownuserid <- UserID.newRandomUserID
-            Config.traceNetIO "Client connected: Introducing"
             NC.sendMessage con (Messages.IntroduceClient ownuserid ownport syntype)
-            Config.traceNetIO "Client connected: send message"
             mbyintroductionanswer <- NC.recieveResponse con 10000 (-1)
-            Config.traceNetIO "Client connected: got answer"
             NC.endConversation con 10000 10
-            Config.traceNetIO "Client disconnected!"
             case mbyintroductionanswer of
                 Just introduction -> case introduction of
                     OkayIntroduce introductionanswer -> do
-                        Config.traceNetIO "Finished Handshake"
                         msgserial <- NSerialize.serialize $ Messages.IntroduceClient ownuserid ownport syntype
                         Config.traceNetIO $ "Sending message as: " ++ ownuserid ++ " to: " ++  introductionanswer
                         Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
