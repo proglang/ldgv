@@ -76,38 +76,6 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
     Config.traceNetIO $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection)
     Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
     Config.traceNetIO $ "    Message: " ++ serializedMessage
-    {-
-    let hints = defaultHints {
-                addrFamily = AF_INET
-              , addrFlags = []
-              , addrSocketType = Stream
-            }
-    connectionsuccessful <- MVar.newEmptyMVar
-    MVar.putMVar connectionsuccessful False
-    response <- MVar.newEmptyMVar 
-    threadid <- forkIO (do 
-        Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
-        addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-        -- Config.traceNetIO "Trying to open socket"
-        clientsocket <- NC.openSocketNC $ head addrInfo
-        -- Config.traceNetIO "Trying to connect"
-        -- This sometimes fails
-        connect clientsocket $ addrAddress $ head addrInfo
-        _ <- MVar.takeMVar connectionsuccessful
-        MVar.putMVar connectionsuccessful True
-        -- Config.traceNetIO "Connected"
-        handle <- NC.getHandle clientsocket
-        -- Config.traceNetIO "Trying to send!"
-        NC.sendMessage message handle
-
-        -- Config.traceNetIO "Waiting for response"
-        mbyresponse <- recieveResponse handle
-        hClose handle
-        MVar.putMVar response mbyresponse
-        )
-    mbyresponse <- getResp threadid connectionsuccessful response 10
-    -}
-
 
     mbycon <- NC.startConversation activeCons hostname port 10000 100
     mbyresponse <- case mbycon of
@@ -150,23 +118,6 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
                         else Config.traceNetIO "Old communication partner offline! No longer retrying"
 
                 _ -> Config.traceNetIO "Error when sending message: This channel is disconnected while sending"
-{-    
-    where
-        getResp :: ThreadId -> MVar.MVar Bool -> MVar.MVar (Maybe Responses) -> Int -> IO (Maybe Responses)
-        getResp threadid connectedmvar mbyResponse count = do
-            res <- tryTakeMVar mbyResponse
-            case res of
-                Just response -> return response
-                Nothing -> if count /= 0 then do
-                    threadDelay 100000
-                    connected <- MVar.readMVar connectedmvar
-                    if connected then getResp threadid connectedmvar mbyResponse $ max (count-1) (-1) else do
-                        killThread threadid
-                        return Nothing
-                    else do 
-                        killThread threadid
-                        return Nothing
--}
 
 printConErr :: String -> String -> IOException -> IO ()
 printConErr hostname port err = Config.traceIO $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
@@ -251,72 +202,6 @@ sendVChanMessages newhost newport input = case input of
             sendVChanMessages newhost newport $ snd x
             sendVChanMessagesPEnv newhost newport xs
 
-closeConnection _ = return ()
-
--- Close Connection is no longer needed 
-{-
-closeConnection :: NetworkConnection Value -> IO ()
-closeConnection con = do
-    connectionstate <- MVar.readMVar $ ncConnectionState con
-    case connectionstate of
-        NCon.Connected hostname port -> do
-            connectionError <- MVar.newEmptyMVar
-            MVar.putMVar connectionError False
-            catch ( tryToSendNetworkMessage con hostname port (RequestClose $ Data.Maybe.fromMaybe "" $ ncOwnUserID con) 0) (\exception -> do
-                printConErr hostname port exception
-                _ <- MVar.takeMVar connectionError -- If we cannot communicate with them just close the connection
-                MVar.putMVar connectionError True
-                )
-            errorOccured <- MVar.readMVar connectionError
-            if errorOccured then return () else do
-                shouldClose <- MVar.readMVar $ ncRecievedRequestClose con
-                if shouldClose then do
-                    Config.traceIO "Closing handshake completed"
-                    return ()
-                else do
-                    threadDelay 1000000
-                    closeConnection con
-        NCon.Emulated -> pure ()
-        _ -> Config.traceIO "Error when sending message: This channel is disconnected"
--}
-{-
-recieveResponse :: Handle -> IO (Maybe Responses)
-recieveResponse handle = do
-    retVal <- MVar.newEmptyMVar 
-    forkIO $ NC.recieveMessage handle VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
-    waitForResponse retVal 100
-    where
-        waitForResponse :: MVar.MVar (Maybe Responses) -> Int -> IO (Maybe Responses)
-        waitForResponse mvar count = do
-            result <- MVar.tryTakeMVar mvar
-            case result of
-                Just mbyResponse -> do 
-                    -- Config.traceNetIO "Got response"
-                    return mbyResponse
-                Nothing -> if count /= 0 then do
-                    -- Config.traceNetIO $ "Waiting for response: " ++ show count
-                    threadDelay 10000
-                    waitForResponse mvar (count-1)
-                    else return Nothing
-
--- This waits until the handle is established
-getClientHandle :: String -> String -> IO Handle
-getClientHandle hostname port = do
-    catch ( do
-        let hints = defaultHints {
-                addrFlags = []
-              , addrSocketType = Stream
-            }
-        addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
-        clientsocket <- NC.openSocketNC $ head addrInfo
-        connect clientsocket $ addrAddress $ head addrInfo
-        NC.getHandle clientsocket) $ expredirect hostname port
-    where
-        expredirect :: String -> String -> IOException -> IO Handle
-        expredirect hostname port e = do
-            threadDelay 1000000
-            getClientHandle hostname port
--}
 replaceVChan :: Value -> IO Value
 replaceVChan input = case input of
     VSend v -> do
@@ -352,16 +237,3 @@ replaceVChan input = case input of
             newval <- replaceVChan $ snd x
             rest <- replaceVChanPEnv xs
             return $ (fst x, newval):rest
-
-{-
-waitForServerIntroduction :: Handle -> IO String
-waitForServerIntroduction handle = do
-    NC.recieveMessage handle VG.parseResponses (throw . NoIntroductionException) deserHandler
-    where
-        deserHandler message deserial = case deserial of
-            OkayIntroduce partner -> do
-                return partner
-            _ -> do
-                Config.traceIO $ "Error during server introduction, wrong message: "++ message
-                throw $ NoIntroductionException message
--}

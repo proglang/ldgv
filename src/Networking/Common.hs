@@ -35,25 +35,3 @@ recieveResponse con waitTime tries = NetMethod.recieveResponse con waitTime trie
 endConversation con waitTime tries = NetMethod.endConversation con waitTime tries
 
 sayGoodbye con = NetMethod.sayGoodbye con
-
-{-
-getHandle :: Socket -> IO Handle
-getHandle socket = do
-    hdl <- socketToHandle socket ReadWriteMode
-    hSetBuffering hdl NoBuffering
-    return hdl
-
-recieveMessage :: Handle -> VT.Alex t -> (String -> IO b) -> (String -> t -> IO b) -> IO b
-recieveMessage handle grammar fallbackResponse messageHandler = do
-    message <- hGetLine handle
-    case VT.runAlex message grammar of
-        Left err -> do 
-            Config.traceNetIO $ "Error during recieving a networkmessage: "++err
-            fallbackResponse message 
-        Right deserialmessage -> do 
-            -- Config.traceNetIO $ "New superficially valid message recieved: "++message
-            messageHandler message deserialmessage
-
-openSocketNC :: AddrInfo -> IO Socket
-openSocketNC addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
--}
