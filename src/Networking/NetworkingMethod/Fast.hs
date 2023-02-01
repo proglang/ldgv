@@ -97,7 +97,8 @@ recieveResponse conversation@(cid, handle, mvar, sem) waitTime tries = do
             return $ Just deserial
         Nothing -> do 
             MVar.putMVar mvar responsesMap
-            if tries /= 0 then do
+            handleClosed <- hIsClosed handle
+            if tries /= 0 && not handleClosed then do
                 -- Config.traceNetIO "Nothing yet retrying!" 
                 threadDelay waitTime
                 recieveResponse conversation waitTime $ max (tries-1) (-1) else return Nothing

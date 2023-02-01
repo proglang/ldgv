@@ -73,7 +73,7 @@ startConversation _ hostname port waitTime tries = do
         handle <- getSocketFromHandle clientsocket
         MVar.putMVar handleMVar handle
         ) $ printConErr hostname port
-    getFromNetworkThread threadid handleMVar waitTime tries
+    getFromNetworkThread Nothing threadid handleMVar waitTime tries
 
 
 printConErr :: String -> String -> IOException -> IO ()
@@ -139,17 +139,19 @@ acceptConversations ac connectionhandler port socketsmvar = do
 
 
 
-getFromNetworkThread :: ThreadId -> MVar.MVar a -> Int -> Int -> IO (Maybe a)
-getFromNetworkThread = getFromNetworkThreadWithModification Just
+getFromNetworkThread :: Maybe Handle -> ThreadId -> MVar.MVar a -> Int -> Int -> IO (Maybe a)
+getFromNetworkThread handle = getFromNetworkThreadWithModification handle Just
 
-getFromNetworkThreadWithModification :: (a -> Maybe b) -> ThreadId -> MVar a -> Int -> Int -> IO (Maybe b)
-getFromNetworkThreadWithModification func threadid mvar waitTime currentTry = do
+getFromNetworkThreadWithModification :: Maybe Handle -> (a -> Maybe b) -> ThreadId -> MVar a -> Int -> Int -> IO (Maybe b)
+getFromNetworkThreadWithModification handle func threadid mvar waitTime currentTry = do
         mbyResult <- MVar.tryReadMVar mvar
         case mbyResult of
-            Just handle -> return $ func handle
-            Nothing -> if currentTry /= 0 then do
-                threadDelay waitTime
-                getFromNetworkThreadWithModification func threadid mvar waitTime $ max (currentTry-1) (-1)
+            Just result -> return $ func result
+            Nothing -> do 
+                handleClosed <- Data.Maybe.maybe (return False) hIsClosed handle
+                if currentTry /= 0 && not handleClosed then do
+                    threadDelay waitTime
+                    getFromNetworkThreadWithModification handle func threadid mvar waitTime $ max (currentTry-1) (-1)
                 else do
                     killThread threadid
                     return Nothing
@@ -158,7 +160,7 @@ recieveResponse :: Handle -> Int -> Int -> IO (Maybe Responses)
 recieveResponse handle waitTime tries = do
     retVal <- MVar.newEmptyMVar
     threadid <- forkIO $ recieveMessageInternal handle VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
-    getFromNetworkThreadWithModification id threadid retVal waitTime tries
+    getFromNetworkThreadWithModification (Just handle) id threadid retVal waitTime tries
 
 recieveNewMessage :: Handle -> IO (Handle, String, Messages)
 recieveNewMessage handle = do
@@ -169,7 +171,7 @@ endConversation :: Handle -> Int -> Int -> IO ()
 endConversation handle waitTime tries = do 
     finished <- MVar.newEmptyMVar
     threadid <- forkIO $ hClose handle >> MVar.putMVar finished True
-    _ <- getFromNetworkThread threadid finished waitTime tries
+    _ <- getFromNetworkThread (Just handle) threadid finished waitTime tries
     return ()
 
 createActiveConnections :: IO ActiveConnectionsStateless

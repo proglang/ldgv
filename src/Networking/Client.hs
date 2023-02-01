@@ -77,11 +77,11 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
     Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
     Config.traceNetIO $ "    Message: " ++ serializedMessage
 
-    mbycon <- NC.startConversation activeCons hostname port 10000 100
+    mbycon <- NC.startConversation activeCons hostname port 10000 10
     mbyresponse <- case mbycon of
         Just con -> do
             NC.sendMessage con message
-            potentialResponse <- NC.recieveResponse con 10000 100
+            potentialResponse <- NC.recieveResponse con 10000 200
             NC.endConversation con 10000 10
             return potentialResponse
         Nothing -> return Nothing
@@ -112,8 +112,8 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             Config.traceNetIO $ "Original message: " ++ serializedMessage
             case connectionstate of
                 NCon.Connected newhostname newport -> if resendOnError /= 0 && Data.Maybe.isJust mbycon then do
-                        Config.traceNetIO $ "Old communication partner offline! New communication partner: " ++ newhostname ++ ":" ++ newport
-                        threadDelay 1000000
+                        Config.traceNetIO $ "Connected but no answer recieved! New communication partner: " ++ newhostname ++ ":" ++ newport
+                        threadDelay 1500000
                         tryToSendNetworkMessage activeCons networkconnection newhostname newport message $ max (resendOnError-1) (-1)
                         else Config.traceNetIO "Old communication partner offline! No longer retrying"
 

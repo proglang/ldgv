@@ -51,6 +51,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
     case Map.lookup userid netcon of 
         Just networkcon -> do
             Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " (" ++ ownport ++ ") from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
+            Config.traceNetIO $ "    "++message
             if redirectRequest then sendRedirect hdl netcon userid else do
                 case deserialmessages of
                     NewValue userid count val -> do
