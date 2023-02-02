@@ -1,6 +1,6 @@
 cabal-version: 1.18
 
--- This file has been generated from package.yaml by hpack version 0.34.6.
+-- This file has been generated from package.yaml by hpack version 0.35.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -71,6 +71,7 @@ library
       Networking.Messages
       Networking.NetworkConnection
       Networking.NetworkingMethod.Fast
+      Networking.NetworkingMethod.NetworkingMethodCommon
       Networking.NetworkingMethod.Stateless
       Networking.Serialize
       Networking.Server
@@ -79,6 +80,7 @@ library
       Parsing.Grammar
       Parsing.Tokens
       ProcessEnvironment
+      ProcessEnvironmentTypes
       Syntax
       Typechecker
       ValueParsing.ValueGrammar
@@ -98,7 +100,8 @@ library
       alex
     , happy
   build-depends:
-      array
+      SafeSemaphore >=0.10.1
+    , array
     , base >=4.12 && <5
     , bytestring
     , containers

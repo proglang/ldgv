@@ -7,7 +7,7 @@ import qualified Data.Set as Set
 
 import Kinds
 import Syntax
-import ProcessEnvironment
+import ProcessEnvironmentTypes
 import ValueParsing.ValueTokens (T(..))
 import qualified ValueParsing.ValueTokens as T
 import Networking.Messages
@@ -87,7 +87,6 @@ import Networking.Messages
     erecv         { T _ T.ERecv }
     ecase         { T _ T.ECase }
     ecast         { T _ T.ECast }
-    eend          { T _ T.EEnd }
 
     madd          { T _ T.MAdd }
     msub          { T _ T.MSub }
@@ -116,9 +115,7 @@ import Networking.Messages
     sdirectionalconnection {T _ T.SDirectionalConnection}
     sconnected          {T _ T.SConnected}
 
-    nintroduce    { T _ T.NIntroduce }
     nintroduceclient    { T _ T.NIntroduceClient }
-    nintroduceserver    { T _ T.NIntroduceServer }
     nnewvalue     { T _ T.NNewValue }
     nsyncincoming { T _ T.NSyncIncoming }
     nrequestsync  { T _ T.NRequestSync }
@@ -126,13 +123,12 @@ import Networking.Messages
     nintroducenewpartneraddress {T _ T.NIntroduceNewPartnerAddress}
     nredirect     { T _ T.NRedirect}
     nokay         { T _ T.NOkay}
-    nrequestclose { T _ T.NRequestClose }
-    nokayclose    { T _ T.NOkayClose}
     nokayintroduce    { T _ T.NOkayIntroduce }
     nokaysync       { T _ T.NOkaySync }
     nwait           { T _ T.NWait}
     nconversationmessage { T _ T.NConversationMessage}
     nconversationresponse { T _ T.NConversationResponse}
+    nconversationcloseall { T _ T.NConversationCloseAll }
     
     gunit         { T _ T.GUnit }
     glabel        { T _ T.GLabel }
@@ -265,7 +261,6 @@ Exp : elet '(' String ')' '(' Exp ')' '(' Exp ')' {Let $3 $6 $9}
     | erecv '(' Exp ')' {Recv $3}
     | ecase '(' Exp ')' '(' SStringExpArray ')' {Case $3 $6}
     | ecast '(' Exp ')' '(' Type ')' '(' Type ')'  {Cast $3 $6 $9}
-    | eend '(' Exp ')' {End $3}
 
 
 MathOp : madd '(' Exp ')' '(' Exp ')' {Add $3 $6}
@@ -284,25 +279,22 @@ GType : gunit {GUnit}
       | gdouble {GDouble}
       | gstring {GString}
 
-Messages : nintroduce '(' String ')' {Introduce $3}
-         | nintroduceclient '(' String ')' '(' String ')' '(' Type ')' {IntroduceClient $3 $6 $9}
-         | nintroduceserver '(' String ')' {IntroduceServer $3}
+Messages : nintroduceclient '(' String ')' '(' String ')' '(' Type ')' {IntroduceClient $3 $6 $9}
          | nnewvalue '(' String ')' '(' int ')' '(' Values ')' {NewValue $3 $6 $9}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
          | nrequestsync '(' String ')' {RequestSync $3}
          | nchangepartneraddress '(' String ')' '(' String ')' '(' String ')' {ChangePartnerAddress $3 $6 $9}
          | nintroducenewpartneraddress '(' String ')' '(' String ')' {IntroduceNewPartnerAddress $3 $6}
-         | nrequestclose '(' String ')' {RequestClose $3}
 
 Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
           | nokay {Okay}
-          | nokayclose {OkayClose}
           | nokayintroduce '(' String ')' {OkayIntroduce $3}
           | nokaysync '(' SValuesArray ')' {OkaySync $3}
           | nwait {Wait}
 
 ConversationSession : nconversationmessage '(' String ')' '(' Messages ')' {ConversationMessage $3 $6}
                     | nconversationresponse '(' String ')' '(' Responses ')' {ConversationResponse $3 $6}
+                    | nconversationcloseall {ConversationCloseAll}
 
 
 PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}

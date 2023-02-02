@@ -9,7 +9,7 @@ import Syntax
 import Kinds
 import Data.Set
 import Control.Exception
-import ProcessEnvironment
+import ProcessEnvironmentTypes
 import Networking.Messages
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkConnection as NCon 
@@ -34,28 +34,25 @@ class Serializable a where
 instance Serializable ConversationSession where
   serialize = \case
     ConversationMessage c m -> serializeLabeledEntryMulti "NConversationMessage" c $ sLast m
-    ConversationResponse c r -> serializeLabeledEntryMulti "NConversationResponse" c $ sLast r 
+    ConversationResponse c r -> serializeLabeledEntryMulti "NConversationResponse" c $ sLast r
+    ConversationCloseAll -> return "NConversationCloseAll"
 
 instance Serializable Responses where
   serialize = \case
     Redirect host port -> serializeLabeledEntryMulti "NRedirect" host $ sLast port
     Okay -> return "NOkay"
-    OkayClose -> return "NOkayClose"
     OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
     OkaySync vs -> serializeLabeledEntry "NOkaySync" vs
     Wait -> return "NWait"
 
 instance Serializable Messages where
   serialize = \case
-      Introduce p -> serializeLabeledEntry "NIntroduce" p
       IntroduceClient p port t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sLast t
-      IntroduceServer p -> serializeLabeledEntry "NIntroduceServer" p
       NewValue p c v -> serializeLabeledEntryMulti "NNewValue" p $ sNext c $ sLast v
       SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
       RequestSync p -> serializeLabeledEntry "NRequestSync" p
       ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
       IntroduceNewPartnerAddress u p -> serializeLabeledEntryMulti "NIntroduceNewPartnerAddress" u $ sLast p
-      RequestClose p -> serializeLabeledEntry "NRequestClose" p
 
 instance Serializable (NCon.NetworkConnection Value) where
   serialize con = do 
@@ -149,10 +146,8 @@ instance Serializable Exp where
     Case e arr -> serializeLabeledEntryMulti "ECase" e $ sLast arr
     Cast e t1 t2 -> serializeLabeledEntryMulti "ECast" e $ sNext t1 $ sLast t2
 
-    Create e -> serializeLabeledEntry "ECreate" e
     Connect e0 t e1 e2 -> serializeLabeledEntryMulti "EConnect" e0 $ sNext t $ sNext e1 $ sLast e2
     Accept e t -> serializeLabeledEntryMulti "EAccept" e $ sLast t
-    End e -> serializeLabeledEntry "EEnd" e
 
 instance Serializable (MathOp Exp) where
   serialize = \case

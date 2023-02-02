@@ -87,7 +87,6 @@ tokens :-
   "ERecv"                               { tok $ const ERecv }
   "ECase"                               { tok $ const ECase }
   "ECast"                               { tok $ const ECast }
-  "EEnd"                                { tok $ const EEnd }
 
   "MAdd"                                { tok $ const MAdd }
   "MSub"                                { tok $ const MSub }
@@ -128,9 +127,7 @@ tokens :-
   "SDirectionalConnection"              { tok $ const SDirectionalConnection}
   "SConnected"                          { tok $ const SConnected}
 
-  "NIntroduce"                          { tok $ const NIntroduce }
   "NIntroduceClient"                    { tok $ const NIntroduceClient }
-  "NIntroduceServer"                    { tok $ const NIntroduceServer }
   "NNewValue"                           { tok $ const NNewValue }
   "NSyncIncoming"                       { tok $ const NSyncIncoming }
   "NRequestSync"                        { tok $ const NRequestSync }
@@ -138,13 +135,12 @@ tokens :-
   "NIntroduceNewPartnerAddress"         { tok $ const NIntroduceNewPartnerAddress}
   "NRedirect"                           { tok $ const NRedirect }
   "NOkay"                               { tok $ const NOkay }
-  "NRequestClose"                        { tok $ const NRequestClose }
-  "NOkayClose"                               { tok $ const NOkayClose }
   "NOkayIntroduce"                      { tok $ const NOkayIntroduce }
   "NOkaySync"                           { tok $ const NOkaySync }
   "NWait"                               { tok $ const NWait}
   "NConversationMessage"                { tok $ const NConversationMessage }
   "NConversationResponse"               { tok $ const NConversationResponse }
+  "NConversationCloseAll"               { tok $ const NConversationCloseAll }
 
   Double\:[\-]?[0-9]+[\.][0-9]+                  { tok $ Double . read . (drop 7) }
   Int\:[\-]?[0-9]+                              { tok $ Int . read . (drop 4)}
@@ -215,7 +211,6 @@ data Token
   | ERecv
   | ECase
   | ECast
-  | EEnd
 
   | MAdd
   | MSub
@@ -259,9 +254,7 @@ data Token
   | SDirectionalConnection
   | SConnected
 
-  | NIntroduce
   | NIntroduceClient
-  | NIntroduceServer
   | NNewValue
   | NSyncIncoming
   | NRequestSync
@@ -269,13 +262,12 @@ data Token
   | NIntroduceNewPartnerAddress
   | NRedirect
   | NOkay
-  | NRequestClose
-  | NOkayClose
   | NOkayIntroduce
   | NOkaySync
   | NWait
   | NConversationMessage
   | NConversationResponse
+  | NConversationCloseAll
 
   | String String
   | Int Int

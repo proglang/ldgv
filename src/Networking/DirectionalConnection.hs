@@ -1,11 +1,11 @@
-module Networking.DirectionalConnection (DirectionalConnection(..), newConnection, createConnection, writeMessage, writeMessageIfNext, countMessages, allMessages, readUnreadMessage, readUnreadMessageMaybe, serializeConnection, syncMessages) where
+module Networking.DirectionalConnection where
 
 import Control.Concurrent.MVar
+import Control.Concurrent
+import qualified Control.Concurrent.SSem as SSem
 
-data DirectionalConnection a = DirectionalConnection { messages :: MVar [a], messagesUnreadStart :: MVar Int, messagesCount :: MVar Int}
+data DirectionalConnection a = DirectionalConnection { messages :: MVar [a], messagesUnreadStart :: MVar Int, messagesCount :: MVar Int, readLock :: SSem.SSem}
     deriving Eq
-
--- When a channel is duplicated there are no unread messages in the new channel, only the old one
 
 newConnection :: IO (DirectionalConnection a)
 newConnection = do
@@ -15,7 +15,8 @@ newConnection = do
     putMVar messagesUnreadStart 0
     messagesCount <- newEmptyMVar 
     putMVar messagesCount 0
-    return $ DirectionalConnection messages messagesUnreadStart messagesCount
+    readLock <- SSem.new 1
+    return $ DirectionalConnection messages messagesUnreadStart messagesCount readLock
 
 
 createConnection :: [a] -> Int -> IO (DirectionalConnection a)
@@ -26,7 +27,8 @@ createConnection messages unreadStart = do
     putMVar messagesUnreadStart unreadStart
     messagesCount <- newEmptyMVar 
     putMVar messagesCount $ length messages
-    return $ DirectionalConnection msg messagesUnreadStart messagesCount
+    readLock <- SSem.new 1
+    return $ DirectionalConnection msg messagesUnreadStart messagesCount readLock
 
 
 writeMessage :: DirectionalConnection a -> a -> IO ()
@@ -58,18 +60,28 @@ allMessages :: DirectionalConnection a -> IO [a]
 allMessages connection = readMVar (messages connection)
 
 readUnreadMessageMaybe :: DirectionalConnection a -> IO (Maybe a)
-readUnreadMessageMaybe connection = modifyMVar (messagesUnreadStart connection) (\i -> do 
+readUnreadMessageMaybe connection = modifyMVar (messagesUnreadStart connection) (\i -> do
     messagesBind <- allMessages connection
     if length messagesBind == i then return (i, Nothing) else return ((i+1), Just (messagesBind!!i))
     )
     
 readUnreadMessage :: DirectionalConnection a -> IO a
-readUnreadMessage connection = do 
+readUnreadMessage connection = do
     maybeval <- readUnreadMessageMaybe connection
     case maybeval of
-        Nothing -> readUnreadMessage connection
+        Nothing -> do 
+            threadDelay 1000
+            readUnreadMessage connection
         Just val -> return val
 
+readUnreadMessageInterpreter :: DirectionalConnection a -> IO a
+readUnreadMessageInterpreter connection = do 
+    maybeval <- SSem.withSem (readLock connection) $ readUnreadMessageMaybe connection
+    case maybeval of
+        Nothing -> do 
+            threadDelay 1000
+            readUnreadMessage connection
+        Just val -> return val
 
 serializeConnection :: DirectionalConnection a -> IO ([a], Int)
 serializeConnection connection = do
@@ -79,6 +91,12 @@ serializeConnection connection = do
 
 countMessages :: DirectionalConnection a -> IO Int
 countMessages connection = readMVar $ messagesCount connection
+
+lockInterpreterReads :: DirectionalConnection a -> IO ()
+lockInterpreterReads  connection = SSem.wait (readLock connection)
+
+unlockInterpreterReads :: DirectionalConnection a -> IO ()
+unlockInterpreterReads  connection = SSem.signal (readLock connection)
 
 test = do
     mycon <- newConnection

@@ -7,6 +7,7 @@ import Kinds
 import Syntax
 import Interpreter
 import ProcessEnvironment
+import ProcessEnvironmentTypes
 import UtilsFuncCcldlc
 
 spec :: Spec

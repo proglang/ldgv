@@ -27,6 +27,7 @@ import qualified C.Compile as C
 import qualified C.Generate as C
 import qualified Interpreter as I
 import qualified ProcessEnvironment as P
+import qualified ProcessEnvironmentTypes as P
 import qualified Syntax
 import qualified Typechecker as T
 
