@@ -294,6 +294,8 @@ instance Substitution Type where
     ty
   subst x (Var y) ty@(TSingle z) =
     if x == z then TSingle y else ty
+  subst x (Lit (LLab l)) ty@(TSingle z) =
+    if x == z then TLab [l] else ty
   subst x exp ty@TNat =
     ty
   subst x exp ty@(TNatLeq _) =

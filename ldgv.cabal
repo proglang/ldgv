@@ -20,6 +20,7 @@ license-file:   LICENSE
 build-type:     Simple
 extra-doc-files:
     examples/add.ldgv
+    examples/case-singleton.ldgv
     examples/casesub.ldgv
     examples/casetest.ldgv
     examples/depsum.ldgv

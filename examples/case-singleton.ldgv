@@ -1,0 +1,2 @@
+val f (x: {'a, 'b}) = < y = x, case y of {'a: 2, 'b: "abc"}>
+val g = f 'b 
