@@ -44,10 +44,10 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
     case Map.lookup userid netcon of 
         Just networkcon -> SSem.withSem (ncHandlingIncomingMessage networkcon) $ do
 
-            redirectRequest <- checkRedirectRequest netcon userid
             Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " (" ++ ownport ++ ") from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
             Config.traceNetIO $ "    "++message
-            if redirectRequest then sendRedirect hdl netcon userid else do
+            redirectRequest <- checkAndSendRedirectRequest hdl netcon userid
+            unless redirectRequest $
                 case deserialmessages of
                     NewValue userid count val -> do
                         handleNewValue activeCons mvar userid count val ownport hdl
@@ -81,43 +81,32 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                         Config.traceIO $ "Error unsupported networkmessage: "++ serial
                         NC.sendResponse hdl Messages.Okay
         Nothing -> do
-            redirectRequest <- checkRedirectRequest netcon userid
             Config.traceNetIO "Recieved message from unknown connection!"
-            if redirectRequest then sendRedirect hdl netcon userid else do
-                case deserialmessages of
-                    IntroduceClient userid clientport syntype-> do
-                        handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
-                    _ -> do
-                        serial <- NSerialize.serialize deserialmessages
-                        Config.traceIO $ "Error unsupported networkmessage: "++ serial
-                        Config.traceIO "This is probably a timing issue! Lets resend later"
-                        NC.sendResponse hdl Messages.Wait
+            case deserialmessages of
+                IntroduceClient userid clientport syntype-> do
+                    handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
+                _ -> do
+                    serial <- NSerialize.serialize deserialmessages
+                    Config.traceIO $ "Error unsupported networkmessage: "++ serial
+                    Config.traceIO "This is probably a timing issue! Lets resend later"
+                    NC.sendResponse hdl Messages.Wait
     Config.traceNetIO $ "    Message: " ++ message
 
     
 
-checkRedirectRequest :: Map.Map String (NetworkConnection Value) -> String -> IO Bool
-checkRedirectRequest ncmap userid = do
+checkAndSendRedirectRequest :: NC.ConversationOrHandle -> Map.Map String (NetworkConnection Value) -> String -> IO Bool
+checkAndSendRedirectRequest handle ncmap userid = do
     case Map.lookup userid ncmap of
-        Nothing -> do
-            return False
-        Just networkconnection -> do
-            constate <- MVar.readMVar $ ncConnectionState networkconnection
-            case constate of
-                RedirectRequest {} -> return True
-                _ -> return False
-
-sendRedirect ::  NC.ConversationOrHandle -> Map.Map String (NetworkConnection Value) -> String -> IO ()
-sendRedirect handle ncmap userid = do
-    case Map.lookup userid ncmap of
-        Nothing -> return ()
+        Nothing -> return False
         Just networkconnection -> do
             constate <- MVar.readMVar $ ncConnectionState networkconnection
             case constate of
                 RedirectRequest _ _ host port -> do 
+                    Config.traceNetIO $ "Found redirect request for: " ++ userid
                     Config.traceNetIO $ "Send redirect to:" ++ host ++ ":" ++ port
-                    NC.sendResponse  handle (Messages.Redirect host port)
-                _ -> return ()
+                    NC.sendResponse handle (Messages.Redirect host port)
+                    return True
+                _ -> return False
 
 handleNewValue :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Int -> Value -> String -> NC.ConversationOrHandle -> IO ()
 handleNewValue activeCons mvar userid count val ownport hdl = do
