@@ -32,22 +32,14 @@ import qualified Control.Concurrent as MVar
 import qualified Networking.Client as NC
 import Control.Monad
 
--- import qualified Networking.NetworkingMethod.Stateless as NetMethod
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
--- import Networking.NetworkingMethod.Stateless (acceptConversations)
--- import qualified Networking.NetworkingMethod.Fast as NetMethod
 
 handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Messages -> IO ()
 handleClient activeCons mvar clientlist clientsocket hdl ownport message deserialmessages = do
     let userid = getUserID deserialmessages
-    -- Config.traceNetIO $ show ownport ++ " Entering redirect handler for message: "++ message
     netcon <- MVar.takeMVar mvar
-    -- Config.traceNetIO $ show ownport ++ " Entered redirect handler for message: "++ message
     redirectRequest <- checkRedirectRequest netcon userid
-    -- Config.traceNetIO $ show ownport ++ " Redirect request" ++ show redirectRequest
-    -- Config.traceNetIO $ show ownport ++ " Leaving redirect handler for message: " ++ message 
     MVar.putMVar mvar netcon
-    -- Config.traceNetIO $ show ownport ++ " Left redirect handler for message: " ++ message 
     case Map.lookup userid netcon of 
         Just networkcon -> do
             Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " (" ++ ownport ++ ") from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
@@ -58,13 +50,11 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                         handleNewValue activeCons mvar userid count val ownport hdl
                     IntroduceClient userid clientport syntype-> do
                         handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
-                        -- Okay message is handled in handle introduce
                     ChangePartnerAddress userid hostname port -> do
                         handleChangePartnerAddress activeCons mvar userid hostname port ownport
                         NC.sendResponse hdl Messages.Okay
                     RequestSync userid -> do
                         handleRequestSync mvar userid hdl
-                        -- NC.sendResponse Messages.Okay hdl
                     SyncIncoming userid values -> do
                         handleSyncIncoming mvar userid values
                         NC.sendResponse hdl Messages.Okay
@@ -83,8 +73,6 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                     _ -> return ()
                                 Config.traceNetIO $ "Put MVar for message: " ++ message
                                 MVar.putMVar mvar networkconnectionmap
-                                -- For some reason constate doesn't seem to properly apply                        MVar.putMVar mvar networkconnectionmap
-
                             Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
                         NC.sendResponse hdl Messages.Okay
 
@@ -98,13 +86,6 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                 case deserialmessages of
                     IntroduceClient userid clientport syntype-> do
                         handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
-                        -- Okay message is handled in handle introduce
-                    {-
-                    IntroduceNewPartnerAddress userid port -> do
-                        -- NC.sendResponse Messages.Okay hdl
-                        NC.sendResponse hdl Messages.Wait
-                        -- We don't know them yet, but should know them as soon as we get the message from the former comm partner
-                    -}
                     _ -> do
                         serial <- NSerialize.serialize deserialmessages
                         Config.traceIO $ "Error unsupported networkmessage: "++ serial
@@ -141,25 +122,17 @@ handleNewValue :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkCon
 handleNewValue activeCons mvar userid count val ownport hdl = do
     -- networkconnectionmap <- MVar.takeMVar mvar
     networkconnectionmap <- MVar.readMVar mvar
-    -- Config.traceNetIO $ show ownport ++ " Entered NewValue handler"
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do
             ND.lockInterpreterReads (ncRead networkconnection)
-            -- Config.traceNetIO "ENTERED READ LOCK"
-            -- Config.traceNetIO $ show ownport ++ " Reading message"
             success <- ND.writeMessageIfNext (ncRead networkconnection) count val
-            -- if success then Config.traceNetIO $ show ownport ++ " Message valid" else Config.traceNetIO $ show ownport ++ " Message invalid"
             unless success $ NC.sendNetworkMessage activeCons networkconnection (Messages.RequestSync $ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) (-1)
-            -- Config.traceNetIO $ show ownport ++ " Contacting peers"
             contactNewPeers activeCons val ownport
-            -- Config.traceNetIO $ show ownport ++ " Contacted peers"
             NC.sendResponse hdl Messages.Okay
             ND.unlockInterpreterReads (ncRead networkconnection)
-            -- Config.traceNetIO "LEFT READ LOCK"
         Nothing -> do
             NC.sendResponse hdl Messages.Okay
             Config.traceNetIO "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
-    -- Config.traceNetIO $ show ownport ++ " Leaving NewValue handler"
     -- MVar.putMVar mvar networkconnectionmap
 
 contactNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
@@ -220,7 +193,6 @@ handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
                 networkconnection <- newNetworkConnection userid serverid (hostaddressTypeToString hostname) clientport
                 let newnetworkconnectionmap = Map.insert userid networkconnection networkconnectionmap
                 MVar.putMVar mvar newnetworkconnectionmap
-                -- NC.sendResponse (Introduce serverid) hdl -- Answer with own serverid
                 NC.sendResponse hdl (Messages.OkayIntroduce serverid)
                 repserial <- NSerialize.serialize $ Messages.OkayIntroduce serverid
                 Config.traceNetIO $ "    Response to "++ userid ++ ": " ++ repserial
@@ -253,7 +225,6 @@ handleRequestSync mvar userid hdl = do
         Just networkconnection -> do  -- Change to current network address
             writevals <- ND.allMessages $ ncWrite networkconnection
             NC.sendResponse hdl (Messages.OkaySync writevals)  
-            -- NClient.sendNetworkMessage networkconnection (SyncIncoming (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) writevals) 5
         othing -> return ()
 
 handleSyncIncoming :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> [Value] -> IO ()
@@ -343,7 +314,3 @@ replaceVChanSerial activeCons mvar input = case input of
             newval <- replaceVChanSerial activeCons mvar $ snd x
             rest <- replaceVChanSerialPEnv activeCons mvar xs
             return $ (fst x, newval):rest
-
--- createActiveConnections = NetMethod.createActiveConnections
-
--- acceptConversations = NetMethod.acceptConversations

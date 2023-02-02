@@ -4,17 +4,12 @@ module Networking.Messages where
 
 import ProcessEnvironmentTypes
 import Syntax
-import GHC.IO.Handle
-import qualified Control.Concurrent.Chan as Chan
-import qualified Control.Concurrent.MVar as MVar
-import qualified Data.Map as Map
 
 type UserID = String
 type Hostname = String
 type Port = String
 type ConversationID = String
 
--- I need to add the Port to every introduction so I can answer oder alles muss mit einem okay quitiert werden, dann kann die antwort gesendet werden
 data Messages
     = IntroduceClient UserID Port Type
     | NewValue UserID Int Value

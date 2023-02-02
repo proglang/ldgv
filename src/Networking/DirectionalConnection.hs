@@ -7,8 +7,6 @@ import qualified Control.Concurrent.SSem as SSem
 data DirectionalConnection a = DirectionalConnection { messages :: MVar [a], messagesUnreadStart :: MVar Int, messagesCount :: MVar Int, readLock :: SSem.SSem}
     deriving Eq
 
--- When a channel is duplicated there are no unread messages in the new channel, only the old one
-
 newConnection :: IO (DirectionalConnection a)
 newConnection = do
     messages <- newEmptyMVar
