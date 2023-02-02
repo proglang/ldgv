@@ -224,12 +224,14 @@ sayGoodbye activeCons = do
     runAll sayGoodbyeConnection connections
     where 
         sayGoodbyeConnection :: Connection -> IO ()
-        sayGoodbyeConnection connection@(handle, isClosed, messages, responses, sem) = do 
-            handleClosed <- MVar.readMVar isClosed
-            unless handleClosed $ SSem.withSem sem $ Stateless.sendMessage handle ConversationCloseAll
-            unless handleClosed $ SSem.withSem sem $ hPutStr handle " "
-            hFlushAll handle
-            forkIO $ catch (hClose handle) onException
+        sayGoodbyeConnection connection@(handle, isClosed, messages, responses, sem) = do
+            forkIO $ catch (do 
+                handleClosed <- MVar.readMVar isClosed
+                unless handleClosed $ SSem.withSem sem $ Stateless.sendMessage handle ConversationCloseAll
+                unless handleClosed $ SSem.withSem sem $ hPutStr handle " "
+                hFlushAll handle
+                hClose handle
+                ) onException
             return ()
         runAll _ [] = return ()
         runAll f (x:xs) = do
