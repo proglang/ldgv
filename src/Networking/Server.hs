@@ -33,15 +33,18 @@ import qualified Networking.Client as NC
 import Control.Monad
 
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import qualified Control.Concurrent.SSem as SSem
 
 handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Messages -> IO ()
 handleClient activeCons mvar clientlist clientsocket hdl ownport message deserialmessages = do
     let userid = getUserID deserialmessages
-    netcon <- MVar.takeMVar mvar
-    redirectRequest <- checkRedirectRequest netcon userid
-    MVar.putMVar mvar netcon
+    netcon <- MVar.readMVar mvar
+
+    -- MVar.putMVar mvar netcon
     case Map.lookup userid netcon of 
-        Just networkcon -> do
+        Just networkcon -> SSem.withSem (ncHandlingIncomingMessage networkcon) $ do
+
+            redirectRequest <- checkRedirectRequest netcon userid
             Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " (" ++ ownport ++ ") from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
             Config.traceNetIO $ "    "++message
             if redirectRequest then sendRedirect hdl netcon userid else do
@@ -57,9 +60,6 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                         handleRequestSync mvar userid hdl
                     SyncIncoming userid values -> do
                         handleSyncIncoming mvar userid values
-                        NC.sendResponse hdl Messages.Okay
-                    RequestClose userid -> do
-                        handleRequestClose mvar userid
                         NC.sendResponse hdl Messages.Okay
                     IntroduceNewPartnerAddress userid port -> do
                         networkconnectionmap <- MVar.takeMVar mvar
@@ -81,6 +81,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                         Config.traceIO $ "Error unsupported networkmessage: "++ serial
                         NC.sendResponse hdl Messages.Okay
         Nothing -> do
+            redirectRequest <- checkRedirectRequest netcon userid
             Config.traceNetIO "Recieved message from unknown connection!"
             if redirectRequest then sendRedirect hdl netcon userid else do
                 case deserialmessages of
@@ -234,16 +235,6 @@ handleSyncIncoming mvar userid values = do
         Just networkconnection -> do  -- Change to current network address
             ND.syncMessages (ncRead networkconnection) values
         Nothing -> return ()
-
-handleRequestClose :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> IO ()
-handleRequestClose mvar userid = do
-    networkconnectionmap <- MVar.takeMVar mvar
-    case Map.lookup userid networkconnectionmap of
-        Just networkconnection -> do
-            _ <- MVar.takeMVar $ ncRecievedRequestClose networkconnection
-            MVar.putMVar (ncRecievedRequestClose networkconnection) True
-        Nothing -> return ()
-    MVar.putMVar mvar networkconnectionmap
 
 hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do

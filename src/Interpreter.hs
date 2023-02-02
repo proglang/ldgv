@@ -55,6 +55,7 @@ import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
 import qualified Control.Concurrent as MVar
+import qualified Control.Concurrent.SSem as SSem
 -- import qualified Networking.NetworkConnection as NCon
 -- import qualified Networking.NetworkConnection as NCon
 
@@ -292,7 +293,7 @@ interpretApp _ (VSend v@(VChan cc _ usedmvar)) w = do
   used <- liftIO $ MVar.readMVar usedmvar
   if used then throw $ VChanIsUsedException $ show v else do
     (env, (sockets, activeConnections)) <- ask
-    liftIO $ NClient.sendValue activeConnections cc w (-1)
+    liftIO $ SSem.withSem (NCon.ncHandlingIncomingMessage cc) $ NClient.sendValue activeConnections cc w (-1)
 
     -- Disable old VChan
     newV <- liftIO $ disableOldVChan v

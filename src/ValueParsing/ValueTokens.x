@@ -135,8 +135,6 @@ tokens :-
   "NIntroduceNewPartnerAddress"         { tok $ const NIntroduceNewPartnerAddress}
   "NRedirect"                           { tok $ const NRedirect }
   "NOkay"                               { tok $ const NOkay }
-  "NRequestClose"                        { tok $ const NRequestClose }
-  "NOkayClose"                               { tok $ const NOkayClose }
   "NOkayIntroduce"                      { tok $ const NOkayIntroduce }
   "NOkaySync"                           { tok $ const NOkaySync }
   "NWait"                               { tok $ const NWait}
@@ -264,8 +262,6 @@ data Token
   | NIntroduceNewPartnerAddress
   | NRedirect
   | NOkay
-  | NRequestClose
-  | NOkayClose
   | NOkayIntroduce
   | NOkaySync
   | NWait

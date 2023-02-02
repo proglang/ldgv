@@ -41,7 +41,6 @@ instance Serializable Responses where
   serialize = \case
     Redirect host port -> serializeLabeledEntryMulti "NRedirect" host $ sLast port
     Okay -> return "NOkay"
-    OkayClose -> return "NOkayClose"
     OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
     OkaySync vs -> serializeLabeledEntry "NOkaySync" vs
     Wait -> return "NWait"
@@ -54,7 +53,6 @@ instance Serializable Messages where
       RequestSync p -> serializeLabeledEntry "NRequestSync" p
       ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
       IntroduceNewPartnerAddress u p -> serializeLabeledEntryMulti "NIntroduceNewPartnerAddress" u $ sLast p
-      RequestClose p -> serializeLabeledEntry "NRequestClose" p
 
 instance Serializable (NCon.NetworkConnection Value) where
   serialize con = do 

@@ -3,8 +3,9 @@ module Networking.NetworkConnection where
 import Networking.DirectionalConnection
 import qualified Data.Maybe
 import qualified Control.Concurrent.MVar as MVar
+import qualified Control.Concurrent.SSem as SSem
 
-data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: Maybe String, ncOwnUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState, ncRecievedRequestClose :: MVar.MVar Bool}
+data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: Maybe String, ncOwnUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
     deriving Eq
 
 data ConnectionState = Connected {csHostname :: String, csPort :: String}
@@ -20,9 +21,9 @@ newNetworkConnection partnerID ownID hostname port = do
     write <- newConnection
     connectionstate <- MVar.newEmptyMVar 
     MVar.putMVar connectionstate $ Connected hostname port
-    reqClose <- MVar.newEmptyMVar 
-    MVar.putMVar reqClose False
-    return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate reqClose
+    
+    incomingMsg <- SSem.new 1
+    return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate incomingMsg
 
 newNetworkConnectionAllowingMaybe :: Maybe String -> Maybe String -> String -> String -> IO (NetworkConnection a)
 newNetworkConnectionAllowingMaybe partnerID ownID hostname port = do
@@ -30,9 +31,8 @@ newNetworkConnectionAllowingMaybe partnerID ownID hostname port = do
     write <- newConnection
     connectionstate <- MVar.newEmptyMVar 
     MVar.putMVar connectionstate $ Connected hostname port
-    reqClose <- MVar.newEmptyMVar 
-    MVar.putMVar reqClose False
-    return $ NetworkConnection read write partnerID ownID connectionstate reqClose
+    incomingMsg <- SSem.new 1
+    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
 
 
 createNetworkConnection :: [a] -> Int -> [a] -> Int -> Maybe String -> Maybe String -> String -> String -> IO (NetworkConnection a)
@@ -41,9 +41,8 @@ createNetworkConnection readList readNew writeList writeNew partnerID ownID host
     write <- createConnection writeList writeNew
     connectionstate <- MVar.newEmptyMVar
     MVar.putMVar connectionstate $ Connected hostname port
-    reqClose <- MVar.newEmptyMVar 
-    MVar.putMVar reqClose False
-    return $ NetworkConnection read write partnerID ownID connectionstate reqClose
+    incomingMsg <- SSem.new 1
+    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
 
 
 createNetworkConnectionS :: ([a], Int) -> ([a], Int) -> String -> String -> (String, String) -> IO (NetworkConnection a)
@@ -54,9 +53,8 @@ newEmulatedConnection :: DirectionalConnection a -> DirectionalConnection a -> I
 newEmulatedConnection r w = do
     connectionstate <- MVar.newEmptyMVar 
     MVar.putMVar connectionstate Emulated
-    reqClose <- MVar.newEmptyMVar 
-    MVar.putMVar reqClose True
-    return $ NetworkConnection r w Nothing Nothing connectionstate reqClose
+    incomingMsg <- SSem.new 1
+    return $ NetworkConnection r w Nothing Nothing connectionstate incomingMsg
 
 serializeNetworkConnection :: NetworkConnection a -> IO ([a], Int, [a], Int, String, String, String, String)
 serializeNetworkConnection nc = do

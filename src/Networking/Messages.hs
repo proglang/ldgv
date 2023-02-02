@@ -17,7 +17,6 @@ data Messages
     | RequestSync UserID
     | ChangePartnerAddress UserID Hostname Port
     | IntroduceNewPartnerAddress UserID Port
-    | RequestClose UserID
     deriving Eq
 
 data Responses
@@ -40,5 +39,4 @@ getUserID = \case
     SyncIncoming p _ -> p
     RequestSync p -> p
     ChangePartnerAddress p _ _ -> p
-    RequestClose p -> p
     IntroduceNewPartnerAddress p _ -> p

@@ -17,19 +17,19 @@ import qualified Networking.UserID as UserID
 import qualified Data.Map as Map
 import GHC.IO.Handle
 import qualified Data.Maybe
-import Networking.NetworkConnection (NetworkConnection(ncConnectionState, ncOwnUserID, ncRecievedRequestClose), ConnectionState (Disconnected))
+import Networking.NetworkConnection
 import Control.Concurrent
 import Control.Exception
 import GHC.Exception
 import qualified Syntax
 import qualified Networking.Common as NC
-import Networking.Messages (Messages(RequestClose))
 import qualified Networking.NetworkConnection as NCon
 import qualified Control.Concurrent as MVar
 import qualified Config
 import qualified Networking.Serialize as NSerialize
 import Control.Monad
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import qualified Control.Concurrent.SSem as SSem
 
 
 newtype ClientException = NoIntroductionException String
