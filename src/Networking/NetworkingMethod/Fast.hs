@@ -241,4 +241,5 @@ sayGoodbye activeCons = do
         onException _ = return ()
             
 
-
+isClosed :: Conversation -> IO Bool
+isClosed con@(conversationid, handle, mvar, sem) = hIsClosed handle

@@ -35,3 +35,5 @@ recieveResponse con waitTime tries = NetMethod.recieveResponse con waitTime trie
 endConversation con waitTime tries = NetMethod.endConversation con waitTime tries
 
 sayGoodbye con = NetMethod.sayGoodbye con
+
+isClosed con = NetMethod.isClosed con

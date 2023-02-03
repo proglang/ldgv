@@ -78,7 +78,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
     mbyresponse <- case mbycon of
         Just con -> do
             NC.sendMessage con message
-            potentialResponse <- NC.recieveResponse con 10000 200
+            potentialResponse <- NC.recieveResponse con 10000 100
             NC.endConversation con 10000 10
             return potentialResponse
         Nothing -> return Nothing
@@ -97,7 +97,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
                 tryToSendNetworkMessage activeCons networkconnection host port message resendOnError
             Wait -> do
                 Config.traceNetIO "Communication out of sync lets wait!"
-                threadDelay 1000000
+                threadDelay 100000
                 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
             _ -> Config.traceNetIO "Unknown communication error"
 
@@ -107,7 +107,11 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             when (Data.Maybe.isNothing mbycon) $ Config.traceNetIO "Not connected to peer"
             Config.traceNetIO $ "Original message: " ++ serializedMessage
             case connectionstate of
-                NCon.Connected newhostname newport -> if resendOnError /= 0 && Data.Maybe.isJust mbycon then do
+                NCon.Connected newhostname newport -> do 
+                    isClosed <- case mbycon of
+                        Just con -> NC.isClosed con
+                        Nothing -> return True
+                    if resendOnError /= 0 && not isClosed then do
                         Config.traceNetIO $ "Connected but no answer recieved! New communication partner: " ++ newhostname ++ ":" ++ newport
                         threadDelay 1500000
                         tryToSendNetworkMessage activeCons networkconnection newhostname newport message $ max (resendOnError-1) (-1)

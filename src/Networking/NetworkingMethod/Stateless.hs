@@ -190,3 +190,7 @@ getSocketFromHandle socket = do
 
 sayGoodbye :: ActiveConnectionsStateless -> IO ()
 sayGoodbye _ = return ()
+
+
+isClosed :: Handle -> IO Bool
+isClosed = hIsClosed 
