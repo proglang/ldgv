@@ -172,9 +172,12 @@ setRedirectRequests newhost newport input = case input of
     VRec penv a b c d -> setRedirectRequestsPEnv newhost newport penv
     VNewNatRec penv a b c d e f g -> setRedirectRequestsPEnv newhost newport penv
     VChan nc _ _-> do
+        Config.traceNetIO $ "Trying to set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
 
-        oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
-        MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest (NCon.csHostname oldconnectionstate) (NCon.csPort oldconnectionstate) newhost newport
+        SSem.withSem (ncHandlingIncomingMessage nc) (do 
+            oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
+            MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest (NCon.csHostname oldconnectionstate) (NCon.csPort oldconnectionstate) newhost newport
+            )
         Config.traceNetIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
     _ -> return ()
     where

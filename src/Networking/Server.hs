@@ -42,44 +42,49 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
 
     -- MVar.putMVar mvar netcon
     case Map.lookup userid netcon of 
-        Just networkcon -> SSem.withSem (ncHandlingIncomingMessage networkcon) $ do
-
+        Just networkcon -> do -- SSem.withSem (ncHandlingIncomingMessage networkcon) $ do
             Config.traceNetIO $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " (" ++ ownport ++ ") from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
             Config.traceNetIO $ "    "++message
-            redirectRequest <- checkAndSendRedirectRequest hdl netcon userid
-            unless redirectRequest $
-                case deserialmessages of
-                    NewValue userid count val -> do
-                        handleNewValue activeCons mvar userid count val ownport hdl
-                    IntroduceClient userid clientport syntype-> do
-                        handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
-                    ChangePartnerAddress userid hostname port -> do
-                        handleChangePartnerAddress activeCons mvar userid hostname port ownport
-                        NC.sendResponse hdl Messages.Okay
-                    RequestSync userid -> do
-                        handleRequestSync mvar userid hdl
-                    SyncIncoming userid values -> do
-                        handleSyncIncoming mvar userid values
-                        NC.sendResponse hdl Messages.Okay
-                    IntroduceNewPartnerAddress userid port -> do
-                        networkconnectionmap <- MVar.takeMVar mvar
-                        Config.traceNetIO $ "Took MVar for message: " ++ message
-                        case Map.lookup userid networkconnectionmap of
-                            Just networkconnection -> do  -- Change to current network address
-                                case snd clientsocket of
-                                    SockAddrInet _ hostname -> do 
-                                        Config.traceNetIO $ "Trying to change the address to: " ++ hostaddressTypeToString hostname ++ ":" ++ port
-                                        NCon.changePartnerAddress networkconnection (hostaddressTypeToString hostname) port
-                                    _ -> return ()
-                                Config.traceNetIO $ "Put MVar for message: " ++ message
-                                MVar.putMVar mvar networkconnectionmap
-                            Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
-                        NC.sendResponse hdl Messages.Okay
-
-                    _ -> do
-                        serial <- NSerialize.serialize deserialmessages
-                        Config.traceIO $ "Error unsupported networkmessage: "++ serial
-                        NC.sendResponse hdl Messages.Okay
+            busy <- SSem.tryWait $ ncHandlingIncomingMessage networkcon
+            case busy of
+                Just num -> do
+                    redirectRequest <- checkAndSendRedirectRequest hdl netcon userid
+                    unless redirectRequest $
+                        case deserialmessages of
+                            NewValue userid count val -> do
+                                handleNewValue activeCons mvar userid count val ownport hdl
+                            IntroduceClient userid clientport syntype-> do
+                                handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
+                            ChangePartnerAddress userid hostname port -> do
+                                handleChangePartnerAddress activeCons mvar userid hostname port ownport
+                                NC.sendResponse hdl Messages.Okay
+                            RequestSync userid -> do
+                                handleRequestSync mvar userid hdl
+                            SyncIncoming userid values -> do
+                                handleSyncIncoming mvar userid values
+                                NC.sendResponse hdl Messages.Okay
+                            IntroduceNewPartnerAddress userid port -> do
+                                networkconnectionmap <- MVar.takeMVar mvar
+                                Config.traceNetIO $ "Took MVar for message: " ++ message
+                                case Map.lookup userid networkconnectionmap of
+                                    Just networkconnection -> do  -- Change to current network address
+                                        case snd clientsocket of
+                                            SockAddrInet _ hostname -> do 
+                                                Config.traceNetIO $ "Trying to change the address to: " ++ hostaddressTypeToString hostname ++ ":" ++ port
+                                                NCon.changePartnerAddress networkconnection (hostaddressTypeToString hostname) port
+                                            _ -> return ()
+                                        Config.traceNetIO $ "Put MVar for message: " ++ message
+                                        MVar.putMVar mvar networkconnectionmap
+                                    Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
+                                NC.sendResponse hdl Messages.Okay
+                            _ -> do
+                                serial <- NSerialize.serialize deserialmessages
+                                Config.traceIO $ "Error unsupported networkmessage: "++ serial
+                                NC.sendResponse hdl Messages.Okay
+                    SSem.signal $ ncHandlingIncomingMessage networkcon
+                Nothing -> do
+                        Config.traceNetIO "Message cannot be handled at the moment! Sending wait response"
+                        NC.sendResponse hdl Messages.Wait
         Nothing -> do
             Config.traceNetIO "Recieved message from unknown connection!"
             case deserialmessages of

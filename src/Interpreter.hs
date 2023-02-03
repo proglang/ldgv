@@ -295,15 +295,15 @@ interpretApp _ (VSend v@(VChan cc _ usedmvar)) w = do
     (env, (sockets, activeConnections)) <- ask
     
     -- This needs to be modified to look for VChans also in subtypes
-    case w of
+    {- case w of
       VChan nc _ _ -> liftIO $ SSem.wait (NCon.ncHandlingIncomingMessage nc)
-      _ -> return ()
+      _ -> return ()-}
 
     liftIO $  NClient.sendValue activeConnections cc w (-1)
 
-    case w of
+    {-case w of
       VChan nc _ _ -> liftIO $ SSem.signal (NCon.ncHandlingIncomingMessage nc)
-      _ -> return ()
+      _ -> return ()-}
 
     -- Disable old VChan
     newV <- liftIO $ disableOldVChan v
