@@ -113,7 +113,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
                         Nothing -> return True
                     if resendOnError /= 0 && not isClosed then do
                         Config.traceNetIO $ "Connected but no answer recieved! New communication partner: " ++ newhostname ++ ":" ++ newport
-                        threadDelay 1500000
+                        threadDelay 50000
                         tryToSendNetworkMessage activeCons networkconnection newhostname newport message $ max (resendOnError-1) (-1)
                         else Config.traceNetIO "Old communication partner offline! No longer retrying"
 
