@@ -282,8 +282,7 @@ GType : gunit {GUnit}
 Messages : nintroduceclient '(' String ')' '(' String ')' '(' Type ')' {IntroduceClient $3 $6 $9}
          | nnewvalue '(' String ')' '(' int ')' '(' Values ')' {NewValue $3 $6 $9}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
-         | nrequestsync '(' String ')' {RequestSync $3}
-         | nchangepartneraddress '(' String ')' '(' String ')' '(' String ')' {ChangePartnerAddress $3 $6 $9}
+         | nrequestsync '(' String ')' '(' int ')' {RequestSync $3 $6}
          | nintroducenewpartneraddress '(' String ')' '(' String ')' {IntroduceNewPartnerAddress $3 $6}
 
 Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}

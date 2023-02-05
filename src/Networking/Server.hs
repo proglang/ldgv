@@ -55,11 +55,8 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 handleNewValue activeCons mvar userid count val ownport hdl
                             IntroduceClient userid clientport syntype-> do
                                 handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
-                            ChangePartnerAddress userid hostname port -> do
-                                handleChangePartnerAddress activeCons mvar userid hostname port ownport
-                                NC.sendResponse hdl Messages.Okay
-                            RequestSync userid -> do
-                                handleRequestSync mvar userid hdl
+                            RequestSync userid count -> do
+                                handleRequestSync mvar userid count hdl
                             SyncIncoming userid values -> do
                                 handleSyncIncoming mvar userid values
                                 NC.sendResponse hdl Messages.Okay
@@ -121,7 +118,8 @@ handleNewValue activeCons mvar userid count val ownport hdl = do
         Just networkconnection -> do
             ND.lockInterpreterReads (ncRead networkconnection)
             success <- ND.writeMessageIfNext (ncRead networkconnection) count val
-            unless success $ NC.sendNetworkMessage activeCons networkconnection (Messages.RequestSync $ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) (-1)
+            incomingCount <- ND.countMessages (ncRead networkconnection)
+            unless success $ NC.sendNetworkMessage activeCons networkconnection (Messages.RequestSync (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) incomingCount) (-1)
             contactNewPeers activeCons val ownport
             NC.sendResponse hdl Messages.Okay
             ND.unlockInterpreterReads (ncRead networkconnection)
@@ -213,13 +211,13 @@ handleChangePartnerAddress activeCons mvar userid hostname port ownport = do
 
         Nothing -> MVar.putMVar mvar networkconnectionmap  -- Nothing needs to be done here, the connection hasn't been established yet. No need to save that
 
-handleRequestSync :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> NC.ConversationOrHandle -> IO ()
-handleRequestSync mvar userid hdl = do
+handleRequestSync :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Int -> NC.ConversationOrHandle -> IO ()
+handleRequestSync mvar userid count hdl = do
     networkconnectionmap <- MVar.readMVar mvar
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do  -- Change to current network address
             writevals <- ND.allMessages $ ncWrite networkconnection
-            NC.sendResponse hdl (Messages.OkaySync writevals)  
+            if length writevals > count then NC.sendResponse hdl (Messages.OkaySync writevals) else NC.sendResponse hdl Messages.Okay
         othing -> return ()
 
 handleSyncIncoming :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> [Value] -> IO ()
@@ -287,7 +285,7 @@ replaceVChanSerial activeCons mvar input = case input of
         networkconnection <- createNetworkConnectionS r w p o c
         ncmap <- MVar.takeMVar mvar
         MVar.putMVar mvar $ Map.insert p networkconnection ncmap
-        NClient.sendNetworkMessage activeCons networkconnection (RequestSync o) 5
+        NClient.sendNetworkMessage activeCons networkconnection (RequestSync o $ length r) 5
         used<- MVar.newEmptyMVar
         MVar.putMVar used False
         return $ VChan networkconnection mvar used

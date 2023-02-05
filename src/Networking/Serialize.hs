@@ -50,8 +50,7 @@ instance Serializable Messages where
       IntroduceClient p port t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sLast t
       NewValue p c v -> serializeLabeledEntryMulti "NNewValue" p $ sNext c $ sLast v
       SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
-      RequestSync p -> serializeLabeledEntry "NRequestSync" p
-      ChangePartnerAddress p h port -> serializeLabeledEntryMulti "NChangePartnerAddress" p $ sNext h $ sLast port
+      RequestSync p count -> serializeLabeledEntryMulti "NRequestSync" p $ sLast count
       IntroduceNewPartnerAddress u p -> serializeLabeledEntryMulti "NIntroduceNewPartnerAddress" u $ sLast p
 
 instance Serializable (NCon.NetworkConnection Value) where

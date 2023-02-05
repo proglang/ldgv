@@ -14,15 +14,13 @@ data Messages
     = IntroduceClient UserID Port Type
     | NewValue UserID Int Value
     | SyncIncoming UserID [Value]
-    | RequestSync UserID
-    | ChangePartnerAddress UserID Hostname Port
+    | RequestSync UserID Int
     | IntroduceNewPartnerAddress UserID Port
     deriving Eq
 
 data Responses
     = Redirect Hostname Port
     | Okay
-    | OkayClose
     | OkayIntroduce UserID
     | OkaySync [Value]
     | Wait
@@ -37,6 +35,5 @@ getUserID = \case
     IntroduceClient p _ _ -> p
     NewValue p _ _ -> p
     SyncIncoming p _ -> p
-    RequestSync p -> p
-    ChangePartnerAddress p _ _ -> p
+    RequestSync p _ -> p
     IntroduceNewPartnerAddress p _ -> p
