@@ -192,22 +192,20 @@ eval = \case
     w <- liftIO DC.newConnection
     nc1 <- liftIO $ NCon.newEmulatedConnection r w
     nc2 <- liftIO $ NCon.newEmulatedConnection w r
-    mvar <- liftIO MVar.newEmptyMVar
-    liftIO $ MVar.putMVar mvar Map.empty
     used1 <- liftIO MVar.newEmptyMVar
     liftIO $ MVar.putMVar used1 False
     used2 <- liftIO MVar.newEmptyMVar
     liftIO $ MVar.putMVar used2 False
-    return $ VPair (VChan nc1 mvar used1) $ VChan nc2 mvar used2
+    return $ VPair (VChan nc1 used1) $ VChan nc2 used2
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
-    interpret' e >>= \v@(VChan ci mvar usedmvar) -> do
+    interpret' e >>= \v@(VChan ci usedmvar) -> do
       used <- liftIO $ MVar.readMVar usedmvar
       if used then throw $ VChanIsUsedException $ show v else do
         let dcRead = NCon.ncRead ci
         valunclean <- liftIO $ DC.readUnreadMessageInterpreter dcRead
         (env, (sockets, vchanconnections, activeConnections)) <- ask
-        val <- liftIO $ NS.replaceVChanSerial activeConnections mvar valunclean
+        val <- liftIO $ NS.replaceVChanSerial activeConnections vchanconnections valunclean
         liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
         -- Disable the old channel and get a new one
@@ -233,7 +231,7 @@ eval = \case
             liftIO $ C.traceIO "Client successfully accepted!"
             used <- liftIO MVar.newEmptyMVar
             liftIO $ MVar.putMVar used False
-            return $ VChan networkconnection vchanconnections used
+            return $ VChan networkconnection used
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
   Connect e0 t e1 e2-> do
@@ -289,7 +287,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (Data.Bifunctor.first (const env')) (interpret' es)
 -- interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
-interpretApp _ (VSend v@(VChan cc _ usedmvar)) w = do
+interpretApp _ (VSend v@(VChan cc usedmvar)) w = do
   used <- liftIO $ MVar.readMVar usedmvar
   if used then throw $ VChanIsUsedException $ show v else do
     (env, (sockets, vchanconnections, activeConnections)) <- ask

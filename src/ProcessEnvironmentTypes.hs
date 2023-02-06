@@ -53,9 +53,7 @@ data Value
   | VInt Int
   | VDouble Double
   | VString String
-  | VChan (NCon.NetworkConnection Value) (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) (MVar.MVar Bool) --Maybe a "used" mvar to notify that this vchan should no longer be used
-  --                                                This is exclusively used to add VChanSerials into the map when in the interpreter
-  --                                                                                                    This is to mark a vchan as used (true if used)
+  | VChan (NCon.NetworkConnection Value) (MVar.MVar Bool) --Maybe a "used" mvar to notify that this vchan should no longer be used
   | VChanSerial ([Value], Int) ([Value], Int) String String (String, String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
@@ -71,18 +69,18 @@ data Value
 
 disableOldVChan :: Value -> IO Value
 disableOldVChan value = case value of
-  VChan nc mvar used -> do
+  VChan nc used -> do
       _ <- MVar.takeMVar used
       MVar.putMVar used True
       unused <- MVar.newEmptyMVar
       MVar.putMVar unused False
-      return $ VChan nc mvar unused
+      return $ VChan nc unused
   _ -> return value
 
 
 disableVChan :: Value -> IO ()
 disableVChan value = case value of
-  VChan nc mvar _ -> do
+  VChan nc _ -> do
     mbystate <- MVar.tryTakeMVar $ NCon.ncConnectionState nc  --I dont fully understand why this mvar isnt filled but lets bypass this problem
     case mbystate of
       Nothing -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected

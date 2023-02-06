@@ -288,7 +288,7 @@ replaceVChanSerial activeCons mvar input = case input of
         NClient.sendNetworkMessage activeCons networkconnection (RequestSync o $ length r) 5
         used<- MVar.newEmptyMVar
         MVar.putMVar used False
-        return $ VChan networkconnection mvar used
+        return $ VChan networkconnection used
     _ -> return input
     where
         replaceVChanSerialPEnv :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> [(String, Value)] -> IO [(String, Value)]

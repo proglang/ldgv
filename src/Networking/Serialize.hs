@@ -89,7 +89,7 @@ instance Serializable Value where
       VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
 
       VServerSocket {} -> throw $ UnserializableException "VServerSocket"
-      VChan nc _ _-> serializeLabeledEntry "VChan" nc
+      VChan nc _-> serializeLabeledEntry "VChan" nc
       VChanSerial r w p o c -> serializeLabeledEntryMulti "VChanSerial" r $ sNext w $ sNext p $ sNext o $ sLast c
 
 instance Serializable Multiplicity where

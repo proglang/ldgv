@@ -126,7 +126,7 @@ printConErr hostname port err = Config.traceIO $ "Communication Partner " ++ hos
 
 initialConnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> Syntax.Type -> IO Value
 initialConnect activeCons mvar hostname port ownport syntype= do
-    mbycon <- NC.waitForConversation activeCons hostname port 10000 100
+    mbycon <- NC.waitForConversation activeCons hostname port 1000 100  -- This should be 10000 100 in the real world, expecting just a 100ms ping in the real world might be a little aggressive.
 
     case mbycon of
         Just con -> do
@@ -147,7 +147,7 @@ initialConnect activeCons mvar hostname port ownport syntype= do
                         MVar.putMVar mvar newNetworkconnectionmap
                         used <- MVar.newEmptyMVar
                         MVar.putMVar used False
-                        return $ VChan newConnection mvar used
+                        return $ VChan newConnection used
 
                     _ -> do 
                         introductionserial <- NSerialize.serialize introduction
@@ -175,7 +175,7 @@ setRedirectRequests newhost newport input = case input of
     VFuncCast v a b -> setRedirectRequests newhost newport v
     VRec penv a b c d -> setRedirectRequestsPEnv newhost newport penv
     VNewNatRec penv a b c d e f g -> setRedirectRequestsPEnv newhost newport penv
-    VChan nc _ _-> do
+    VChan nc _ -> do
         Config.traceNetIO $ "Trying to set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
 
         SSem.withSem (ncHandlingIncomingMessage nc) (do 
@@ -215,7 +215,7 @@ replaceVChan input = case input of
     VNewNatRec penv a b c d e f g -> do
         newpenv <- replaceVChanPEnv penv
         return $ VNewNatRec newpenv a b c d e f g
-    VChan nc _ _-> do
+    VChan nc _-> do
         (r, rl, w, wl, pid, oid, h, p) <- serializeNetworkConnection nc
         return $ VChanSerial (r, rl) (w, wl) pid oid (h, p)
     _ -> return input
