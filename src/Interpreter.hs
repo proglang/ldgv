@@ -188,14 +188,10 @@ eval = \case
       C.traceIO "Ran a forked operation")
     return VUnit
   New t -> do
-    r <- liftIO DC.newConnection
-    w <- liftIO DC.newConnection
-    nc1 <- liftIO $ NCon.newEmulatedConnection r w
-    nc2 <- liftIO $ NCon.newEmulatedConnection w r
-    used1 <- liftIO MVar.newEmptyMVar
-    liftIO $ MVar.putMVar used1 False
-    used2 <- liftIO MVar.newEmptyMVar
-    liftIO $ MVar.putMVar used2 False
+    (env, (sockets, vchanconnections, activeConnections)) <- ask
+    (nc1, nc2) <- liftIO $ NCon.newEmulatedConnection vchanconnections
+    used1 <- liftIO $ MVar.newMVar False
+    used2 <- liftIO $ MVar.newMVar False
     return $ VPair (VChan nc1 used1) $ VChan nc2 used2
   Send e -> VSend <$> interpret' e -- Apply VSend to the output of interpret' e
   Recv e -> do
@@ -297,7 +293,8 @@ interpretApp _ (VSend v@(VChan cc usedmvar)) w = do
       VChan nc _ _ -> liftIO $ SSem.wait (NCon.ncHandlingIncomingMessage nc)
       _ -> return ()-}
 
-    liftIO $  NClient.sendValue activeConnections cc w (-1)
+    -- liftIO $  NClient.sendValue activeConnections cc w (-1)
+    liftIO $  NClient.sendValueFromInterpreter vchanconnections activeConnections cc w
 
     {-case w of
       VChan nc _ _ -> liftIO $ SSem.signal (NCon.ncHandlingIncomingMessage nc)

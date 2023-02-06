@@ -42,6 +42,23 @@ instance Show ClientException where
 instance Exception ClientException
 
 
+sendValueFromInterpreter :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> Value -> IO ()
+sendValueFromInterpreter vchanconsmvar activecons networkconnection val = do
+    connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
+    vchancons <- MVar.readMVar vchanconsmvar
+    case connectionstate of
+        NCon.Emulated -> do
+            valCleaned <- replaceVChan val
+            DC.writeMessage (ncWrite networkconnection) valCleaned
+            let partnerid = Data.Maybe.fromMaybe "" $ ncPartnerUserID networkconnection
+            let mbypartner = Map.lookup partnerid vchancons
+            case mbypartner of
+                Just partner -> DC.writeMessage (ncRead partner) valCleaned
+                _ -> Config.traceNetIO "Something went wrong when sending over a emulated connection"
+            disableVChans val
+        _ -> sendValue activecons networkconnection val (-1)
+
+
 sendValue :: NMC.ActiveConnections -> NetworkConnection Value -> Value -> Int -> IO ()
 sendValue activeCons networkconnection val resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
@@ -55,7 +72,6 @@ sendValue activeCons networkconnection val resendOnError = do
                 tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
                 disableVChans val
                 ) $ printConErr hostname port
-        NCon.Emulated -> DC.writeMessage (ncWrite networkconnection) val
         _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
 
 sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Messages -> Int -> IO ()
@@ -64,7 +80,6 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
     case connectionstate of
         NCon.Connected hostname port -> do
             catch ( tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError) $ printConErr hostname port
-        NCon.Emulated -> pure ()
         _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
 
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Messages -> Int -> IO ()
@@ -107,7 +122,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             when (Data.Maybe.isNothing mbycon) $ Config.traceNetIO "Not connected to peer"
             Config.traceNetIO $ "Original message: " ++ serializedMessage
             case connectionstate of
-                NCon.Connected newhostname newport -> do 
+                NCon.Connected newhostname newport -> do
                     isClosed <- case mbycon of
                         Just con -> NC.isClosed con
                         Nothing -> return True
@@ -149,12 +164,12 @@ initialConnect activeCons mvar hostname port ownport syntype= do
                         MVar.putMVar used False
                         return $ VChan newConnection used
 
-                    _ -> do 
+                    _ -> do
                         introductionserial <- NSerialize.serialize introduction
                         Config.traceNetIO $ "Illegal answer from server: " ++ introductionserial
                         threadDelay 1000000
                         initialConnect activeCons mvar hostname port ownport syntype
-                Nothing -> do 
+                Nothing -> do
                     Config.traceNetIO "Something went wrong while connection to the server"
                     threadDelay 1000000
                     initialConnect activeCons mvar hostname port ownport syntype
@@ -178,7 +193,7 @@ setRedirectRequests newhost newport input = case input of
     VChan nc _ -> do
         Config.traceNetIO $ "Trying to set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
 
-        SSem.withSem (ncHandlingIncomingMessage nc) (do 
+        SSem.withSem (ncHandlingIncomingMessage nc) (do
             oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
             MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest (NCon.csHostname oldconnectionstate) (NCon.csPort oldconnectionstate) newhost newport
             )
