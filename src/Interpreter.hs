@@ -294,7 +294,7 @@ interpretApp _ (VSend v@(VChan cc usedmvar)) w = do
       _ -> return ()-}
 
     -- liftIO $  NClient.sendValue activeConnections cc w (-1)
-    liftIO $  NClient.sendValueFromInterpreter vchanconnections activeConnections cc w
+    liftIO $  NClient.sendValue vchanconnections activeConnections cc w (-1)
 
     {-case w of
       VChan nc _ _ -> liftIO $ SSem.signal (NCon.ncHandlingIncomingMessage nc)

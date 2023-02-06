@@ -41,26 +41,8 @@ instance Show ClientException where
 
 instance Exception ClientException
 
-
-sendValueFromInterpreter :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> Value -> IO ()
-sendValueFromInterpreter vchanconsmvar activecons networkconnection val = do
-    connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
-    vchancons <- MVar.readMVar vchanconsmvar
-    case connectionstate of
-        NCon.Emulated -> do
-            valCleaned <- replaceVChan val
-            DC.writeMessage (ncWrite networkconnection) valCleaned
-            let partnerid = Data.Maybe.fromMaybe "" $ ncPartnerUserID networkconnection
-            let mbypartner = Map.lookup partnerid vchancons
-            case mbypartner of
-                Just partner -> DC.writeMessage (ncRead partner) valCleaned
-                _ -> Config.traceNetIO "Something went wrong when sending over a emulated connection"
-            disableVChans val
-        _ -> sendValue activecons networkconnection val (-1)
-
-
-sendValue :: NMC.ActiveConnections -> NetworkConnection Value -> Value -> Int -> IO ()
-sendValue activeCons networkconnection val resendOnError = do
+sendValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> Value -> Int -> IO ()
+sendValue vchanconsmvar activeCons networkconnection val resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
@@ -72,6 +54,16 @@ sendValue activeCons networkconnection val resendOnError = do
                 tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
                 disableVChans val
                 ) $ printConErr hostname port
+        NCon.Emulated -> do
+            vchancons <- MVar.readMVar vchanconsmvar
+            valCleaned <- replaceVChan val
+            DC.writeMessage (ncWrite networkconnection) valCleaned
+            let partnerid = Data.Maybe.fromMaybe "" $ ncPartnerUserID networkconnection
+            let mbypartner = Map.lookup partnerid vchancons
+            case mbypartner of
+                Just partner -> DC.writeMessage (ncRead partner) valCleaned
+                _ -> Config.traceNetIO "Something went wrong when sending over a emulated connection"
+            disableVChans val
         _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
 
 sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Messages -> Int -> IO ()
