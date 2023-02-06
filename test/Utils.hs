@@ -24,10 +24,10 @@ raiseFailure msg = do
 
 shouldInterpretTo :: [Decl] -> Value -> Expectation
 shouldInterpretTo givenDecls expectedValue = do
-  sockets <- newEmptyMVar
+  sockets <- newMVar Map.empty
+  vchanconnections <- newMVar Map.empty
   handles <- NC.createActiveConnections
-  putMVar sockets Map.empty
-  value <- runReaderT (interpretDecl givenDecls) ([], (sockets, handles))
+  value <- runReaderT (interpretDecl givenDecls) ([], (sockets, vchanconnections, handles))
   value `shouldBe` expectedValue
 
 shouldThrowCastException :: [Decl] -> Expectation
@@ -36,22 +36,22 @@ shouldThrowCastException givenDecls =
       isCastException (CastException _) = True
       isCastException _ = False
   in do 
-    sockets <- newEmptyMVar
+    sockets <- newMVar Map.empty
+    vchanconnections <- newMVar Map.empty
     handles <- NC.createActiveConnections
-    putMVar sockets Map.empty
-    runReaderT (interpretDecl givenDecls) ([], (sockets, handles)) `shouldThrow` isCastException
+    runReaderT (interpretDecl givenDecls) ([], (sockets, vchanconnections, handles)) `shouldThrow` isCastException
 
 shouldThrowInterpreterException :: Decl -> InterpreterException -> Expectation
 shouldThrowInterpreterException given except = do 
-  sockets <- newEmptyMVar
+  sockets <- newMVar Map.empty
+  vchanconnections <- newMVar Map.empty
   handles <- NC.createActiveConnections
-  putMVar sockets Map.empty
-  runReaderT (interpretDecl [given]) ([], (sockets, handles)) `shouldThrow` (== except)
+  runReaderT (interpretDecl [given]) ([], (sockets, vchanconnections, handles)) `shouldThrow` (== except)
 
 shouldInterpretTypeTo :: Type -> NFType -> Expectation
 shouldInterpretTypeTo t expected = do
-  sockets <- newEmptyMVar
+  sockets <- newMVar Map.empty
+  vchanconnections <- newMVar Map.empty
   handles <- NC.createActiveConnections
-  putMVar sockets Map.empty
-  nft <- runReaderT (evalType t) ([], (sockets, handles))
+  nft <- runReaderT (evalType t) ([], (sockets, vchanconnections, handles))
   nft `shouldBe` expected
