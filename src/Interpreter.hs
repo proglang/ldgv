@@ -101,10 +101,10 @@ blame exp = throw $ CastException exp
 -- | interpret the "main" value in an ldgv file given over stdin
 interpret :: [Decl] -> IO Value
 interpret decls = do
-  sockets <- MVar.newEmptyMVar
+  sockets <- MVar.newMVar Map.empty
+  vchanconnections <- MVar.newMVar Map.empty
   activeConnections <- NC.createActiveConnections
-  MVar.putMVar sockets Map.empty
-  result <- R.runReaderT (interpretDecl decls) ([], (sockets, activeConnections))
+  result <- R.runReaderT (interpretDecl decls) ([], (sockets, vchanconnections, activeConnections))
   NC.sayGoodbye activeConnections
   return result
 
@@ -161,8 +161,8 @@ eval = \case
     case v of
       VPair {} -> do
         C.traceIO $ "Interpreting pair cast expression: Value(" ++ show v ++ ") NFType(" ++ show nft1 ++ ") NFType(" ++ show nft2 ++ ")"
-        (env, (sockets, activeConnections)) <- ask
-        v' <- lift $ reducePairCast sockets activeConnections v (toNFPair nft1) (toNFPair nft2)
+        (env, (sockets, vchanconnections, activeConnections)) <- ask
+        v' <- lift $ reducePairCast sockets vchanconnections activeConnections v (toNFPair nft1) (toNFPair nft2)
         maybe (blame cast) return v'
       _ -> let v' = reduceCast v nft1 nft2 in maybe (blame cast) return v'
   Var s -> ask >>= \(env, _) -> maybe (throw $ LookupException s) (liftIO . pure) (lookup s env)
@@ -206,7 +206,7 @@ eval = \case
       if used then throw $ VChanIsUsedException $ show v else do
         let dcRead = NCon.ncRead ci
         valunclean <- liftIO $ DC.readUnreadMessageInterpreter dcRead
-        (env, (sockets, activeConnections)) <- ask
+        (env, (sockets, vchanconnections, activeConnections)) <- ask
         val <- liftIO $ NS.replaceVChanSerial activeConnections mvar valunclean
         liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
@@ -220,20 +220,20 @@ eval = \case
     val <- interpret' e
     case val of
       VInt port -> do
-        (env, (sockets, activeConnections)) <- ask
-        (mvar, clientlist, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets
+        (env, (sockets, vchanconnections, activeConnections)) <- ask
+        (clientlist, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets vchanconnections
         -- newuser <- liftIO $ Chan.readChan chan
         liftIO $ C.traceIO "Searching for correct communicationpartner"
         newuser <- liftIO $ NS.findFittingClient clientlist t -- There is still an issue
         liftIO $ C.traceIO "Client accepted"
-        networkconnectionmap <- liftIO $ MVar.readMVar mvar
+        networkconnectionmap <- liftIO $ MVar.readMVar vchanconnections
         case Map.lookup newuser networkconnectionmap of
           Nothing -> throw $ CommunicationPartnerNotFoundException newuser
           Just networkconnection -> do
             liftIO $ C.traceIO "Client successfully accepted!"
             used <- liftIO MVar.newEmptyMVar
             liftIO $ MVar.putMVar used False
-            return $ VChan networkconnection mvar used
+            return $ VChan networkconnection vchanconnections used
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
   Connect e0 t e1 e2-> do
@@ -243,15 +243,15 @@ eval = \case
     val <- interpret' e0
     case val of
       VInt port -> do
-        (env, (sockets, activeConnections)) <- ask
-        (networkconmapmvar, chan, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets
+        (env, (sockets, vchanconnections, activeConnections)) <- ask
+        (chan, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets vchanconnections
         addressVal <- interpret' e1
         case addressVal of
           VString address -> do
             portVal <- interpret' e2
             case portVal of
               VInt port -> do
-                liftIO $ NClient.initialConnect activeConnections networkconmapmvar address (show port) ownport t
+                liftIO $ NClient.initialConnect activeConnections vchanconnections address (show port) ownport t
               _ -> throw $ NotAnExpectedValueException "VInt" portVal
           _ -> throw $ NotAnExpectedValueException "VString" addressVal
       _ -> throw $ NotAnExpectedValueException "VInt" val
@@ -292,7 +292,7 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
 interpretApp _ (VSend v@(VChan cc _ usedmvar)) w = do
   used <- liftIO $ MVar.readMVar usedmvar
   if used then throw $ VChanIsUsedException $ show v else do
-    (env, (sockets, activeConnections)) <- ask
+    (env, (sockets, vchanconnections, activeConnections)) <- ask
     
     -- This needs to be modified to look for VChans also in subtypes
     {- case w of
@@ -411,21 +411,21 @@ toNFPair :: NFType -> NFType
 toNFPair (NFGType (GPair)) = NFPair (FuncType [] "x" TDyn TDyn)
 toNFPair t = t
 
-reducePairCast :: MVar.MVar (Map.Map Int ServerSocket) -> ActiveConnections -> Value -> NFType -> NFType -> IO (Maybe Value)
-reducePairCast sockets activeConnections (VPair v w) (NFPair (FuncType penv s t1 t2)) (NFPair (FuncType penv' s' t1' t2')) = do
-  mv' <- reduceComponent sockets activeConnections v (penv, t1) (penv', t1')
+reducePairCast :: MVar.MVar (Map.Map Int ServerSocket) -> VChanConnections -> ActiveConnections -> Value -> NFType -> NFType -> IO (Maybe Value)
+reducePairCast sockets vchanconnections activeConnections (VPair v w) (NFPair (FuncType penv s t1 t2)) (NFPair (FuncType penv' s' t1' t2')) = do
+  mv' <- reduceComponent sockets vchanconnections activeConnections v (penv, t1) (penv', t1')
   case mv' of
     Nothing -> return Nothing
     Just v' -> do
-      mw' <- reduceComponent sockets activeConnections w ((s, v) : penv, t2) ((s', v') : penv', t2')
+      mw' <- reduceComponent sockets vchanconnections activeConnections w ((s, v) : penv, t2) ((s', v') : penv', t2')
       return $ liftM2 VPair mv' mw'
   where
-    reduceComponent :: MVar.MVar (Map.Map Int ServerSocket) -> ActiveConnections -> Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)
-    reduceComponent sockets activeConnections v (penv, t) (penv', t') = do
-      nft  <- R.runReaderT (evalType t)  (penv, (sockets, activeConnections))
-      nft' <- R.runReaderT (evalType t') (penv', (sockets, activeConnections))
+    reduceComponent :: MVar.MVar (Map.Map Int ServerSocket) -> VChanConnections -> ActiveConnections -> Value -> (PEnv, Type) -> (PEnv, Type) -> IO (Maybe Value)
+    reduceComponent sockets vchanconnections activeConnections v (penv, t) (penv', t') = do
+      nft  <- R.runReaderT (evalType t)  (penv, (sockets, vchanconnections, activeConnections))
+      nft' <- R.runReaderT (evalType t') (penv', (sockets, vchanconnections, activeConnections))
       return $ reduceCast v nft nft'
-reducePairCast _ _ _ _ _ = return Nothing
+reducePairCast _ _ _ _ _ _ = return Nothing
 
 equalsType :: NFType -> GType -> Bool
 equalsType (NFFunc (FuncType _ _ TDyn TDyn)) (GFunc _) = True

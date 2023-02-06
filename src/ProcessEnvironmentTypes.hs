@@ -40,7 +40,9 @@ instance Show FuncType where
 -- data NetworkAddress = NetworkAddress {hostname :: String, port :: String}
 --   deriving (Eq, Show)
 
-type ServerSocket = (MVar.MVar (Map.Map String (NCon.NetworkConnection Value)), MVar.MVar [(String, Type)], String)
+type ServerSocket = (MVar.MVar [(String, Type)], String)
+
+type VChanConnections = MVar.MVar (Map.Map String (NCon.NetworkConnection Value))
 
 type ValueRepr = String
 

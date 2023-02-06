@@ -28,4 +28,4 @@ import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 
 -- | the interpretation monad
 -- type InterpretM a = T.ReaderT (PEnv, (MVar.MVar (Map.Map Int ServerSocket), MVar.MVar ActiveConnections)) IO a
-type InterpretM a = T.ReaderT (PEnv, (MVar.MVar (Map.Map Int ServerSocket), NMC.ActiveConnections)) IO a
+type InterpretM a = T.ReaderT (PEnv, (MVar.MVar (Map.Map Int ServerSocket), VChanConnections, NMC.ActiveConnections)) IO a

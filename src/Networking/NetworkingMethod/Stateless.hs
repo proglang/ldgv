@@ -87,8 +87,8 @@ waitForConversation ac hostname port waitTime tries = do
         Nothing -> waitForConversation ac hostname port waitTime tries
 
 
-acceptConversations :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> MVar.MVar (Map.Map Int ServerSocket) -> IO ServerSocket
-acceptConversations ac connectionhandler port socketsmvar = do
+acceptConversations :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> MVar.MVar (Map.Map Int ServerSocket) ->  VChanConnections -> IO ServerSocket
+acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
     sockets <- MVar.takeMVar socketsmvar
     case Map.lookup port sockets of
         Just socket -> do
@@ -96,15 +96,15 @@ acceptConversations ac connectionhandler port socketsmvar = do
             return socket
         Nothing -> do
             Config.traceIO "Creating socket!"
-            (mvar, clientlist) <- createServer ac connectionhandler port
+            clientlist <- createServer ac connectionhandler port vchanconnections
             Config.traceIO "Socket created"
-            let newsocket = (mvar, clientlist, show port)
+            let newsocket = (clientlist, show port)
             let updatedMap = Map.insert port newsocket sockets
             MVar.putMVar socketsmvar updatedMap
             return newsocket
     where 
-        createServer :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> IO (MVar.MVar (Map.Map String (NetworkConnection Value)), MVar.MVar [(String, Syntax.Type)])
-        createServer activeCons connectionhandler port = do
+        createServer :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> VChanConnections -> IO (MVar.MVar [(String, Syntax.Type)])
+        createServer activeCons connectionhandler port vchanconnections = do
             -- serverid <- UserID.newRandomUserID
             sock <- socket AF_INET Stream 0
             setSocketOption sock ReuseAddr 1
@@ -116,12 +116,12 @@ acceptConversations ac connectionhandler port socketsmvar = do
             addrInfo <- getAddrInfo (Just hints) Nothing $ Just $ show port
             bind sock $ addrAddress $ head addrInfo
             listen sock 1024
-            mvar <- MVar.newEmptyMVar
-            MVar.putMVar mvar Map.empty
+            -- mvar <- MVar.newEmptyMVar
+            -- MVar.putMVar mvar Map.empty
             clientlist <- MVar.newEmptyMVar
             MVar.putMVar clientlist []
-            forkIO $ acceptClients activeCons connectionhandler mvar clientlist sock $ show port
-            return (mvar, clientlist)
+            forkIO $ acceptClients activeCons connectionhandler vchanconnections clientlist sock $ show port
+            return clientlist
         acceptClients :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> String -> IO ()
         acceptClients activeCons connectionhandler mvar clientlist socket ownport = do
             Config.traceIO "Waiting for clients"
