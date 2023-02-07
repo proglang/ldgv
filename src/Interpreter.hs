@@ -287,22 +287,23 @@ interpretApp _ (VSend v@(VChan cc usedmvar)) w = do
   used <- liftIO $ MVar.readMVar usedmvar
   if used then throw $ VChanIsUsedException $ show v else do
     (env, (sockets, vchanconnections, activeConnections)) <- ask
-    
+
     -- This needs to be modified to look for VChans also in subtypes
     {- case w of
       VChan nc _ _ -> liftIO $ SSem.wait (NCon.ncHandlingIncomingMessage nc)
       _ -> return ()-}
 
     -- liftIO $  NClient.sendValue activeConnections cc w (-1)
-    liftIO $  NClient.sendValue vchanconnections activeConnections cc w (-1)
+    socketsraw <- liftIO $ MVar.readMVar sockets
+    let port = show $ head $ Map.keys socketsraw
+    liftIO $  NClient.sendValue vchanconnections activeConnections cc w port (-1)
 
     {-case w of
       VChan nc _ _ -> liftIO $ SSem.signal (NCon.ncHandlingIncomingMessage nc)
       _ -> return ()-}
 
     -- Disable old VChan
-    newV <- liftIO $ disableOldVChan v
-    return newV
+    liftIO $ disableOldVChan v
 interpretApp e _ _ = throw $ ApplicationException e
 
 interpretLit :: Literal -> Value

@@ -69,8 +69,8 @@ newEmulatedConnection mvar = do
     incomingMsg2 <- SSem.new 1
     let nc1 = NetworkConnection read write (Just userid2) (Just userid) connectionstate incomingMsg
     let nc2 = NetworkConnection read2 write2 (Just userid) (Just userid2) connectionstate2 incomingMsg2
-    let ncmap1 = Map.insert userid nc1 ncmap
-    let ncmap2 = Map.insert userid2 nc2 ncmap1
+    let ncmap1 = Map.insert userid2 nc1 ncmap
+    let ncmap2 = Map.insert userid nc2 ncmap1
     MVar.putMVar mvar ncmap2
     return (nc1, nc2)
 
