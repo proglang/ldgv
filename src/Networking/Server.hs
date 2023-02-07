@@ -40,6 +40,10 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
     let userid = getUserID deserialmessages
     netcon <- MVar.readMVar mvar
 
+    clientHostaddress <- case snd clientsocket of
+        SockAddrInet _ hostname -> return $ hostaddressTypeToString hostname
+        _ -> return ""
+
     -- MVar.putMVar mvar netcon
     case Map.lookup userid netcon of 
         Just networkcon -> do -- SSem.withSem (ncHandlingIncomingMessage networkcon) $ do
@@ -52,7 +56,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                     unless redirectRequest $
                         case deserialmessages of
                             NewValue userid count val -> do
-                                handleNewValue activeCons mvar userid count val ownport hdl
+                                handleNewValue activeCons mvar userid count val ownport clientHostaddress hdl
                             IntroduceClient userid clientport syntype-> do
                                 handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
                             RequestSync userid count -> do
@@ -110,9 +114,10 @@ checkAndSendRedirectRequest handle ncmap userid = do
                     return True
                 _ -> return False
 
-handleNewValue :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Int -> Value -> String -> NC.ConversationOrHandle -> IO ()
-handleNewValue activeCons mvar userid count val ownport hdl = do
+handleNewValue :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> Int -> Value -> String -> String -> NC.ConversationOrHandle -> IO ()
+handleNewValue activeCons mvar userid count rawval ownport partneraddress hdl = do
     -- networkconnectionmap <- MVar.takeMVar mvar
+    let val = setPartnerHostAddress partneraddress rawval
     networkconnectionmap <- MVar.readMVar mvar
     case Map.lookup userid networkconnectionmap of
         Just networkconnection -> do
@@ -127,6 +132,37 @@ handleNewValue activeCons mvar userid count val ownport hdl = do
             NC.sendResponse hdl Messages.Okay
             Config.traceNetIO "Error during recieving a networkmessage: Introduction is needed prior to sending values!"
     -- MVar.putMVar mvar networkconnectionmap
+
+
+setPartnerHostAddress ::  String -> Value -> Value
+setPartnerHostAddress address input = case input of
+    VSend v -> VSend $ setPartnerHostAddress address v
+    VPair v1 v2 ->
+        let nv1 = setPartnerHostAddress address v1 in
+        let nv2 = setPartnerHostAddress address v2 in
+        VPair nv1 nv2
+    VFunc penv a b -> 
+        let newpenv = setPartnerHostAddressPEnv address penv in
+        VFunc newpenv a b
+    VDynCast v g -> VDynCast (setPartnerHostAddress address v) g
+    VFuncCast v a b -> VFuncCast (setPartnerHostAddress address v) a b
+    VRec penv a b c d -> 
+        let newpenv = setPartnerHostAddressPEnv address penv in
+        VRec newpenv a b c d 
+    VNewNatRec penv a b c d e f g -> 
+        let newpenv = setPartnerHostAddressPEnv address penv in
+        VNewNatRec newpenv a b c d e f g
+    VChanSerial r w p o c -> do
+        let (hostname, port) = c
+        VChanSerial r w p o (if hostname == "" then address else hostname, port)
+    _ -> input -- return input
+    where
+        setPartnerHostAddressPEnv :: String -> [(String, Value)] -> [(String, Value)]
+        setPartnerHostAddressPEnv _ [] = []
+        setPartnerHostAddressPEnv clientHostaddress penvs@(x:xs) =
+            let newval = setPartnerHostAddress clientHostaddress $ snd x in
+            (fst x, newval):setPartnerHostAddressPEnv clientHostaddress xs
+
 
 contactNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
 contactNewPeers activeCons input ownport = case input of

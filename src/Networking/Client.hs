@@ -93,7 +93,9 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
     case mbyresponse of
         Just response -> case response of
             Okay -> Config.traceNetIO $ "Message okay: "++serializedMessage
-            OkaySync history -> do
+            OkaySync historyraw -> do
+                -- let history = map (setPartnerHostAddress  historyraw
+                let history = historyraw
                 Config.traceNetIO $ "Message okay: "++serializedMessage
                 serializedResponse <- NSerialize.serialize response
                 Config.traceNetIO $ "Got syncronization values: "++serializedResponse
@@ -125,6 +127,36 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
                         else Config.traceNetIO "Old communication partner offline! No longer retrying"
 
                 _ -> Config.traceNetIO "Error when sending message: This channel is disconnected while sending"
+
+
+setPartnerHostAddress ::  String -> Value -> Value
+setPartnerHostAddress address input = case input of
+    VSend v -> VSend $ setPartnerHostAddress address v
+    VPair v1 v2 ->
+        let nv1 = setPartnerHostAddress address v1 in
+        let nv2 = setPartnerHostAddress address v2 in
+        VPair nv1 nv2
+    VFunc penv a b -> 
+        let newpenv = setPartnerHostAddressPEnv address penv in
+        VFunc newpenv a b
+    VDynCast v g -> VDynCast (setPartnerHostAddress address v) g
+    VFuncCast v a b -> VFuncCast (setPartnerHostAddress address v) a b
+    VRec penv a b c d -> 
+        let newpenv = setPartnerHostAddressPEnv address penv in
+        VRec newpenv a b c d 
+    VNewNatRec penv a b c d e f g -> 
+        let newpenv = setPartnerHostAddressPEnv address penv in
+        VNewNatRec newpenv a b c d e f g
+    VChanSerial r w p o c -> do
+        let (hostname, port) = c
+        VChanSerial r w p o (if hostname == "" then address else hostname, port)
+    _ -> input -- return input
+    where
+        setPartnerHostAddressPEnv :: String -> [(String, Value)] -> [(String, Value)]
+        setPartnerHostAddressPEnv _ [] = []
+        setPartnerHostAddressPEnv clientHostaddress penvs@(x:xs) =
+            let newval = setPartnerHostAddress clientHostaddress $ snd x in
+            (fst x, newval):setPartnerHostAddressPEnv clientHostaddress xs
 
 
 printConErr :: String -> String -> IOException -> IO ()
@@ -198,7 +230,7 @@ setRedirectRequests vchanconmvar newhost newport ownport input = case input of
                     let mbypartner = Map.lookup (Data.Maybe.fromMaybe "" userid) vchanconnections  
                     case mbypartner of
                         Just partner -> do
-                            MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest "127.0.0.1" ownport newhost newport -- Setting this to 127.0.0.1 is a temporary hack
+                            MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest "" ownport newhost newport -- Setting this to 127.0.0.1 is a temporary hack
                             oldconectionstatePartner <- MVar.takeMVar $ ncConnectionState partner
                             MVar.putMVar (ncConnectionState partner) $ NCon.Connected newhost newport
                         Nothing -> do 
