@@ -244,3 +244,6 @@ sayGoodbye activeCons = do
 
 isClosed :: Conversation -> IO Bool
 isClosed = hIsClosed . fst . convHandle
+
+getPartnerHostaddress :: Conversation -> String
+getPartnerHostaddress = Stateless.getPartnerHostaddress . convHandle

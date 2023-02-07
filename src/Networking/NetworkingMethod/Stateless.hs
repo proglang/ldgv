@@ -189,10 +189,18 @@ getSocketFromHandle socket = do
     hSetBuffering hdl LineBuffering
     return hdl
 
-
 sayGoodbye :: ActiveConnectionsStateless -> IO ()
 sayGoodbye _ = return ()
 
-
 isClosed :: Conversation -> IO Bool
 isClosed = hIsClosed . fst
+
+hostaddressTypeToString :: HostAddress -> String
+hostaddressTypeToString hostaddress = do
+    let (a, b, c, d) = hostAddressToTuple hostaddress
+    show a ++ "." ++ show b ++ "."++ show c ++ "." ++ show d
+
+getPartnerHostaddress :: Conversation -> String
+getPartnerHostaddress conv@(handle, (socket, sockAddress)) = case sockAddress of
+    SockAddrInet _ hostaddress -> hostaddressTypeToString hostaddress
+    _ -> ""

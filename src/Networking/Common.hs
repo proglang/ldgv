@@ -38,4 +38,6 @@ sayGoodbye con = NetMethod.sayGoodbye con
 
 isClosed con = NetMethod.isClosed con
 
+getPartnerHostaddress conv = NetMethod.getPartnerHostaddress conv
+
 

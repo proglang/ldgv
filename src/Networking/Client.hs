@@ -95,7 +95,8 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             Okay -> Config.traceNetIO $ "Message okay: "++serializedMessage
             OkaySync historyraw -> do
                 -- let history = map (setPartnerHostAddress  historyraw
-                let history = historyraw
+                -- let history = historyraw
+                let history = map (setPartnerHostAddress $ NC.getPartnerHostaddress $ Data.Maybe.fromJust mbycon) historyraw
                 Config.traceNetIO $ "Message okay: "++serializedMessage
                 serializedResponse <- NSerialize.serialize response
                 Config.traceNetIO $ "Got syncronization values: "++serializedResponse
