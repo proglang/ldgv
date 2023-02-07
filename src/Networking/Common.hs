@@ -15,7 +15,7 @@ import qualified Networking.NetworkingMethod.Fast as NetMethod
 
 type ConversationOrHandle = NetMethod.Conversation 
 
--- type ConversationOrHandle = Handle
+-- type ConversationOrHandle = (Handle, (Socket, SockAddr)) 
 
 -- The compiler sadly compains when these things get eta reduced :/
 sendMessage con ser = NetMethod.sendMessage con ser

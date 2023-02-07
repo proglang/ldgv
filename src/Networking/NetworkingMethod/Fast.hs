@@ -26,7 +26,7 @@ import qualified Control.Concurrent.SSem as SSem
 
 type ResponseMapMVar = MVar.MVar (Map.Map String (String, Responses))
 
-data Conversation = Conversation {convID :: String, convHandle :: Handle, convRespMap :: ResponseMapMVar, convSending :: SSem.SSem}
+data Conversation = Conversation {convID :: String, convHandle :: Stateless.Conversation, convRespMap :: ResponseMapMVar, convSending :: SSem.SSem}
 
 type ConnectionHandler = ActiveConnectionsFast -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Conversation -> String -> String -> Messages -> IO ()
 
@@ -42,7 +42,7 @@ sendMessage conv value = SSem.withSem (convSending conv) $ Stateless.sendMessage
 sendResponse :: Conversation -> Responses -> IO ()
 sendResponse conv value = SSem.withSem (convSending conv) $ Stateless.sendResponse (convHandle conv) (ConversationResponse (convID conv) value)
 
-conversationHandler :: Handle -> IO Connection
+conversationHandler :: Stateless.Conversation -> IO Connection
 conversationHandler handle = do
     chan <- Chan.newChan
     mvar <- MVar.newEmptyMVar
@@ -69,8 +69,8 @@ conversationHandlerChangeHandle handle chan mvar sem = do
                     MVar.takeMVar isClosed
                     MVar.putMVar isClosed True
                     forkIO $ catch (do
-                        closed <- hIsClosed handle
-                        unless closed $ hClose handle) onException
+                        closed <- hIsClosed $ fst handle
+                        unless closed $ hClose $ fst handle) onException
                     return ()
             )
         )
@@ -99,7 +99,7 @@ recieveResponse conv{-ersation@(cid, handle, mvar, sem)-} waitTime tries = do
             return $ Just deserial
         Nothing -> do
             MVar.putMVar (convRespMap conv) responsesMap
-            handleClosed <- hIsClosed (convHandle conv)
+            handleClosed <- hIsClosed $ fst (convHandle conv)
             if tries /= 0 && not handleClosed then do
                 -- Config.traceNetIO "Nothing yet retrying!" 
                 threadDelay waitTime
@@ -204,11 +204,12 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
         acceptClient :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> String -> IO ()
         acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
             hdl <- Stateless.getSocketFromHandle $ fst clientsocket
-            connection@(handle, isClosed, chan, responsesMvar, sem) <- conversationHandler hdl
+            let statelessConv = (hdl, clientsocket)
+            connection@(handle, isClosed, chan, responsesMvar, sem) <- conversationHandler statelessConv 
             -- NC.recieveMessage hdl VG.parseMessages (\_ -> return ()) $ connectionhandler mvar clientlist clientsocket hdl ownport
             forkIO $ forever (do
                 (conversationid, (serial, deserial)) <- Chan.readChan chan
-                connectionhandler activeCons mvar clientlist clientsocket (Conversation conversationid hdl responsesMvar sem) ownport serial deserial
+                connectionhandler activeCons mvar clientlist clientsocket (Conversation conversationid statelessConv responsesMvar sem) ownport serial deserial
                 )
             return ()
             -- hClose hdl  
@@ -224,10 +225,10 @@ sayGoodbye activeCons = do
     runAll sayGoodbyeConnection connections
     where
         sayGoodbyeConnection :: Connection -> IO ()
-        sayGoodbyeConnection connection@(handle, isClosed, messages, responses, sem) = do
+        sayGoodbyeConnection connection@(statelessconv@(handle, _), isClosed, messages, responses, sem) = do
             forkIO $ catch (do
                 handleClosed <- MVar.readMVar isClosed
-                unless handleClosed $ SSem.withSem sem $ Stateless.sendMessage handle ConversationCloseAll
+                unless handleClosed $ SSem.withSem sem $ Stateless.sendMessage statelessconv ConversationCloseAll
                 unless handleClosed $ SSem.withSem sem $ hPutStr handle " "
                 hFlushAll handle
                 hClose handle
@@ -242,4 +243,4 @@ sayGoodbye activeCons = do
 
 
 isClosed :: Conversation -> IO Bool
-isClosed con = hIsClosed $ convHandle con
+isClosed = hIsClosed . fst . convHandle
