@@ -3,6 +3,8 @@ module Networking.DirectionalConnection where
 import Control.Concurrent.MVar
 import Control.Concurrent
 import qualified Control.Concurrent.SSem as SSem
+import qualified System.Directory
+import Control.Monad
 
 data DirectionalConnection a = DirectionalConnection { messages :: MVar [a], messagesUnreadStart :: MVar Int, messagesCount :: MVar Int, readLock :: SSem.SSem}
     deriving Eq
@@ -70,17 +72,23 @@ readUnreadMessage connection = do
     maybeval <- readUnreadMessageMaybe connection
     case maybeval of
         Nothing -> do 
-            threadDelay 1000
+            threadDelay 5000
             readUnreadMessage connection
         Just val -> return val
 
 readUnreadMessageInterpreter :: DirectionalConnection a -> IO a
-readUnreadMessageInterpreter connection = do 
+readUnreadMessageInterpreter connection = do
+    -- debugExists <- System.Directory.doesFileExist "print.me"
+    -- when debugExists $ putStrLn "DC: Trying to read message"
     maybeval <- SSem.withSem (readLock connection) $ readUnreadMessageMaybe connection
+    -- when debugExists $ putStrLn "DC: Read message"
+    -- allVals <- countMessages connection
+    -- currentRead <- readMVar $ messagesUnreadStart connection
+    -- when debugExists $ putStrLn $ "DC: "++ show currentRead++" out of "++show allVals
     case maybeval of
         Nothing -> do 
-            threadDelay 1000
-            readUnreadMessage connection
+            threadDelay 5000
+            readUnreadMessageInterpreter connection
         Just val -> return val
 
 serializeConnection :: DirectionalConnection a -> IO ([a], Int)

@@ -64,6 +64,7 @@ library:
   - network-run
   - random
   - SafeSemaphore >=0.10.1
+  - directory
 
 tests:
   ldgv-test:
