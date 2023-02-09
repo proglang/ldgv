@@ -21,7 +21,7 @@ import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
 import qualified Syntax
 
-type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Messages -> IO ()
+type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Conversation -> String -> String -> Messages -> IO ()
 
 type Conversation = ConversationStateless 
 
@@ -136,7 +136,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
         acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
             hdl <- getSocketFromHandle $ fst clientsocket
             let conv = (hdl, clientsocket)
-            recieveMessageInternal conv VG.parseMessages (\_ -> return ()) $ connectionhandler activeCons mvar clientlist clientsocket hdl ownport
+            recieveMessageInternal conv VG.parseMessages (\_ -> return ()) $ connectionhandler activeCons mvar clientlist clientsocket conv ownport
             hClose hdl
 
 
