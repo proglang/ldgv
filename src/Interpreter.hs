@@ -43,6 +43,7 @@ import qualified Networking.UserID as UserID
 import qualified Networking.Messages as Messages
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkConnection as NCon
+import qualified Networking.Serialize
 -- import ProcessEnvironment (CommunicationChannel(CommunicationChannel, ccChannelState, ccPartnerUserID), ConnectionInfo (ciReadChannel, ciWriteChannel))
 -- import ProcessEnvironment
 import qualified Control.Concurrent as MVar
@@ -208,7 +209,7 @@ eval = \case
         newV <- liftIO $ disableOldVChan v
         return $ VPair val newV
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
-  Accept e t -> do
+  Accept e tname -> do
     liftIO $ C.traceIO "Accepting new client!"
 
     val <- interpret' e
@@ -218,7 +219,16 @@ eval = \case
         (clientlist, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets vchanconnections
         -- newuser <- liftIO $ Chan.readChan chan
         liftIO $ C.traceIO "Searching for correct communicationpartner"
-        newuser <- liftIO $ NS.findFittingClient clientlist t -- There is still an issue
+
+
+        t <- case tname of 
+          TName _ s -> maybe (throw $ LookupException s) (\(VType t) -> return t) (lookup s env)
+          _ -> return tname
+
+        -- tserial <- liftIO $ Networking.Serialize.serialize t
+        -- C.traceNetIO $ "Interpreter: " ++ tserial
+
+        newuser <- liftIO $ NS.findFittingClient clientlist (tname, t) -- There is still an issue
         liftIO $ C.traceIO "Client accepted"
         networkconnectionmap <- liftIO $ MVar.readMVar vchanconnections
         case Map.lookup newuser networkconnectionmap of
@@ -230,7 +240,7 @@ eval = \case
             return $ VChan networkconnection used
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
-  Connect e0 t e1 e2-> do
+  Connect e0 tname e1 e2-> do
     r <- liftIO DC.newConnection
     w <- liftIO DC.newConnection
     liftIO $ C.traceIO "Client trying to connect"
@@ -245,7 +255,11 @@ eval = \case
             portVal <- interpret' e2
             case portVal of
               VInt port -> do
-                liftIO $ NClient.initialConnect activeConnections vchanconnections address (show port) ownport t
+                t <- case tname of 
+                  TName _ s -> maybe (throw $ LookupException s) (\(VType t) -> return t) (lookup s env)
+                  _ -> return tname
+
+                liftIO $ NClient.initialConnect activeConnections vchanconnections address (show port) ownport (tname, t)
               _ -> throw $ NotAnExpectedValueException "VInt" portVal
           _ -> throw $ NotAnExpectedValueException "VString" addressVal
       _ -> throw $ NotAnExpectedValueException "VInt" val

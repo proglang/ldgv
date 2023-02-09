@@ -47,7 +47,7 @@ instance Serializable Responses where
 
 instance Serializable Messages where
   serialize = \case
-      IntroduceClient p port t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sLast t
+      IntroduceClient p port tn t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sNext tn $ sLast t
       NewValue p c v -> serializeLabeledEntryMulti "NNewValue" p $ sNext c $ sLast v
       SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
       RequestSync p count -> serializeLabeledEntryMulti "NRequestSync" p $ sLast count

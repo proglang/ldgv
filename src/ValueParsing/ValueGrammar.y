@@ -279,7 +279,7 @@ GType : gunit {GUnit}
       | gdouble {GDouble}
       | gstring {GString}
 
-Messages : nintroduceclient '(' String ')' '(' String ')' '(' Type ')' {IntroduceClient $3 $6 $9}
+Messages : nintroduceclient '(' String ')' '(' String ')' '(' Type ')' '(' Type ')' {IntroduceClient $3 $6 $9 $12}
          | nnewvalue '(' String ')' '(' int ')' '(' Values ')' {NewValue $3 $6 $9}
          | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
          | nrequestsync '(' String ')' '(' int ')' {RequestSync $3 $6}

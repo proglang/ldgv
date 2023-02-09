@@ -35,7 +35,7 @@ import Control.Monad
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 import qualified Control.Concurrent.SSem as SSem
 
-handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Messages -> IO ()
+handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Messages -> IO ()
 handleClient activeCons mvar clientlist clientsocket hdl ownport message deserialmessages = do
     let userid = getUserID deserialmessages
     netcon <- MVar.readMVar mvar
@@ -52,13 +52,15 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
             busy <- SSem.tryWait $ ncHandlingIncomingMessage networkcon
             case busy of
                 Just num -> do
+                    Config.traceNetIO "Not busy handling message!"
                     redirectRequest <- checkAndSendRedirectRequest hdl netcon userid
-                    unless redirectRequest $
+                    unless redirectRequest $ do 
+                        Config.traceNetIO "No redirect request!"
                         case deserialmessages of
                             NewValue userid count val -> do
                                 handleNewValue activeCons mvar userid count val ownport clientHostaddress hdl
-                            IntroduceClient userid clientport syntype-> do
-                                handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
+                            IntroduceClient userid clientport synname syntype-> do
+                                handleIntroduceClient mvar clientlist clientsocket hdl userid clientport (syntype, syntype)
                             RequestSync userid count -> do
                                 handleRequestSync mvar userid count hdl
                             SyncIncoming userid values -> do
@@ -89,12 +91,12 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
         Nothing -> do
             Config.traceNetIO "Recieved message from unknown connection!"
             case deserialmessages of
-                IntroduceClient userid clientport syntype-> do
-                    handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype
+                IntroduceClient userid clientport synname syntype-> do
+                    handleIntroduceClient mvar clientlist clientsocket hdl userid clientport (synname, syntype)
                 _ -> do
                     serial <- NSerialize.serialize deserialmessages
-                    Config.traceIO $ "Error unsupported networkmessage: "++ serial
-                    Config.traceIO "This is probably a timing issue! Lets resend later"
+                    Config.traceNetIO $ "    Error unsupported networkmessage: "++ serial
+                    Config.traceNetIO "    This is probably a timing issue! Lets resend later"
                     NC.sendResponse hdl Messages.Wait
     Config.traceNetIO $ "    Message: " ++ message
 
@@ -209,7 +211,7 @@ contactNewPeers activeCons input ownport = case input of
             -- return $ (fst x, newval):rest
             return ()
 
-handleIntroduceClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Syntax.Type -> IO ()
+handleIntroduceClient :: MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> (Syntax.Type, Syntax.Type) -> IO ()
 handleIntroduceClient mvar clientlist clientsocket hdl userid clientport syntype = do
     networkconnectionmap <- MVar.takeMVar mvar
     case Map.lookup userid networkconnectionmap of
@@ -269,7 +271,7 @@ hostaddressTypeToString hostaddress = do
     let (a, b, c, d) = hostAddressToTuple hostaddress
     show a ++ "." ++ show b ++ "."++ show c ++ "." ++ show d
 
-findFittingClientMaybe :: MVar.MVar [(String, Syntax.Type)] -> Syntax.Type -> IO (Maybe String)
+findFittingClientMaybe :: MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Syntax.Type, Syntax.Type) -> IO (Maybe String)
 findFittingClientMaybe clientlist desiredType = do
     clientlistraw <- MVar.takeMVar clientlist
     let newclientlistrawAndReturn = fFCMRaw clientlistraw desiredType
@@ -277,14 +279,17 @@ findFittingClientMaybe clientlist desiredType = do
     MVar.putMVar clientlist $ fst newclientlistrawAndReturn
     return $ snd newclientlistrawAndReturn
     where
-        fFCMRaw :: [(String, Syntax.Type)] -> Syntax.Type -> ([(String, Syntax.Type)], Maybe String)
+        fFCMRaw :: [(String, (Syntax.Type, Syntax.Type))] -> (Syntax.Type, Syntax.Type) -> ([(String, (Syntax.Type, Syntax.Type))], Maybe String)
         fFCMRaw [] _ = ([], Nothing)
-        fFCMRaw (x:xs) desiredtype = if snd x == Syntax.dualof desiredtype then (xs, Just $ fst x) else do
+        fFCMRaw (x:xs) desiredtype = if compare (snd x) desiredtype then (xs, Just $ fst x) else do
             let nextfFCMRaw = fFCMRaw xs desiredtype
             (x:(fst nextfFCMRaw), snd nextfFCMRaw)
+        
+        compare :: (Syntax.Type, Syntax.Type) -> (Syntax.Type, Syntax.Type) -> Bool
+        compare a@(aName, aType) b@(bName, bType) = aName == Syntax.dualof bName && aType == bType
 
 -- This halts until a fitting client is found
-findFittingClient :: MVar.MVar [(String, Syntax.Type)] -> Syntax.Type -> IO String
+findFittingClient :: MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Syntax.Type, Syntax.Type) -> IO String
 findFittingClient clientlist desiredType = do
     mbystring <- findFittingClientMaybe clientlist desiredType
     case mbystring of

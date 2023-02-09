@@ -8,9 +8,9 @@ import Networking.Messages
 import qualified Control.Concurrent.SSem as SSem
 import Network.Socket
 
-type ActiveConnections = ActiveConnectionsStateless
+-- type ActiveConnections = ActiveConnectionsStateless
 
--- type ActiveConnections = ActiveConnectionsFast
+type ActiveConnections = ActiveConnectionsFast
 
 data ActiveConnectionsStateless = ActiveConnectionsStateless
 
