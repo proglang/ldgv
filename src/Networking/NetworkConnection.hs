@@ -8,6 +8,7 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
 
 data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: Maybe String, ncOwnUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
+                         | NetworkConnectionPlaceholder {ncPartnerUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState}
     deriving Eq
 
 data ConnectionState = Connected {csHostname :: String, csPort :: String}
@@ -15,6 +16,11 @@ data ConnectionState = Connected {csHostname :: String, csPort :: String}
                      | Emulated
                      | RedirectRequest {csHostname :: String, csPort :: String, csRedirectHostname :: String, csRedirectPort :: String} -- Asks to redirect to this connection
     deriving (Eq, Show)
+
+newPlaceHolderConnection :: String -> String -> String -> IO (NetworkConnection a)
+newPlaceHolderConnection partnerID hostname port = do
+    connectionstate <- MVar.newMVar $ Connected hostname port
+    return $ NetworkConnectionPlaceholder (Just partnerID) connectionstate
 
 
 newNetworkConnection :: String -> String -> String -> String -> IO (NetworkConnection a)
@@ -89,5 +95,7 @@ serializeNetworkConnection nc = do
 
 changePartnerAddress :: NetworkConnection a -> String -> String -> IO ()
 changePartnerAddress con hostname port = do
+    putStrLn "Tryping to take MVar"
     _ <- MVar.takeMVar $ ncConnectionState con
+    putStrLn "Took MVar"
     MVar.putMVar (ncConnectionState con) $ Connected hostname port
