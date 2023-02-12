@@ -95,7 +95,5 @@ serializeNetworkConnection nc = do
 
 changePartnerAddress :: NetworkConnection a -> String -> String -> IO ()
 changePartnerAddress con hostname port = do
-    putStrLn "Tryping to take MVar"
     _ <- MVar.takeMVar $ ncConnectionState con
-    putStrLn "Took MVar"
     MVar.putMVar (ncConnectionState con) $ Connected hostname port

@@ -54,8 +54,14 @@ writeMessageIfNext connection count message = do
 -- This relies on the message array giving having the same first entrys as the internal messages
 syncMessages :: DirectionalConnection a -> [a] -> IO ()
 syncMessages connection msgs = do
+    mymessagesCount <- takeMVar $ messagesCount connection
     mymessages <- takeMVar $ messages connection
-    if length mymessages < length msgs then putMVar (messages connection) msgs else putMVar (messages connection) mymessages
+    if length mymessages < length msgs then do 
+        putMVar (messages connection) msgs
+        putMVar (messagesCount connection) $ length msgs
+    else do 
+        putMVar (messages connection) mymessages
+        putMVar (messagesCount connection) mymessagesCount
 
 -- Gives all outMessages until this point
 allMessages :: DirectionalConnection a -> IO [a]

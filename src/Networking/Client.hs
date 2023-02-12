@@ -50,10 +50,8 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
             valcleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valcleaned
             messagesCount <- DC.countMessages $ ncWrite networkconnection
-            catch (do
-                tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
-                disableVChans val
-                ) $ printConErr hostname port
+            tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
+            disableVChans val
         NCon.Emulated -> do
             vchancons <- MVar.readMVar vchanconsmvar
             valCleaned <- replaceVChan val
@@ -71,7 +69,7 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port -> do
-            catch ( tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError) $ printConErr hostname port
+            tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
         _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
 
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Messages -> Int -> IO ()
