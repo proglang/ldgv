@@ -8,7 +8,7 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
 
 data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: Maybe String, ncOwnUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
-                         | NetworkConnectionPlaceholder {ncPartnerUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState}
+                         | NetworkConnectionPlaceholder {ncPartnerUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
     deriving Eq
 
 data ConnectionState = Connected {csHostname :: String, csPort :: String}
@@ -20,7 +20,8 @@ data ConnectionState = Connected {csHostname :: String, csPort :: String}
 newPlaceHolderConnection :: String -> String -> String -> IO (NetworkConnection a)
 newPlaceHolderConnection partnerID hostname port = do
     connectionstate <- MVar.newMVar $ Connected hostname port
-    return $ NetworkConnectionPlaceholder (Just partnerID) connectionstate
+    incomingMsg <- SSem.new 1
+    return $ NetworkConnectionPlaceholder (Just partnerID) connectionstate incomingMsg
 
 
 newNetworkConnection :: String -> String -> String -> String -> IO (NetworkConnection a)
