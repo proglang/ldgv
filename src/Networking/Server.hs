@@ -138,10 +138,15 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                     NewValue userid count val -> do
                                         ND.lockInterpreterReads (ncRead networkcon)
                                         success <- ND.writeMessageIfNext (ncRead networkcon) count val
-                                        incomingCount <- ND.countMessages (ncRead networkcon)
-                                        unless success $ NC.sendNetworkMessage activeCons networkcon (Messages.RequestSync (Data.Maybe.fromMaybe "" (ncOwnUserID networkcon)) incomingCount) (-1)
+                                        recievedNetLog message $ if success then "Message written successfully" else "Message out of sync"
+                                        unless success $ do 
+                                            incomingCount <- ND.countMessages (ncRead networkcon)
+                                            NC.sendNetworkMessage activeCons networkcon (Messages.RequestSync (Data.Maybe.fromMaybe "" (ncOwnUserID networkcon)) incomingCount) (-1)
+                                            recievedNetLog message "Send sync request"
                                         contactNewPeers activeCons val ownport
+                                        recievedNetLog message "Messaged peers"
                                         NC.sendResponse hdl Messages.Okay
+                                        recievedNetLog message "Sent okay"
                                         ND.unlockInterpreterReads (ncRead networkcon)
                                         return Nothing
                                     IntroduceNewPartnerAddress userid port -> do
