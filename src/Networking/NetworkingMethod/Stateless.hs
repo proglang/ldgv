@@ -151,8 +151,8 @@ getFromNetworkThreadWithModification conv func threadid mvar waitTime currentTry
         case mbyResult of
             Just result -> return $ func result
             Nothing -> do
-                convClosed <- Data.Maybe.maybe (return False) (hIsClosed . fst) conv
-                if currentTry /= 0 && not convClosed then do
+                -- convClosed <- Data.Maybe.maybe (return False) (hIsClosed . fst) conv
+                if currentTry /= 0 {-&& not convClosed-} then do
                     threadDelay waitTime
                     getFromNetworkThreadWithModification conv func threadid mvar waitTime $ max (currentTry-1) (-1)
                 else do
@@ -193,8 +193,8 @@ getHandleFromSocket socket = do
 sayGoodbye :: ActiveConnectionsStateless -> IO ()
 sayGoodbye _ = return ()
 
-isClosed :: Conversation -> IO Bool
-isClosed = hIsClosed . fst
+{-isClosed :: Conversation -> IO Bool
+isClosed = hIsClosed . fst-}
 
 hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do

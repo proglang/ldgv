@@ -69,8 +69,9 @@ conversationHandlerChangeHandle handle chan mvar sem = do
                     MVar.takeMVar isClosed
                     MVar.putMVar isClosed True
                     forkIO $ catch (do
-                        closed <- hIsClosed $ fst handle
-                        unless closed $ hClose $ fst handle) onException
+                        -- closed <- hIsClosed $ fst handle
+                        -- unless closed $ 
+                        hClose $ fst handle) onException
                     return ()
             )
         )
@@ -242,8 +243,8 @@ sayGoodbye activeCons = do
         onException _ = return ()
 
 
-isClosed :: Conversation -> IO Bool
-isClosed = hIsClosed . fst . convHandle
+{-isClosed :: Conversation -> IO Bool
+isClosed = hIsClosed . fst . convHandle-}
 
 getPartnerHostaddress :: Conversation -> String
 getPartnerHostaddress = Stateless.getPartnerHostaddress . convHandle
