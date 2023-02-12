@@ -54,16 +54,16 @@ conversationHandlerChangeHandle handle chan mvar sem = do
     isClosed <- MVar.newEmptyMVar
     MVar.putMVar isClosed False
     forkIO $ whileNotMVar isClosed (do
-        -- Config.traceNetIO "Waiting for new conversation"
+        Config.traceNetIO "Waiting for new conversation"
         Stateless.recieveMessageInternal handle VG.parseConversation (\_ -> return ()) (\mes des -> do
-            -- Config.traceNetIO "Got new conversation"  
+            Config.traceNetIO $ "Got new conversation: " ++ mes
             case des of
                 ConversationMessage cid message -> Chan.writeChan chan (cid, (mes, message))
                 ConversationResponse cid response -> do
-                    -- Config.traceNetIO "Trying to take mvar"
+                    Config.traceNetIO "Trying to take mvar"
                     mymap <- MVar.takeMVar mvar
                     MVar.putMVar mvar $ Map.insert cid (mes, response) mymap
-                    -- Config.traceNetIO "Set responses mvar"
+                    Config.traceNetIO "Set responses mvar"
                 ConversationCloseAll -> do
                     Config.traceNetIO $ "Recieved Message: " ++ mes
                     MVar.takeMVar isClosed
@@ -89,18 +89,18 @@ conversationHandlerChangeHandle handle chan mvar sem = do
 
 
 recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Responses)
-recieveResponse conv{-ersation@(cid, handle, mvar, sem)-} waitTime tries = do
+recieveResponse conv waitTime tries = do
     -- Config.traceNetIO "Trying to take mvar for responses mvar"
-    responsesMap <- MVar.takeMVar $ convRespMap conv
+    responsesMap <- MVar.readMVar $ convRespMap conv
     -- Config.traceNetIO "Got MVar for responses"
     case Map.lookup (convID conv) responsesMap of
         Just (messages, deserial) -> do
-            MVar.putMVar (convRespMap conv) $ Map.delete (convID conv) responsesMap
+            -- MVar.putMVar (convRespMap conv) $ Map.delete (convID conv) responsesMap
             return $ Just deserial
         Nothing -> do
-            MVar.putMVar (convRespMap conv) responsesMap
-            handleClosed <- hIsClosed $ fst (convHandle conv)
-            if tries /= 0 && not handleClosed then do
+            -- MVar.putMVar (convRespMap conv) responsesMap
+            -- handleClosed <- hIsClosed $ fst (convHandle conv)
+            if tries /= 0 {-&& not handleClosed-} then do
                 -- Config.traceNetIO "Nothing yet retrying!" 
                 threadDelay waitTime
                 recieveResponse conv waitTime $ max (tries-1) (-1) else return Nothing
@@ -203,7 +203,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
 
         acceptClient :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> String -> IO ()
         acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
-            hdl <- Stateless.getSocketFromHandle $ fst clientsocket
+            hdl <- Stateless.getHandleFromSocket $ fst clientsocket
             let statelessConv = (hdl, clientsocket)
             connection@(handle, isClosed, chan, responsesMvar, sem) <- conversationHandler statelessConv 
             -- NC.recieveMessage hdl VG.parseMessages (\_ -> return ()) $ connectionhandler mvar clientlist clientsocket hdl ownport

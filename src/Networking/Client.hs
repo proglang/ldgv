@@ -75,58 +75,75 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Messages -> Int -> IO ()
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
     serializedMessage <- NSerialize.serialize message
-    Config.traceNetIO $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection)
-    Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
-    Config.traceNetIO $ "    Message: " ++ serializedMessage
+    --Config.traceNetIO $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection)
+    --Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
+    --Config.traceNetIO $ "    Message: " ++ serializedMessage
+    sendingNetLog serializedMessage $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection) ++ " Over: " ++ hostname ++ ":" ++ port
 
     mbycon <- NC.startConversation activeCons hostname port 10000 10
     mbyresponse <- case mbycon of
         Just con -> do
+            sendingNetLog serializedMessage "Aquired connection"
             NC.sendMessage con message
-            potentialResponse <- NC.recieveResponse con 10000 100
+            sendingNetLog serializedMessage "Sent message"
+            potentialResponse <- NC.recieveResponse con 10000 1000
+            sendingNetLog serializedMessage "Recieved response"
             NC.endConversation con 10000 10
+            sendingNetLog serializedMessage "Ended connection"
             return potentialResponse
-        Nothing -> return Nothing
+        Nothing -> do 
+            sendingNetLog serializedMessage "Connecting unsuccessful"
+            return Nothing
 
     case mbyresponse of
         Just response -> case response of
-            Okay -> Config.traceNetIO $ "Message okay: "++serializedMessage
+            Okay -> sendingNetLog serializedMessage "Message okay"    -- Config.traceNetIO $ "Message okay: "++serializedMessage
             OkaySync historyraw -> do
                 -- let history = map (setPartnerHostAddress  historyraw
                 -- let history = historyraw
                 let history = map (setPartnerHostAddress $ NC.getPartnerHostaddress $ Data.Maybe.fromJust mbycon) historyraw
-                Config.traceNetIO $ "Message okay: "++serializedMessage
+                --Config.traceNetIO $ "Message okay: "++serializedMessage
                 serializedResponse <- NSerialize.serialize response
-                Config.traceNetIO $ "Got syncronization values: "++serializedResponse
+                -- Config.traceNetIO $ "Got syncronization values: "++serializedResponse
                 DC.syncMessages (ncRead networkconnection) history
+                sendingNetLog serializedMessage $ "Message okay; Got syncronization values: "++serializedResponse
             Redirect host port -> do
-                Config.traceNetIO "Communication partner changed address, resending"
+                sendingNetLog serializedMessage "Communication partner changed address, resending"
                 NCon.changePartnerAddress networkconnection host port
                 tryToSendNetworkMessage activeCons networkconnection host port message resendOnError
             Wait -> do
-                Config.traceNetIO "Communication out of sync lets wait!"
+                sendingNetLog serializedMessage "Communication out of sync lets wait!"
                 threadDelay 100000
                 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
-            _ -> Config.traceNetIO "Unknown communication error"
+            _ -> sendingNetLog serializedMessage "Unknown communication error"
 
         Nothing -> do
-            Config.traceNetIO "Error when recieving response"
+            sendingNetLog serializedMessage "Error when recieving response"
             connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
-            when (Data.Maybe.isNothing mbycon) $ Config.traceNetIO "Not connected to peer"
-            Config.traceNetIO $ "Original message: " ++ serializedMessage
+            when (Data.Maybe.isNothing mbycon) $ sendingNetLog serializedMessage "Not connected to peer"
+            -- Config.traceNetIO $ "Original message: " ++ serializedMessage
             case connectionstate of
                 NCon.Connected newhostname newport -> do
+                    {-
                     isClosed <- case mbycon of
                         Just con -> NC.isClosed con
                         Nothing -> return True
                     if resendOnError /= 0 && not isClosed then do
-                        Config.traceNetIO $ "Connected but no answer recieved! New communication partner: " ++ newhostname ++ ":" ++ newport
+                        sendingNetLog serializedMessage $ "Connected but no answer recieved! New communication partner: " ++ newhostname ++ ":" ++ newport
                         threadDelay 50000
                         tryToSendNetworkMessage activeCons networkconnection newhostname newport message $ max (resendOnError-1) (-1)
-                        else Config.traceNetIO "Old communication partner offline! No longer retrying"
+                        else sendingNetLog serializedMessage "Old communication partner offline! No longer retrying"
+                    -}
+                    sendingNetLog serializedMessage $ "Connected but no answer recieved! New communication partner: " ++ newhostname ++ ":" ++ newport
+                    threadDelay 500000
+                    tryToSendNetworkMessage activeCons networkconnection newhostname newport message $ max (resendOnError-1) (-1)
 
-                _ -> Config.traceNetIO "Error when sending message: This channel is disconnected while sending"
+                _ -> sendingNetLog serializedMessage "Error when sending message: This channel is disconnected while sending"
+    sendingNetLog serializedMessage "Message got send or finally failed!"
 
+
+sendingNetLog :: String -> String -> IO ()
+sendingNetLog msg info = Config.traceNetIO $ "Sending message: "++msg++" \n    Status: "++info
 
 setPartnerHostAddress ::  String -> Value -> Value
 setPartnerHostAddress address input = case input of

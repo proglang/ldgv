@@ -71,8 +71,9 @@ startConversation _ hostname port waitTime tries = do
         addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
         clientsocket <- openSocketNC $ head addrInfo
         connect clientsocket $ addrAddress $ head addrInfo
-        handle <- getSocketFromHandle clientsocket
+        handle <- getHandleFromSocket clientsocket
         MVar.putMVar convMVar (handle, (clientsocket, addrAddress $ head addrInfo))
+        Config.traceNetIO $ "Connected to: " ++ hostname ++ ":"++port
         ) $ printConErr hostname port
     getFromNetworkThread Nothing threadid convMVar waitTime tries
 
@@ -134,7 +135,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
 
         acceptClient :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> String -> IO ()
         acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
-            hdl <- getSocketFromHandle $ fst clientsocket
+            hdl <- getHandleFromSocket $ fst clientsocket
             let conv = (hdl, clientsocket)
             recieveMessageInternal conv VG.parseMessages (\_ -> return ()) $ connectionhandler activeCons mvar clientlist clientsocket conv ownport
             hClose hdl
@@ -182,8 +183,8 @@ createActiveConnections = return ActiveConnectionsStateless
 openSocketNC :: AddrInfo -> IO Socket
 openSocketNC addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
 
-getSocketFromHandle :: Socket -> IO Handle
-getSocketFromHandle socket = do
+getHandleFromSocket :: Socket -> IO Handle
+getHandleFromSocket socket = do
     hdl <- socketToHandle socket ReadWriteMode
     -- hSetBuffering hdl NoBuffering
     hSetBuffering hdl LineBuffering
