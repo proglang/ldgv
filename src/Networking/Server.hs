@@ -333,12 +333,13 @@ recieveValue = recieveValueInternal 0
                     val <- replaceVChanSerial activeCons vchanconsvar unclean
                     waitUntilContactedNewPeers activeCons val ownport
                     msgCount <- NCon.unreadMessageStart $ ncRead networkconnection
+                    Config.traceNetIO "Trying to acknowledge message"
                     NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) $ -1
                     return val
                 Nothing -> if count == 0 then do
                         msgCount <- NCon.countMessages $ ncRead networkconnection
                         NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) 0
-                        recieveValueInternal 10 vchanconsvar activeCons networkconnection ownport
+                        recieveValueInternal 100 vchanconsvar activeCons networkconnection ownport
                         else do 
-                            threadDelay 50000
+                            threadDelay 5000
                             recieveValueInternal (count-1) vchanconsvar activeCons networkconnection ownport

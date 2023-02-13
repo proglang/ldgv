@@ -43,6 +43,7 @@ instance Serializable Response where
     Okay -> return "NOkay"
     OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
     Wait -> return "NWait"
+    Error -> return "Error"
 
 instance Serializable Message where
   serialize = \case
@@ -233,7 +234,7 @@ instance ((Serializable a, Serializable b, Serializable c) => Serializable (a, b
     ss <- serialize s
     ts <- serialize t
     vs <- serialize v
-    return $ "((" ++ ss ++ ") (" ++ ts ++ ") (" ++ ts ++ "))"
+    return $ "((" ++ ss ++ ") (" ++ ts ++ ") (" ++ vs ++ "))"
 
 instance {-# OVERLAPPING #-} Serializable PEnv where
   serialize arr = serializeLabeledArray "PEnv" arr
