@@ -84,7 +84,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             sendingNetLog serializedMessage "Aquired connection"
             NC.sendMessage con message
             sendingNetLog serializedMessage "Sent message"
-            potentialResponse <- NC.recieveResponse con 10000 1000
+            potentialResponse <- NC.recieveResponse con 10000 50
             sendingNetLog serializedMessage "Recieved response"
             NC.endConversation con 10000 10
             sendingNetLog serializedMessage "Ended connection"
@@ -274,7 +274,6 @@ replaceVChan input = case input of
 
 sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
 sendDisconnect ac mvar = do
-    Config.traceNetIO "Trying to disconnect all peers"
     networkConnectionMap <- MVar.readMVar mvar
     let allNetworkConnections = Map.elems networkConnectionMap
     goodbyes <- doForall ac allNetworkConnections
@@ -293,11 +292,9 @@ sendDisconnect ac mvar = do
             connectionState <- MVar.readMVar $ ncConnectionState con
             unreadVals <- DC.unreadMessageStart writeVals
             lengthVals <- DC.countMessages writeVals
-            Config.traceNetIO $ show unreadVals ++ "/" ++ show lengthVals
             if unreadVals >= lengthVals then do
-                Config.traceNetIO "Found a member to disconnect"
                 case connectionState of
-                    Connected {}-> sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) (-1)
+                    Connected {} -> sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) (-1)
                     _ -> return ()
                     
                 return True

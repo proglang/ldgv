@@ -104,6 +104,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 NCon.changePartnerAddress networkcon clientHostaddress port connectionID
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
+                                NClient.sendNetworkMessage activeCons networkcon (Messages.AcknowledgePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) connectionID) 0
                                 return Nothing
                             AcknowledgePartnerAddress userid connectionID -> do
                                 conConfirmed <- NCon.confirmConnectionID networkcon connectionID
@@ -326,7 +327,7 @@ recieveValue = recieveValueInternal 0
         recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
             let readDC = ncRead networkconnection 
             mbyUnclean <- DC.readUnreadMessageInterpreter readDC
-            Config.traceNetIO $ "Current unreadMSG:" ++ show mbyUnclean
+            -- Config.traceNetIO $ "Current unreadMSG:" ++ show mbyUnclean
             case mbyUnclean of
                 Just unclean -> do
                     val <- replaceVChanSerial activeCons vchanconsvar unclean
