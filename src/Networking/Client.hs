@@ -274,6 +274,7 @@ replaceVChan input = case input of
 
 sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
 sendDisconnect ac mvar = do
+    Config.traceNetIO "sendDisconnect"
     networkConnectionMap <- MVar.readMVar mvar
     let allNetworkConnections = Map.elems networkConnectionMap
     goodbyes <- doForall ac allNetworkConnections
@@ -292,10 +293,9 @@ sendDisconnect ac mvar = do
             connectionState <- MVar.readMVar $ ncConnectionState con
             unreadVals <- DC.unreadMessageStart writeVals
             lengthVals <- DC.countMessages writeVals
-            if unreadVals >= lengthVals then do
-                case connectionState of
-                    Connected {} -> sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) (-1)
-                    _ -> return ()
-                    
-                return True
-            else return False
+            Config.traceNetIO $ show unreadVals ++ "/" ++ show lengthVals
+            case connectionState of
+                Connected {} -> if unreadVals >= lengthVals then do
+                    sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) (-1)
+                    return True else return False
+                _ -> return True
