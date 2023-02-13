@@ -13,9 +13,9 @@ newConnection :: IO (DirectionalConnection a)
 newConnection = do
     messages <- newEmptyMVar
     putMVar messages []
-    messagesUnreadStart <- newEmptyMVar 
+    messagesUnreadStart <- newEmptyMVar
     putMVar messagesUnreadStart 0
-    messagesCount <- newEmptyMVar 
+    messagesCount <- newEmptyMVar
     putMVar messagesCount 0
     readLock <- SSem.new 1
     return $ DirectionalConnection messages messagesUnreadStart messagesCount readLock
@@ -25,9 +25,9 @@ createConnection :: [a] -> Int -> IO (DirectionalConnection a)
 createConnection messages unreadStart = do
     msg <- newEmptyMVar
     putMVar msg messages
-    messagesUnreadStart <- newEmptyMVar 
+    messagesUnreadStart <- newEmptyMVar
     putMVar messagesUnreadStart unreadStart
-    messagesCount <- newEmptyMVar 
+    messagesCount <- newEmptyMVar
     putMVar messagesCount $ length messages
     readLock <- SSem.new 1
     return $ DirectionalConnection msg messagesUnreadStart messagesCount readLock
@@ -43,23 +43,23 @@ writeMessage connection message = do
 writeMessageIfNext :: DirectionalConnection a -> Int -> a -> IO Bool
 writeMessageIfNext connection count message = do
     modifyMVar (messagesCount connection) (\c ->
-        if count == c + 1 then do 
+        if count == c + 1 then do
             modifyMVar_ (messages connection) (\m -> return $ m ++ [message])
-            return (c + 1, True) 
-        else 
+            return (c + 1, True)
+        else
             return (c, False)
         )
-    
+
 
 -- This relies on the message array giving having the same first entrys as the internal messages
 syncMessages :: DirectionalConnection a -> [a] -> IO ()
 syncMessages connection msgs = do
     mymessagesCount <- takeMVar $ messagesCount connection
     mymessages <- takeMVar $ messages connection
-    if length mymessages < length msgs then do 
+    if length mymessages < length msgs then do
         putMVar (messages connection) msgs
         putMVar (messagesCount connection) $ length msgs
-    else do 
+    else do
         putMVar (messages connection) mymessages
         putMVar (messagesCount connection) mymessagesCount
 
@@ -72,15 +72,27 @@ readUnreadMessageMaybe connection = modifyMVar (messagesUnreadStart connection) 
     messagesBind <- allMessages connection
     if length messagesBind == i then return (i, Nothing) else return ((i+1), Just (messagesBind!!i))
     )
-    
+
 readUnreadMessage :: DirectionalConnection a -> IO a
 readUnreadMessage connection = do
     maybeval <- readUnreadMessageMaybe connection
     case maybeval of
-        Nothing -> do 
+        Nothing -> do
             threadDelay 5000
             readUnreadMessage connection
         Just val -> return val
+
+readMessageMaybe :: DirectionalConnection a -> Int -> IO (Maybe a)
+readMessageMaybe connection index = do
+    msgList <- readMVar $ messages connection
+    if length msgList > index then return $ Just $ msgList !! index else return Nothing
+
+setUnreadCount :: DirectionalConnection a -> Int -> IO ()
+setUnreadCount connection index = do
+    msgLength <- readMVar $ messagesCount connection
+    when (msgLength > index) $ do
+        unreadLength <- takeMVar $ messagesUnreadStart connection
+        if index > unreadLength then putMVar (messagesUnreadStart connection) index else putMVar (messagesUnreadStart connection) unreadLength
 
 readUnreadMessageInterpreter :: DirectionalConnection a -> IO a
 readUnreadMessageInterpreter connection = do
@@ -92,7 +104,7 @@ readUnreadMessageInterpreter connection = do
     -- currentRead <- readMVar $ messagesUnreadStart connection
     -- when debugExists $ putStrLn $ "DC: "++ show currentRead++" out of "++show allVals
     case maybeval of
-        Nothing -> do 
+        Nothing -> do
             threadDelay 5000
             readUnreadMessageInterpreter connection
         Just val -> return val

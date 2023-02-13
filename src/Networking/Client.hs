@@ -75,9 +75,6 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Messages -> Int -> IO ()
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
     serializedMessage <- NSerialize.serialize message
-    --Config.traceNetIO $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection)
-    --Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
-    --Config.traceNetIO $ "    Message: " ++ serializedMessage
     sendingNetLog serializedMessage $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection) ++ " Over: " ++ hostname ++ ":" ++ port
 
     mbycon <- NC.startConversation activeCons hostname port 10000 10
@@ -97,16 +94,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
 
     case mbyresponse of
         Just response -> case response of
-            Okay -> sendingNetLog serializedMessage "Message okay"    -- Config.traceNetIO $ "Message okay: "++serializedMessage
-            OkaySync historyraw -> do
-                -- let history = map (setPartnerHostAddress  historyraw
-                -- let history = historyraw
-                let history = map (setPartnerHostAddress $ NC.getPartnerHostaddress $ Data.Maybe.fromJust mbycon) historyraw
-                --Config.traceNetIO $ "Message okay: "++serializedMessage
-                serializedResponse <- NSerialize.serialize response
-                -- Config.traceNetIO $ "Got syncronization values: "++serializedResponse
-                DC.syncMessages (ncRead networkconnection) history
-                sendingNetLog serializedMessage $ "Message okay; Got syncronization values: "++serializedResponse
+            Okay -> sendingNetLog serializedMessage "Message okay" 
             Redirect host port -> do
                 sendingNetLog serializedMessage "Communication partner changed address, resending"
                 NCon.changePartnerAddress networkconnection host port
@@ -119,26 +107,6 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
 
         Nothing -> do
             sendingNetLog serializedMessage "Error when recieving response"
-            connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
-            when (Data.Maybe.isNothing mbycon) $ sendingNetLog serializedMessage "Not connected to peer"
-            -- Config.traceNetIO $ "Original message: " ++ serializedMessage
-            case connectionstate of
-                NCon.Connected newhostname newport -> do
-                    {-
-                    isClosed <- case mbycon of
-                        Just con -> NC.isClosed con
-                        Nothing -> return True
-                    if resendOnError /= 0 && not isClosed then do
-                        sendingNetLog serializedMessage $ "Connected but no answer recieved! New communication partner: " ++ newhostname ++ ":" ++ newport
-                        threadDelay 50000
-                        tryToSendNetworkMessage activeCons networkconnection newhostname newport message $ max (resendOnError-1) (-1)
-                        else sendingNetLog serializedMessage "Old communication partner offline! No longer retrying"
-                    -}
-                    sendingNetLog serializedMessage $ "Connected but no answer recieved! New communication partner: " ++ newhostname ++ ":" ++ newport
-                    threadDelay 500000
-                    tryToSendNetworkMessage activeCons networkconnection newhostname newport message $ max (resendOnError-1) (-1)
-
-                _ -> sendingNetLog serializedMessage "Error when sending message: This channel is disconnected while sending"
     sendingNetLog serializedMessage "Message got send or finally failed!"
 
 

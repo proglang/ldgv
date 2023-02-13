@@ -37,21 +37,23 @@ instance Serializable ConversationSession where
     ConversationResponse c r -> serializeLabeledEntryMulti "NConversationResponse" c $ sLast r
     ConversationCloseAll -> return "NConversationCloseAll"
 
-instance Serializable Responses where
+instance Serializable Response where
   serialize = \case
     Redirect host port -> serializeLabeledEntryMulti "NRedirect" host $ sLast port
     Okay -> return "NOkay"
     OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
-    OkaySync vs -> serializeLabeledEntry "NOkaySync" vs
     Wait -> return "NWait"
 
-instance Serializable Messages where
+instance Serializable Message where
   serialize = \case
       IntroduceClient p port tn t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sNext tn $ sLast t
       NewValue p c v -> serializeLabeledEntryMulti "NNewValue" p $ sNext c $ sLast v
-      SyncIncoming p vs -> serializeLabeledEntryMulti "NSyncIncoming" p $ sLast vs
-      RequestSync p count -> serializeLabeledEntryMulti "NRequestSync" p $ sLast count
-      IntroduceNewPartnerAddress u p -> serializeLabeledEntryMulti "NIntroduceNewPartnerAddress" u $ sLast p
+      RequestValue p c -> serializeLabeledEntryMulti "NRequestValue" p $ sLast c
+      AcknowledgeValue p c -> serializeLabeledEntryMulti "NAcknowledgeValue" p $ sLast c
+      NewPartnerAddress p port conID -> serializeLabeledEntryMulti "NNewPartnerAddress" p $ sNext port $ sLast conID
+      AcknowledgePartnerAddress p conID -> serializeLabeledEntryMulti "NAcknowledgePartnerAddress" p $ sLast conID
+      Disconnect p -> serializeLabeledEntry "NDisconnect" p
+      AcknowledgeDisconnect p -> serializeLabeledEntry "NAcknowledgeDisconnect" p
 
 instance Serializable (NCon.NetworkConnection Value) where
   serialize con = do 

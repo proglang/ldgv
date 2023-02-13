@@ -21,9 +21,9 @@ import Networking.Messages
 --%name parseDecls Cmds
 --%name parseType  Typ
 
-%name parseValues Values
-%name parseMessages Messages
-%name parseResponses Responses
+%name parseValues Value
+%name parseMessages Message
+%name parseResponses Response
 %name parseConversation ConversationSession
 -- %name parseSStringTypeElement SStringTypeElement
 -- %name parseSStringTypeElements SStringTypeElements
@@ -117,15 +117,18 @@ import Networking.Messages
 
     nintroduceclient    { T _ T.NIntroduceClient }
     nnewvalue     { T _ T.NNewValue }
-    nsyncincoming { T _ T.NSyncIncoming }
-    nrequestsync  { T _ T.NRequestSync }
-    nchangepartneraddress {T _ T.NChangePartnerAddress }
-    nintroducenewpartneraddress {T _ T.NIntroduceNewPartnerAddress}
+    nrequestsync { T _ T.NRequestSync }
+    nacknowledgevalue {T _ T.NAcknowledgeValue }
+    nnewpartneraddress {T _ T.NNewPartnerAddress }
+    nacknowledgepartneraddress {T _ T.NAcknowledgePartnerAddress }
+    ndisconnect {T _ T.NDisconnect}
+    nacknowledgedisconnect {T _ T.NAcknowledgeDisconnect}
+    
     nredirect     { T _ T.NRedirect}
     nokay         { T _ T.NOkay}
     nokayintroduce    { T _ T.NOkayIntroduce }
-    nokaysync       { T _ T.NOkaySync }
-    nwait           { T _ T.NWait}
+    nwait              { T _ T.NWait }
+    nerror              { T _ T.NError }
     nconversationmessage { T _ T.NConversationMessage}
     nconversationresponse { T _ T.NConversationResponse}
     nconversationcloseall { T _ T.NConversationCloseAll }
@@ -182,7 +185,7 @@ import Networking.Messages
 
 -- Values : {[]}
 --       | vunit { VUnit }
-Values : vunit { VUnit }
+Value : vunit { VUnit }
        | vlabel '(' String ')' {VLabel $3 }
        | vint '(' int ')' {VInt $3}
        | vdouble '(' double ')' {VDouble $3}
@@ -190,12 +193,12 @@ Values : vunit { VUnit }
        -- | vchan '(' SValuesArray ')' '(' int ')' '(' SValuesArray ')' '(' int ')' '(' String ')' '(' String ')' '(' String ')' '(' String ')' {VChanSerial $3 $6 $9 $12 $15 $18 $21 $24 }
        | vchan '(' NetworkConnection ')' {$3}
        | vchanserial '(' SArrayIntElement ')' '(' SArrayIntElement ')' '(' String ')' '(' String ')' '(' SStringStringElement ')' {VChanSerial $3 $6 $9 $12 $15}
-       | vsend '(' Values ')' {VSend $3}
-       | vpair '(' Values ')' '(' Values ')' {VPair $3 $6}
+       | vsend '(' Value ')' {VSend $3}
+       | vpair '(' Value ')' '(' Value ')' {VPair $3 $6}
        | vtype '(' Type ')' {VType $3}
        | vfunc '(' PEnv ')' '(' String ')' '(' Exp ')' {VFunc $3 $6 $9}
-       | vdyncast '(' Values ')' '(' GType ')' {VDynCast $3 $6}
-       | vfunccast '(' Values ')' '(' SFuncType ')'  '(' SFuncType ')' {VFuncCast $3 $6 $9}
+       | vdyncast '(' Value ')' '(' GType ')' {VDynCast $3 $6}
+       | vfunccast '(' Value ')' '(' SFuncType ')'  '(' SFuncType ')' {VFuncCast $3 $6 $9}
        | vrec '(' PEnv ')' '(' String ')' '(' String ')' '(' Exp ')' '(' Exp ')' {VRec $3 $6 $9 $12 $15}
        | vnewnatrec '(' PEnv ')' '(' String ')' '(' String ')' '(' String ')' '(' Type ')' '(' Exp ')' '(' String ')' '(' Exp ')' {VNewNatRec $3 $6 $9 $12 $15 $18 $21 $24}
 
@@ -279,24 +282,29 @@ GType : gunit {GUnit}
       | gdouble {GDouble}
       | gstring {GString}
 
-Messages : nintroduceclient '(' String ')' '(' String ')' '(' Type ')' '(' Type ')' {IntroduceClient $3 $6 $9 $12}
-         | nnewvalue '(' String ')' '(' int ')' '(' Values ')' {NewValue $3 $6 $9}
-         | nsyncincoming '(' String ')''(' SValuesArray ')' {SyncIncoming $3 $6}
-         | nrequestsync '(' String ')' '(' int ')' {RequestSync $3 $6}
-         | nintroducenewpartneraddress '(' String ')' '(' String ')' {IntroduceNewPartnerAddress $3 $6}
+Message : nintroduceclient '(' String ')' '(' String ')' '(' Type ')' '(' Type ')' {IntroduceClient $3 $6 $9 $12}
+         | nnewvalue '(' String ')' '(' int ')' '(' Value ')' {NewValue $3 $6 $9}
+         | nrequestvalue '(' String ')' '(' int ')' {RequestValue $3 $6}
+         | nacknowledgevalue '(' String ')' '(' int ')' {AcknowledgeValue $3 $6}
+         | nnewpartneraddress '(' String ')' '(' String ')' '(' String ')' {NewPartnerAddress $3 $6 $9}
+         | nacknowledgepartneraddress '(' String ')' '(' String ')' {AcknowledgePartnerAddress $3 $6}
+         | ndisconnect '(' String ')' {Disconnect $3}
+         | nacknowledgedisconnect '(' String ')' {AcknowledgeDisconnect $3}
 
-Responses : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
+
+
+Response : nredirect '(' String ')' '(' String ')' {Redirect $3 $6}
           | nokay {Okay}
           | nokayintroduce '(' String ')' {OkayIntroduce $3}
-          | nokaysync '(' SValuesArray ')' {OkaySync $3}
           | nwait {Wait}
+          | nerror {Error}
 
-ConversationSession : nconversationmessage '(' String ')' '(' Messages ')' {ConversationMessage $3 $6}
-                    | nconversationresponse '(' String ')' '(' Responses ')' {ConversationResponse $3 $6}
+ConversationSession : nconversationmessage '(' String ')' '(' Message ')' {ConversationMessage $3 $6}
+                    | nconversationresponse '(' String ')' '(' Response ')' {ConversationResponse $3 $6}
                     | nconversationcloseall {ConversationCloseAll}
 
 
-PEnvEntry : penventry '(' String ')' '(' Values ')' {($3, $6)}
+PEnvEntry : penventry '(' String ')' '(' Value ')' {($3, $6)}
 
 PEnv : penv '[' PEnvElements ']' { $3 }
 
@@ -328,8 +336,8 @@ SStringExpElement : '(' '(' String ')' '(' Exp ')' ')'  {($3, $6)}
 
 SValuesArray : svaluesarray '[' SValuesElements ']' {$3}
 
-SValuesElements : Values ',' SValuesElements {$1 : $3}
-                | Values {[$1]}
+SValuesElements : Value ',' SValuesElements {$1 : $3}
+                | Value {[$1]}
                 | {- empty -} {[]}
 
 LabelType : slabeltype '{' SStringElements '}' {$3}

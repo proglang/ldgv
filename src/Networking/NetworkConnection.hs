@@ -8,59 +8,33 @@ import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
 
 data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: Maybe String, ncOwnUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
-                         | NetworkConnectionPlaceholder {ncPartnerUserID :: Maybe String, ncOwnUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
     deriving Eq
 
-data ConnectionState = Connected {csHostname :: String, csPort :: String}
-                     | Disconnected
-                     | Emulated
-                     | RedirectRequest {csHostname :: String, csPort :: String, csRedirectHostname :: String, csRedirectPort :: String} -- Asks to redirect to this connection
+data ConnectionState = Connected {csHostname :: String, csPort :: String, csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
+                     | Disconnected {csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
+                     | Emulated {csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
+                     | RedirectRequest {csHostname :: String, csPort :: String, csRedirectHostname :: String, csRedirectPort :: String, csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool} -- Asks to redirect to this connection
     deriving (Eq, Show)
 
-newPlaceHolderConnection :: String -> String -> String -> IO (NetworkConnection a)
-newPlaceHolderConnection partnerID hostname port = do
-    connectionstate <- MVar.newMVar $ Connected hostname port
-    incomingMsg <- SSem.new 1
-    -- The own userid is simply needed to make it compatible with preexisting code, A placeholder can only save the address of a partnerID though.
-    return $ NetworkConnectionPlaceholder (Just partnerID) Nothing connectionstate incomingMsg
 
-
-newNetworkConnection :: String -> String -> String -> String -> IO (NetworkConnection a)
-newNetworkConnection partnerID ownID hostname port = do
+newNetworkConnection :: String -> String -> String -> String -> String -> String -> IO (NetworkConnection a)
+newNetworkConnection partnerID ownID hostname port partnerConnectionID ownConnectionID = do
     read <- newConnection
     write <- newConnection
-    connectionstate <- MVar.newMVar $ Connected hostname port
+    connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID True
     incomingMsg <- SSem.new 1
     return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate incomingMsg
 
-newNetworkConnectionAllowingMaybe :: Maybe String -> Maybe String -> String -> String -> IO (NetworkConnection a)
-newNetworkConnectionAllowingMaybe partnerID ownID hostname port = do
-    read <- newConnection
-    write <- newConnection
-    connectionstate <- MVar.newMVar $ Connected hostname port
-    incomingMsg <- SSem.new 1
-    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
 
-
-createNetworkConnection :: [a] -> Int -> [a] -> Int -> Maybe String -> Maybe String -> String -> String -> IO (NetworkConnection a)
-createNetworkConnection readList readNew writeList writeNew partnerID ownID hostname port = do
+createNetworkConnection :: ([a], Int) -> ([a], Int) -> String -> String -> (String, String, String) -> IO (NetworkConnection a)
+createNetworkConnection (readList, readNew) (writeList, writeNew) partnerID ownID (hostname, port, partnerConnectionID) = do
     read <- createConnection readList readNew
     write <- createConnection writeList writeNew
-    connectionstate <- MVar.newMVar $ Connected hostname port
+    ownConnectionID <- newRandomUserID
+    connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID False
     incomingMsg <- SSem.new 1
-    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
+    return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate incomingMsg
 
-
-createNetworkConnectionS :: ([a], Int) -> ([a], Int) -> String -> String -> (String, String) -> IO (NetworkConnection a)
-createNetworkConnectionS (readList, readNew) (writeList, writeNew) partnerID ownID (hostname, port) = createNetworkConnection readList readNew writeList writeNew (Just partnerID) (Just ownID) hostname port
-
-
-{-newEmulatedConnection :: DirectionalConnection a -> DirectionalConnection a -> IO (NetworkConnection a)
-newEmulatedConnection r w = do
-    connectionstate <- MVar.newEmptyMVar 
-    MVar.putMVar connectionstate Emulated
-    incomingMsg <- SSem.new 1
-    return $ NetworkConnection r w Nothing Nothing connectionstate incomingMsg-}
 
 newEmulatedConnection :: MVar.MVar (Map.Map String (NetworkConnection a)) -> IO (NetworkConnection a, NetworkConnection a)
 newEmulatedConnection mvar = do
@@ -69,8 +43,10 @@ newEmulatedConnection mvar = do
     write <- newConnection
     read2 <- newConnection
     write2 <- newConnection
-    connectionstate <- MVar.newMVar Emulated
-    connectionstate2 <- MVar.newMVar Emulated
+    connectionid1 <- newRandomUserID 
+    connectionid2 <- newRandomUserID 
+    connectionstate <- MVar.newMVar $ Emulated connectionid2 connectionid1 True
+    connectionstate2 <- MVar.newMVar $ Emulated connectionid1 connectionid2 True
     userid <- newRandomUserID
     userid2 <- newRandomUserID
     incomingMsg <- SSem.new 1
@@ -84,18 +60,46 @@ newEmulatedConnection mvar = do
 
 
 
-serializeNetworkConnection :: NetworkConnection a -> IO ([a], Int, [a], Int, String, String, String, String)
+serializeNetworkConnection :: NetworkConnection a -> IO ([a], Int, [a], Int, String, String, String, String, String)
 serializeNetworkConnection nc = do
     constate <- MVar.readMVar $ ncConnectionState nc
     (readList, readUnread) <- serializeConnection $ ncRead nc
     (writeList, writeUnread) <- serializeConnection $ ncWrite nc
-    (address, port) <- case constate of
-        Connected address port -> return (address, port)
-        RedirectRequest address port _ _-> return (address, port)
-        _ -> return ("", "")
-    return (readList, readUnread, writeList, writeUnread, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, Data.Maybe.fromMaybe "" $ ncOwnUserID nc, address, port)
+    (address, port, partnerConnectionID) <- case constate of
+        Connected address port partnerConnectionID _ _ -> return (address, port, partnerConnectionID)
+        RedirectRequest address port _ _ partnerConnectionID _ _ -> return (address, port, partnerConnectionID)
+        _ -> return ("", "", csPartnerConnectionID constate)
+    return (readList, readUnread, writeList, writeUnread, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, Data.Maybe.fromMaybe "" $ ncOwnUserID nc, address, port, partnerConnectionID)
 
-changePartnerAddress :: NetworkConnection a -> String -> String -> IO ()
-changePartnerAddress con hostname port = do
-    _ <- MVar.takeMVar $ ncConnectionState con
-    MVar.putMVar (ncConnectionState con) $ Connected hostname port
+changePartnerAddress :: NetworkConnection a -> String -> String -> String -> IO ()
+changePartnerAddress con hostname port partnerConnectionID = do
+    oldConnectionState <- MVar.takeMVar $ ncConnectionState con
+    MVar.putMVar (ncConnectionState con) $ Connected hostname port partnerConnectionID (csOwnConnectionID oldConnectionState) $ csConfirmedConnection oldConnectionState
+
+disconnectFromPartner :: NetworkConnection a -> IO ()
+disconnectFromPartner con = do
+    oldConnectionState <- MVar.takeMVar $ ncConnectionState con
+    MVar.putMVar (ncConnectionState con) $ Disconnected (csPartnerConnectionID oldConnectionState) (csOwnConnectionID oldConnectionState) True
+
+isConnectionConfirmed :: NetworkConnection a -> IO Bool
+isConnectionConfirmed con = do
+    conState <- MVar.readMVar $ ncConnectionState con
+    return $ csConfirmedConnection conState
+
+confirmConnectionID :: NetworkConnection a -> String -> IO Bool
+confirmConnectionID con ownConnectionID = do
+    conState <- MVar.takeMVar $ ncConnectionState con
+    if ownConnectionID == csOwnConnectionID conState then do
+        newConState <- case conState of
+            Connected host port part own conf -> return $ Connected host port part own True
+            Disconnected part own conf -> return $ Disconnected part own True
+            Emulated part own conf -> return $ Emulated part own True
+            RedirectRequest host port rehost report part own conf -> return $ RedirectRequest host port rehost report part own True
+        MVar.putMVar (ncConnectionState con) newConState
+        return True
+        else do 
+            MVar.putMVar (ncConnectionState con) conState
+            return False
+
+        
+

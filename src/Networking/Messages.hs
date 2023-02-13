@@ -9,31 +9,39 @@ type UserID = String
 type Hostname = String
 type Port = String
 type ConversationID = String
+type ConnectionID = String
 
-data Messages
+data Message
     = IntroduceClient UserID Port Type Type
     | NewValue UserID Int Value
-    | SyncIncoming UserID [Value]
-    | RequestSync UserID Int
-    | IntroduceNewPartnerAddress UserID Port
+    | RequestValue UserID Int
+    | AcknowledgeValue UserID Int
+    | NewPartnerAddress UserID Port ConnectionID
+    | AcknowledgePartnerAddress UserID ConnectionID
+    | Disconnect UserID
+    | AcknowledgeDisconnect UserID -- Vielleicht brauchen wir das nicht mal sehen
     deriving Eq
 
-data Responses
+data Response
     = Redirect Hostname Port
     | Okay
     | OkayIntroduce UserID
-    | OkaySync [Value]
     | Wait
+    | Error
 
 data ConversationSession
-    = ConversationMessage ConversationID Messages
-    | ConversationResponse ConversationID Responses
+    = ConversationMessage ConversationID Message
+    | ConversationResponse ConversationID Response
     | ConversationCloseAll
 
-getUserID :: Messages -> String
+
+getUserID :: Message -> String
 getUserID = \case
     IntroduceClient p _ _ _ -> p
     NewValue p _ _ -> p
-    SyncIncoming p _ -> p
-    RequestSync p _ -> p
-    IntroduceNewPartnerAddress p _ -> p
+    RequestValue p _ -> p
+    AcknowledgeValue p _ -> p
+    NewPartnerAddress p _ _ -> p
+    AcknowledgePartnerAddress p _ -> p 
+    Disconnect p -> p
+    AcknowledgeDisconnect p -> p

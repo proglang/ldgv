@@ -36,6 +36,8 @@ import Control.Monad
 
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 import qualified Control.Concurrent.SSem as SSem
+import qualified Networking.DirectionalConnection as DC
+import qualified Networking.NetworkConnection as NCon
 
 checkAndSendRedirectRequest :: NC.ConversationOrHandle -> Map.Map String (NetworkConnection Value) -> String -> IO Bool
 checkAndSendRedirectRequest handle ncmap userid = do
@@ -68,55 +70,53 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                             SSem.signal $ ncHandlingIncomingMessage networkcon
                             NC.sendResponse hdl (Messages.Redirect host port)
                             return Nothing
-                        Connected {} -> do
-                            case networkcon of
-                                NetworkConnection {} -> case deserialmessages of
-                                    NewValue userid count val -> do
-                                        ND.lockInterpreterReads (ncRead networkcon)
-                                        success <- ND.writeMessageIfNext (ncRead networkcon) count val
-                                        SSem.signal $ ncHandlingIncomingMessage networkcon
-                                        recievedNetLog message $ if success then "Message written successfully" else "Message out of sync"
-                                        unless success $ do 
-                                            incomingCount <- ND.countMessages (ncRead networkcon)
-                                            NC.sendNetworkMessage activeCons networkcon (Messages.RequestSync (Data.Maybe.fromMaybe "" (ncOwnUserID networkcon)) incomingCount) (-1)
-                                            recievedNetLog message "Send sync request"
-                                        
-                                        -- This can deadlock
-                                        -- Todo add an timeout to this function and randomize the waittime uppon a wait command
-                                        contactNewPeers activeCons val ownport
-                                        recievedNetLog message "Messaged peers"
-                                        NC.sendResponse hdl Messages.Okay
-                                        recievedNetLog message "Sent okay"
-                                        ND.unlockInterpreterReads (ncRead networkcon)
-                                        return Nothing
-                                    IntroduceNewPartnerAddress userid port -> do
-                                        recievedNetLog message $ "Trying to change the address to: " ++ clientHostaddress ++ ":" ++ port
-                                        NCon.changePartnerAddress networkcon clientHostaddress port
-                                        SSem.signal $ ncHandlingIncomingMessage networkcon
-                                        NC.sendResponse hdl Messages.Okay
-                                        return Nothing
-                                    RequestSync userid count -> do
-                                        writevals <- ND.allMessages $ ncWrite networkcon
-                                        SSem.signal $ ncHandlingIncomingMessage networkcon
-                                        if length writevals > count then NC.sendResponse hdl (Messages.OkaySync writevals) else NC.sendResponse hdl Messages.Okay
-                                        return Nothing
-                                    _ -> do
-                                        serial <- NSerialize.serialize deserialmessages
-                                        recievedNetLog message $ "Error unsupported networkmessage: "++ serial
-                                        SSem.signal $ ncHandlingIncomingMessage networkcon
-                                        NC.sendResponse hdl Messages.Okay
-                                        return Nothing 
-                                NetworkConnectionPlaceholder {} -> do
-                                    recievedNetLog message "Recieved message to placeholder! Send wait response"
-                                    SSem.signal $ ncHandlingIncomingMessage networkcon
-                                    NC.sendResponse hdl Messages.Wait
-                                    return Nothing
+                        Connected {} -> case deserialmessages of
+                            NewValue userid count val -> do
+                                ND.lockInterpreterReads (ncRead networkcon)
+                                ND.writeMessageIfNext (ncRead networkcon) count val
+                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                recievedNetLog message "Message written to Channel" 
+                                NC.sendResponse hdl Messages.Okay
+                                recievedNetLog message "Sent okay"
+                                ND.unlockInterpreterReads (ncRead networkcon)
+                                return Nothing
+                            Requestvalue userid count -> do
+                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                NC.sendResponse hdl Messages.Okay
+                                mbyval <- DC.readMessageMaybe $ NCon.ncWrite networkcon
+                                Data.Maybe.maybe (return ()) (\val -> sendNetworkMessage activeCons networkcon (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) count val) 0) mbyval
+                                return Nothing
+                            AcknowledgeValue userid count -> do
+                                DC.setUnreadCount (NCon.ncWrite networkcon) count
+                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                NC.sendResponse hdl Messages.Okay
+                            NewPartnerAddress userid port connectionID -> do
+                                recievedNetLog message $ "Trying to change the address to: " ++ clientHostaddress ++ ":" ++ port
+                                NCon.changePartnerAddress networkcon clientHostaddress port connectionID
+                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                NC.sendResponse hdl Messages.Okay
+                                return Nothing
+                            AcknowledgePartnerAddress userid connectionID -> do
+                                conConfirmed <- NCon.confirmConnectionID networkcon connectionID
+                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                if conConfirmed then NC.sendResponse hdl Messages.Okay else NC.sendResponse hdl Messages.Error
+                                return Nothing
+                            Disconnect UserID -> do
+                                NCon.disconnectFromPartner networkcon
+                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                NC.sendResponse hdl Messages.Okay
+                                return Nothing
+                            _ -> do
+                                serial <- NSerialize.serialize deserialmessages
+                                recievedNetLog message $ "Error unsupported networkmessage: "++ serial
+                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                NC.sendResponse hdl Messages.Okay
+                                return Nothing 
                         _ -> do
                             recievedNetLog message "Network Connection is in a illegal state!"
                             SSem.signal $ ncHandlingIncomingMessage networkcon
                             NC.sendResponse hdl Messages.Okay
                             return Nothing
-                    -- SSem.signal $ ncHandlingIncomingMessage networkcon
                     return reply
                 Nothing -> do
                     recievedNetLog message "Message cannot be handled at the moment! Sending wait response"
@@ -292,7 +292,7 @@ replaceVChanSerial activeCons mvar input = case input of
         newpenv <- replaceVChanSerialPEnv activeCons mvar penv
         return $ VNewNatRec newpenv a b c d e f g
     VChanSerial r w p o c -> do
-        networkconnection <- createNetworkConnectionS r w p o c
+        networkconnection <- createNetworkConnection r w p o c
         ncmap <- MVar.takeMVar mvar
         case Map.lookup p ncmap of
             Just networkcon -> do
