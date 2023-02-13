@@ -113,7 +113,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
                 tryToSendNetworkMessage activeCons networkconnection host port message resendOnError
             Wait -> do
                 sendingNetLog serializedMessage "Communication out of sync lets wait!"
-                threadDelay 100000
+                threadDelay 1000000
                 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
             _ -> sendingNetLog serializedMessage "Unknown communication error"
 
