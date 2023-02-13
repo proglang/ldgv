@@ -73,14 +73,14 @@ readUnreadMessageMaybe connection = modifyMVar (messagesUnreadStart connection) 
     if length messagesBind == i then return (i, Nothing) else return ((i+1), Just (messagesBind!!i))
     )
 
-readUnreadMessage :: DirectionalConnection a -> IO a
+{-readUnreadMessage :: DirectionalConnection a -> IO a
 readUnreadMessage connection = do
     maybeval <- readUnreadMessageMaybe connection
     case maybeval of
         Nothing -> do
             threadDelay 5000
             readUnreadMessage connection
-        Just val -> return val
+        Just val -> return val-}
 
 readMessageMaybe :: DirectionalConnection a -> Int -> IO (Maybe a)
 readMessageMaybe connection index = do
@@ -94,20 +94,8 @@ setUnreadCount connection index = do
         unreadLength <- takeMVar $ messagesUnreadStart connection
         if index > unreadLength then putMVar (messagesUnreadStart connection) index else putMVar (messagesUnreadStart connection) unreadLength
 
-readUnreadMessageInterpreter :: DirectionalConnection a -> IO a
-readUnreadMessageInterpreter connection = do
-    -- debugExists <- System.Directory.doesFileExist "print.me"
-    -- when debugExists $ putStrLn "DC: Trying to read message"
-    maybeval <- SSem.withSem (readLock connection) $ readUnreadMessageMaybe connection
-    -- when debugExists $ putStrLn "DC: Read message"
-    -- allVals <- countMessages connection
-    -- currentRead <- readMVar $ messagesUnreadStart connection
-    -- when debugExists $ putStrLn $ "DC: "++ show currentRead++" out of "++show allVals
-    case maybeval of
-        Nothing -> do
-            threadDelay 5000
-            readUnreadMessageInterpreter connection
-        Just val -> return val
+readUnreadMessageInterpreter :: DirectionalConnection a -> IO (Maybe a)
+readUnreadMessageInterpreter connection = SSem.withSem (readLock connection) $ readUnreadMessageMaybe connection
 
 serializeConnection :: DirectionalConnection a -> IO ([a], Int)
 serializeConnection connection = do
@@ -117,6 +105,9 @@ serializeConnection connection = do
 
 countMessages :: DirectionalConnection a -> IO Int
 countMessages connection = readMVar $ messagesCount connection
+
+unreadMessageStart :: DirectionalConnection a -> IO Int
+unreadMessageStart connection = readMVar $ messagesUnreadStart connection
 
 lockInterpreterReads :: DirectionalConnection a -> IO ()
 lockInterpreterReads  connection = SSem.wait (readLock connection)

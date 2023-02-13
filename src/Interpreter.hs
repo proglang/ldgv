@@ -202,7 +202,10 @@ eval = \case
         let dcRead = NCon.ncRead ci
         valunclean <- liftIO $ DC.readUnreadMessageInterpreter dcRead
         (env, (sockets, vchanconnections, activeConnections)) <- ask
-        val <- liftIO $ NS.replaceVChanSerial activeConnections vchanconnections valunclean
+        -- val <- liftIO $ NS.replaceVChanSerial activeConnections vchanconnections valunclean
+        socketsraw <- liftIO $ MVar.readMVar sockets
+        let port = show $ head $ Map.keys socketsraw
+        val <- liftIO $ NS.recieveValue vchanconnections activeConnections ci
         liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
         -- Disable the old channel and get a new one

@@ -38,6 +38,14 @@ import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 import qualified Control.Concurrent.SSem as SSem
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkConnection as NCon
+import qualified Networking.DirectionalConnection as DC
+import Networking.NetworkingMethod.Stateless (recieveMessageInternal)
+import qualified Networking.Client as NClient
+import qualified Networking.DirectionalConnection as NCon
+import Networking.NetworkConnection (NetworkConnection(ncRead))
+import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import Control.Concurrent (threadDelay)
+import qualified Networking.Client as NClient
 
 checkAndSendRedirectRequest :: NC.ConversationOrHandle -> Map.Map String (NetworkConnection Value) -> String -> IO Bool
 checkAndSendRedirectRequest handle ncmap userid = do
@@ -190,50 +198,46 @@ setPartnerHostAddress address input = case input of
             (fst x, newval):setPartnerHostAddressPEnv clientHostaddress xs
 
 
-contactNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
+waitUntilContactedNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
+waitUntilContactedNewPeers activeCons input ownport = do
+    contactedPeers <- contactNewPeers activeCons input ownport
+    unless contactedPeers $ do
+        threadDelay 50000
+        waitUntilContactedNewPeers activeCons input ownport
+
+
+contactNewPeers :: NMC.ActiveConnections -> Value -> String -> IO Bool
 contactNewPeers activeCons input ownport = case input of
     VSend v -> do
-        nv <- contactNewPeers activeCons v ownport
-        -- return $ VSend nv
-        return ()
+        contactNewPeers activeCons v ownport
     VPair v1 v2 -> do
         nv1 <- contactNewPeers activeCons v1 ownport
         nv2 <- contactNewPeers activeCons v2 ownport
-        -- return $ VPair nv1 nv2
-        return () 
+        return (nv1 || nv2) 
     VFunc penv a b -> do
-        newpenv <- contactNewPeersPEnv activeCons penv ownport
-        -- return $ VFunc newpenv a b
-        return ()
+        contactNewPeersPEnv activeCons penv ownport
     VDynCast v g -> do
-        nv <- contactNewPeers activeCons v ownport
-        -- return $ VDynCast nv g
-        return ()
+        contactNewPeers activeCons v ownport
     VFuncCast v a b -> do
-        nv <- contactNewPeers activeCons v ownport
-        -- return $ VFuncCast nv a b
-        return ()
+        contactNewPeers activeCons v ownport
     VRec penv a b c d -> do
-        newpenv <- contactNewPeersPEnv activeCons penv ownport
-        -- return $ VRec newpenv a b c d
-        return ()
+        contactNewPeersPEnv activeCons penv ownport
     VNewNatRec penv a b c d e f g -> do
-        newpenv <- contactNewPeersPEnv activeCons penv ownport
-        -- return $ VNewNatRec newpenv a b c d e f g
-        return ()
-    VChanSerial r w p o c -> do
-        let (hostname, port) = c
-        tempNC <- newNetworkConnection p o hostname port
-        NClient.sendNetworkMessage activeCons tempNC (Messages.IntroduceNewPartnerAddress o ownport) 5
-    _ -> return () -- return input
+        contactNewPeersPEnv activeCons penv ownport
+    VChan nc bool -> do
+        connectionState <- MVar.readMVar $ ncConnectionState nc
+        if csConfirmedConnection connectionState then return True else do
+            NClient.sendNetworkMessage activeCons tempNC (Messages.IntroduceNewPartnerAddress o ownport) 0
+            return False
+    _ -> return True
     where
-        contactNewPeersPEnv :: NMC.ActiveConnections -> [(String, Value)] -> String -> IO () -- [(String, Value)]
-        contactNewPeersPEnv _ [] _ = return () --return []
+        contactNewPeersPEnv :: NMC.ActiveConnections -> [(String, Value)] -> String -> IO Bool -- [(String, Value)]
+        contactNewPeersPEnv _ [] _ = return True
         contactNewPeersPEnv activeCons (x:xs) ownport = do
             newval <- contactNewPeers activeCons (snd x) ownport
             rest <- contactNewPeersPEnv activeCons xs ownport
             -- return $ (fst x, newval):rest
-            return ()
+            return (newval || rest)
 
 hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do
@@ -314,3 +318,24 @@ replaceVChanSerial activeCons mvar input = case input of
             newval <- replaceVChanSerial activeCons mvar $ snd x
             rest <- replaceVChanSerialPEnv activeCons mvar xs
             return $ (fst x, newval):rest
+
+
+recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
+recieveValue = recieveValueInternal 0
+    where
+        recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
+            mbyUnclean <- DC.readUnreadMessageInterpreter
+            case mbyUnclean of
+                Just unclean -> do
+                    val <- NS.replaceVChanSerial activeConnections vchanconnections unclean
+                    waitUntilContactedNewPeers vchanconsvar val ownport
+                    msgCount <- NCon.unreadMessageStart $ ncRead networkconnection
+                    NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkcon)) $ msgCount-1)
+                    return val
+                Nothing -> if count == 0 then do
+                        msgCount <- NCon.countMessages $ ncRead networkconnection
+                        NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkcon)) msgCount)
+                        recieveValueInternal 10 vchanconsvar activeCons networkconnection ownport
+                        else do 
+                            threadDelay 50000
+                            recieveValueInternal (count-1) vchanconsvar activeCons networkconnection ownport
