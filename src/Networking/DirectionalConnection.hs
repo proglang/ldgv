@@ -70,7 +70,7 @@ allMessages connection = readMVar (messages connection)
 readUnreadMessageMaybe :: DirectionalConnection a -> IO (Maybe a)
 readUnreadMessageMaybe connection = modifyMVar (messagesUnreadStart connection) (\i -> do
     messagesBind <- allMessages connection
-    if length messagesBind == i then return (i, Nothing) else return ((i+1), Just (messagesBind!!i))
+    if length messagesBind <= i then return (i, Nothing) else return ((i+1), Just (messagesBind!!i))
     )
 
 -- Basically only used for the internal tests at this point

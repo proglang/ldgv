@@ -326,6 +326,7 @@ recieveValue = recieveValueInternal 0
         recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
             let readDC = ncRead networkconnection 
             mbyUnclean <- DC.readUnreadMessageInterpreter readDC
+            Config.traceNetIO $ "Current unreadMSG:" ++ show mbyUnclean
             case mbyUnclean of
                 Just unclean -> do
                     val <- replaceVChanSerial activeCons vchanconsvar unclean

@@ -201,7 +201,7 @@ eval = \case
       used <- liftIO $ MVar.readMVar usedmvar
       if used then throw $ VChanIsUsedException $ show v else do
         let dcRead = NCon.ncRead ci
-        valunclean <- liftIO $ DC.readUnreadMessageInterpreter dcRead
+        -- valunclean <- liftIO $ DC.readUnreadMessageInterpreter dcRead
         (env, (sockets, vchanconnections, activeConnections)) <- ask
         -- val <- liftIO $ NS.replaceVChanSerial activeConnections vchanconnections valunclean
         socketsraw <- liftIO $ MVar.readMVar sockets
