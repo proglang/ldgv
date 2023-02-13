@@ -1,6 +1,10 @@
 module Networking.NetworkConnection where
 
 import Networking.DirectionalConnection
+    ( DirectionalConnection,
+      newConnection,
+      createConnection,
+      serializeConnection )
 import Networking.UserID
 import qualified Data.Maybe
 import qualified Data.Map as Map

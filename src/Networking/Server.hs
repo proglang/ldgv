@@ -298,12 +298,14 @@ replaceVChanSerial activeCons mvar input = case input of
     VChanSerial r w p o c -> do
         networkconnection <- createNetworkConnection r w p o c
         ncmap <- MVar.takeMVar mvar
+        {-
         case Map.lookup p ncmap of
             Just networkcon -> do
                 connectionState <- MVar.readMVar $ ncConnectionState networkcon
                 MVar.takeMVar $ ncConnectionState networkconnection
                 MVar.putMVar (ncConnectionState networkconnection) connectionState
             Nothing -> return ()
+            -}
 
         MVar.putMVar mvar $ Map.insert p networkconnection ncmap
         -- NClient.sendNetworkMessage activeCons networkconnection (RequestSync o $ length r) 5
@@ -330,8 +332,19 @@ recieveValue = recieveValueInternal 0
             -- Config.traceNetIO $ "Current unreadMSG:" ++ show mbyUnclean
             case mbyUnclean of
                 Just unclean -> do
+                    Config.traceNetIO "Preparing value"
+                    uncleanser <- NSerialize.serialize unclean
+                    Config.traceNetIO uncleanser
                     val <- replaceVChanSerial activeCons vchanconsvar unclean
+                    cleanser <- NSerialize.serialize val
+                    Config.traceNetIO cleanser
                     waitUntilContactedNewPeers activeCons val ownport
+                    case val of
+                        VChan nc _ -> do 
+                            connectionState <- MVar.readMVar $ ncConnectionState nc
+                            Config.traceNetIO $ show connectionState
+                        _ -> return ()
+
                     msgCount <- NCon.unreadMessageStart $ ncRead networkconnection
                     Config.traceNetIO "Trying to acknowledge message"
                     NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) $ -1
