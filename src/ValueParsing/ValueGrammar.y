@@ -117,7 +117,7 @@ import Networking.Messages
 
     nintroduceclient    { T _ T.NIntroduceClient }
     nnewvalue     { T _ T.NNewValue }
-    nrequestsync { T _ T.NRequestSync }
+    nrequestvalue { T _ T.NRequestValue }
     nacknowledgevalue {T _ T.NAcknowledgeValue }
     nnewpartneraddress {T _ T.NNewPartnerAddress }
     nacknowledgepartneraddress {T _ T.NAcknowledgePartnerAddress }

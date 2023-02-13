@@ -23,6 +23,7 @@ import qualified Config
 import qualified Networking.NetworkingMethod.Stateless as Stateless
 import ProcessEnvironmentTypes
 import qualified Control.Concurrent.SSem as SSem
+import qualified Networking.Common as Stateless
 
 type ResponseMapMVar = MVar.MVar (Map.Map String (String, Responses))
 

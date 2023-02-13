@@ -14,12 +14,15 @@ import Control.Exception
 
 import Networking.Messages
 import Networking.NetworkConnection
+import qualified Networking.DirectionalConnection as DC
 import ProcessEnvironmentTypes
 import qualified Networking.Serialize as NSerialize
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
 import qualified Syntax
+import qualified Networking.DirectionalConnection as DC
+import qualified Networking.DirectionalConnection as DC
 
 type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Messages -> IO ()
 
@@ -192,6 +195,7 @@ getHandleFromSocket socket = do
 
 sayGoodbye :: ActiveConnectionsStateless -> IO ()
 sayGoodbye _ = return ()
+                
 
 {-isClosed :: Conversation -> IO Bool
 isClosed = hIsClosed . fst-}

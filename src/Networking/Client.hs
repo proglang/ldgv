@@ -30,6 +30,7 @@ import qualified Networking.Serialize as NSerialize
 import Control.Monad
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 import qualified Control.Concurrent.SSem as SSem
+import Networking.NetworkConnection (NetworkConnection(ncConnectionState))
 
 
 newtype ClientException = NoIntroductionException String
@@ -269,3 +270,26 @@ replaceVChan input = case input of
             newval <- replaceVChan $ snd x
             rest <- replaceVChanPEnv xs
             return $ (fst x, newval):rest
+
+sendDisconnect :: ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
+sendDisconnect ac mvar = do
+    networkConnectionMap <- MVar.readMVar mvar
+    let allNetworkConnections = Map.elems networConnectionMap
+    goodbyes <- doForall ac allNetworkConnections
+    unless goodbyes $ do
+        threadDelay 100000
+        sendDisconnect ac mvar
+    where
+        doForall ac (x:xs) = do
+            xres <- sendDisconnectNetworkConnection ac x
+            rest <- doForall ac xs
+            return xres && rest
+        sendDisconnectNetworkConnection ac con = do
+            writeVals <- MVar.readMVar ncWrite con
+            connectionState <- MVar.readMVar ncConnectionState con
+            unreadVals <- DC.unreadMessageStart writeVals
+            lengthVals <- DC.countMessages writeVals
+            if unreadVals == lengthVals then do
+                when (connectionState /= Disconnected {}) $ sentNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) (-1)
+                return True
+            else return False
