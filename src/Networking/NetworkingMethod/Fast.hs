@@ -23,13 +23,12 @@ import qualified Config
 import qualified Networking.NetworkingMethod.Stateless as Stateless
 import ProcessEnvironmentTypes
 import qualified Control.Concurrent.SSem as SSem
-import qualified Networking.Common as Stateless
 
-type ResponseMapMVar = MVar.MVar (Map.Map String (String, Responses))
+type ResponseMapMVar = MVar.MVar (Map.Map String (String, Response))
 
 data Conversation = Conversation {convID :: String, convHandle :: Stateless.Conversation, convRespMap :: ResponseMapMVar, convSending :: SSem.SSem}
 
-type ConnectionHandler = ActiveConnectionsFast -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Messages -> IO ()
+type ConnectionHandler = ActiveConnectionsFast -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Message -> IO ()
 
 -- type NetworkAddress = (String, String)
 --  deriving (Eq, Show, Ord)
@@ -37,10 +36,10 @@ type ConnectionHandler = ActiveConnectionsFast -> MVar.MVar (Map.Map String (Net
 -- type Connectionhandler = MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Messages -> IO ()
 
 
-sendMessage ::  Conversation -> Messages -> IO ()
+sendMessage ::  Conversation -> Message -> IO ()
 sendMessage conv value = SSem.withSem (convSending conv) $ Stateless.sendMessage (convHandle conv) (ConversationMessage (convID conv) value)
 
-sendResponse :: Conversation -> Responses -> IO ()
+sendResponse :: Conversation -> Response -> IO ()
 sendResponse conv value = SSem.withSem (convSending conv) $ Stateless.sendResponse (convHandle conv) (ConversationResponse (convID conv) value)
 
 conversationHandler :: Stateless.Conversation -> IO Connection
@@ -90,7 +89,7 @@ conversationHandlerChangeHandle handle chan mvar sem = do
 
 
 
-recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Responses)
+recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Response)
 recieveResponse conv waitTime tries = do
     -- Config.traceNetIO "Trying to take mvar for responses mvar"
     responsesMap <- MVar.readMVar $ convRespMap conv
@@ -107,7 +106,7 @@ recieveResponse conv waitTime tries = do
                 threadDelay waitTime
                 recieveResponse conv waitTime $ max (tries-1) (-1) else return Nothing
 
-recieveNewMessage :: Connection -> IO (Conversation, String, Messages)
+recieveNewMessage :: Connection -> IO (Conversation, String, Message)
 recieveNewMessage connection@(handle, isClosed, chan, mvar, sem) = do
     (cid, (serial, deserial)) <- Chan.readChan chan
     return (Conversation cid handle mvar sem, serial, deserial)

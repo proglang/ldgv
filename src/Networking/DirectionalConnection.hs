@@ -73,14 +73,15 @@ readUnreadMessageMaybe connection = modifyMVar (messagesUnreadStart connection) 
     if length messagesBind == i then return (i, Nothing) else return ((i+1), Just (messagesBind!!i))
     )
 
-{-readUnreadMessage :: DirectionalConnection a -> IO a
+-- Basically only used for the internal tests at this point
+readUnreadMessage :: DirectionalConnection a -> IO a
 readUnreadMessage connection = do
     maybeval <- readUnreadMessageMaybe connection
     case maybeval of
         Nothing -> do
             threadDelay 5000
             readUnreadMessage connection
-        Just val -> return val-}
+        Just val -> return val
 
 readMessageMaybe :: DirectionalConnection a -> Int -> IO (Maybe a)
 readMessageMaybe connection index = do

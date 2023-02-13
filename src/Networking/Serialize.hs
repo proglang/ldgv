@@ -71,7 +71,7 @@ instance Serializable (NCon.DirectionalConnection Value) where
 
 instance Serializable NCon.ConnectionState where
   serialize = \case
-    NCon.Connected hostname port-> serializeLabeledEntryMulti "SConnected" hostname $ sLast port
+    NCon.Connected hostname port partnerConnectionID _ _ -> serializeLabeledEntryMulti "SConnected" hostname $ sNext port $ sLast partnerConnectionID
     _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
 
 instance Serializable Value where
@@ -227,6 +227,13 @@ instance ((Serializable a, Serializable b) => Serializable (a, b)) where
     ss <- serialize s
     ts <- serialize t
     return $ "((" ++ ss ++ ") (" ++ ts ++ "))"
+
+instance ((Serializable a, Serializable b, Serializable c) => Serializable (a, b, c)) where
+  serialize (s, t, v) = do
+    ss <- serialize s
+    ts <- serialize t
+    vs <- serialize v
+    return $ "((" ++ ss ++ ") (" ++ ts ++ ") (" ++ ts ++ "))"
 
 instance {-# OVERLAPPING #-} Serializable PEnv where
   serialize arr = serializeLabeledArray "PEnv" arr

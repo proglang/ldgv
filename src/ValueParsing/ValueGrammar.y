@@ -192,7 +192,7 @@ Value : vunit { VUnit }
        | vstring '(' String ')' {VString $3 }
        -- | vchan '(' SValuesArray ')' '(' int ')' '(' SValuesArray ')' '(' int ')' '(' String ')' '(' String ')' '(' String ')' '(' String ')' {VChanSerial $3 $6 $9 $12 $15 $18 $21 $24 }
        | vchan '(' NetworkConnection ')' {$3}
-       | vchanserial '(' SArrayIntElement ')' '(' SArrayIntElement ')' '(' String ')' '(' String ')' '(' SStringStringElement ')' {VChanSerial $3 $6 $9 $12 $15}
+       | vchanserial '(' SArrayIntElement ')' '(' SArrayIntElement ')' '(' String ')' '(' String ')' '(' SStringStringElement3 ')' {VChanSerial $3 $6 $9 $12 $15}
        | vsend '(' Value ')' {VSend $3}
        | vpair '(' Value ')' '(' Value ')' {VPair $3 $6}
        | vtype '(' Type ')' {VType $3}
@@ -208,7 +208,7 @@ NetworkConnection : snetworkconnection '(' DirectionalConnection ')' '(' Directi
 
 DirectionalConnection : sdirectionalconnection '(' SValuesArray ')' '(' int ')' {($3, $6)}
 
-ConnectionState : sconnected '(' String ')' '(' String ')' {($3, $6)}
+ConnectionState : sconnected '(' String ')' '(' String ')' '(' String ')' {($3, $6, $9)}
 
 
 Mult : mone { MOne }
@@ -345,6 +345,8 @@ LabelType : slabeltype '{' SStringElements '}' {$3}
 SArrayIntElement : '(' '(' SValuesArray ')' '(' int ')' ')' {($3, $6)}
 
 SStringStringElement : '(' '(' String ')' '(' String ')' ')' {($3, $6)}
+
+SStringStringElement3 : '(' '(' String ')' '(' String ')' '(' String ')' ')' {($3, $6, $9)}
 
      
 

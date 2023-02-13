@@ -267,7 +267,7 @@ data Token
   | NRedirect
   | NOkay
   | NOkayIntroduce
-  | Nwait
+  | NWait
   | NError
   | NConversationMessage
   | NConversationResponse

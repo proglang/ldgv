@@ -46,14 +46,14 @@ sendValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Valu
 sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
-        NCon.Connected hostname port -> do
+        NCon.Connected hostname port _ _ _-> do
             setRedirectRequests vchanconsmvar hostname port ownport val
             valcleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valcleaned
             messagesCount <- DC.countMessages $ ncWrite networkconnection
             tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
-            disableVChans val
-        NCon.Emulated -> do
+            -- disableVChans val
+        NCon.Emulated {} -> do
             vchancons <- MVar.readMVar vchanconsmvar
             valCleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valCleaned
@@ -62,18 +62,18 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
             case mbypartner of
                 Just partner -> DC.writeMessage (ncRead partner) valCleaned
                 _ -> Config.traceNetIO "Something went wrong when sending over a emulated connection"
-            disableVChans val
+            -- disableVChans val
         _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
 
-sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Messages -> Int -> IO ()
+sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Message -> Int -> IO ()
 sendNetworkMessage activeCons networkconnection message resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
-        NCon.Connected hostname port -> do
+        NCon.Connected {} -> do
             tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
         _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
 
-tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Messages -> Int -> IO ()
+tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Message -> Int -> IO ()
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
     serializedMessage <- NSerialize.serialize message
     sendingNetLog serializedMessage $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection) ++ " Over: " ++ hostname ++ ":" ++ port
@@ -165,7 +165,7 @@ initialConnect activeCons mvar hostname port ownport syntype= do
                         Config.traceNetIO $ "Sending message as: " ++ ownuserid ++ " to: " ++  introductionanswer
                         Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
                         Config.traceNetIO $ "    Message: " ++ msgserial
-                        newConnection <- newNetworkConnection introductionanswer ownuserid hostname port
+                        newConnection <- newNetworkConnection introductionanswer ownuserid hostname port introductionanswer ownuserid
                         networkconnectionmap <- MVar.takeMVar mvar
                         let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
                         MVar.putMVar mvar newNetworkconnectionmap
@@ -187,7 +187,7 @@ initialConnect activeCons mvar hostname port ownport syntype= do
             threadDelay 1000000
             initialConnect activeCons mvar hostname port ownport syntype
 
-
+-- This is still broken
 setRedirectRequests :: VChanConnections -> String -> String -> String -> Value -> IO ()
 setRedirectRequests vchanconmvar newhost newport ownport input = case input of
     VSend v -> setRedirectRequests vchanconmvar newhost newport ownport v
@@ -205,9 +205,9 @@ setRedirectRequests vchanconmvar newhost newport ownport input = case input of
         SSem.withSem (ncHandlingIncomingMessage nc) (do
             oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
             case oldconnectionstate of
-                Connected hostname port -> MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest hostname port newhost newport
-                RedirectRequest hostname port _ _ -> MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest hostname port newhost newport
-                Emulated -> do 
+                Connected hostname port partConID ownConID confirmed -> MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest hostname port newhost newport partConID ownConID confirmed
+                RedirectRequest hostname port _ _ partConID ownConID confirmed -> MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest hostname port newhost newport partConID ownConID confirmed
+                Emulated partConID ownConID confirmed -> do 
                     Config.traceNetIO "TODO: Allow RedirectRequest for Emulated channel"
                     vchanconnections <- MVar.takeMVar vchanconmvar
 
@@ -215,16 +215,16 @@ setRedirectRequests vchanconmvar newhost newport ownport input = case input of
                     let mbypartner = Map.lookup (Data.Maybe.fromMaybe "" userid) vchanconnections  
                     case mbypartner of
                         Just partner -> do
-                            MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest "" ownport newhost newport -- Setting this to 127.0.0.1 is a temporary hack
+                            MVar.putMVar (ncConnectionState nc) $ NCon.RedirectRequest "" ownport newhost newport partConID ownConID confirmed -- Setting this to 127.0.0.1 is a temporary hack
                             oldconectionstatePartner <- MVar.takeMVar $ ncConnectionState partner
-                            MVar.putMVar (ncConnectionState partner) $ NCon.Connected newhost newport
+                            MVar.putMVar (ncConnectionState partner) $ NCon.Connected newhost newport partConID ownConID confirmed
                         Nothing -> do 
                             MVar.putMVar (ncConnectionState nc) oldconnectionstate
                             Config.traceNetIO "Error occured why getting the linked emulated channel"
 
 
                     MVar.putMVar vchanconmvar vchanconnections
-                Disconnected -> Config.traceNetIO "Cannot set RedirectRequest for a disconnected channel"
+                Disconnected partConID ownConID confirmed -> Config.traceNetIO "Cannot set RedirectRequest for a disconnected channel"
             )
         Config.traceNetIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
     _ -> return ()
@@ -260,8 +260,8 @@ replaceVChan input = case input of
         newpenv <- replaceVChanPEnv penv
         return $ VNewNatRec newpenv a b c d e f g
     VChan nc _-> do
-        (r, rl, w, wl, pid, oid, h, p) <- serializeNetworkConnection nc
-        return $ VChanSerial (r, rl) (w, wl) pid oid (h, p)
+        (r, rl, w, wl, pid, oid, h, p, partConID) <- serializeNetworkConnection nc
+        return $ VChanSerial (r, rl) (w, wl) pid oid (h, p, partConID)
     _ -> return input
     where
         replaceVChanPEnv :: [(String, Value)] -> IO [(String, Value)]
@@ -271,10 +271,10 @@ replaceVChan input = case input of
             rest <- replaceVChanPEnv xs
             return $ (fst x, newval):rest
 
-sendDisconnect :: ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
+sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
 sendDisconnect ac mvar = do
     networkConnectionMap <- MVar.readMVar mvar
-    let allNetworkConnections = Map.elems networConnectionMap
+    let allNetworkConnections = Map.elems networkConnectionMap
     goodbyes <- doForall ac allNetworkConnections
     unless goodbyes $ do
         threadDelay 100000
@@ -283,7 +283,8 @@ sendDisconnect ac mvar = do
         doForall ac (x:xs) = do
             xres <- sendDisconnectNetworkConnection ac x
             rest <- doForall ac xs
-            return xres && rest
+            return $ xres && rest
+        doForall ac [] = return True
         sendDisconnectNetworkConnection ac con = do
             writeVals <- MVar.readMVar ncWrite con
             connectionState <- MVar.readMVar ncConnectionState con

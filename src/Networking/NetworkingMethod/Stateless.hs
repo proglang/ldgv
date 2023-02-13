@@ -24,7 +24,7 @@ import qualified Syntax
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.DirectionalConnection as DC
 
-type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Messages -> IO ()
+type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Message -> IO ()
 
 type Conversation = ConversationStateless 
 
@@ -162,13 +162,13 @@ getFromNetworkThreadWithModification conv func threadid mvar waitTime currentTry
                     killThread threadid
                     return Nothing
 
-recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Responses)
+recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Response)
 recieveResponse conv waitTime tries = do
     retVal <- MVar.newEmptyMVar
     threadid <- forkIO $ recieveMessageInternal conv VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
     getFromNetworkThreadWithModification (Just conv) id threadid retVal waitTime tries
 
-recieveNewMessage :: Conversation -> IO (Conversation, String, Messages)
+recieveNewMessage :: Conversation -> IO (Conversation, String, Message)
 recieveNewMessage conv = do
     recieveMessageInternal conv VG.parseMessages (\_ -> recieveNewMessage conv) $ \s des -> return (conv, s, des)
 
