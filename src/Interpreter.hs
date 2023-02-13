@@ -206,7 +206,7 @@ eval = \case
         -- val <- liftIO $ NS.replaceVChanSerial activeConnections vchanconnections valunclean
         socketsraw <- liftIO $ MVar.readMVar sockets
         let port = show $ head $ Map.keys socketsraw
-        val <- liftIO $ NS.recieveValue vchanconnections activeConnections ci
+        val <- liftIO $ NS.recieveValue vchanconnections activeConnections ci port
         liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
         -- Disable the old channel and get a new one

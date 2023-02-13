@@ -46,7 +46,7 @@ sendValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Valu
 sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
-        NCon.Connected hostname port _ _ _-> do
+        NCon.Connected hostname port _ _ _ -> do
             setRedirectRequests vchanconsmvar hostname port ownport val
             valcleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valcleaned
@@ -69,7 +69,7 @@ sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Messag
 sendNetworkMessage activeCons networkconnection message resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
-        NCon.Connected {} -> do
+        NCon.Connected hostname port _ _ _ -> do
             tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
         _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
 
@@ -98,7 +98,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             Okay -> sendingNetLog serializedMessage "Message okay" 
             Redirect host port -> do
                 sendingNetLog serializedMessage "Communication partner changed address, resending"
-                NCon.changePartnerAddress networkconnection host port
+                -- NCon.changePartnerAddress networkconnection host port "" -- TODO properly fix this
                 tryToSendNetworkMessage activeCons networkconnection host port message resendOnError
             Wait -> do
                 sendingNetLog serializedMessage "Communication out of sync lets wait!"
@@ -114,6 +114,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
 sendingNetLog :: String -> String -> IO ()
 sendingNetLog msg info = Config.traceNetIO $ "Sending message: "++msg++" \n    Status: "++info
 
+{-
 setPartnerHostAddress ::  String -> Value -> Value
 setPartnerHostAddress address input = case input of
     VSend v -> VSend $ setPartnerHostAddress address v
@@ -142,7 +143,7 @@ setPartnerHostAddress address input = case input of
         setPartnerHostAddressPEnv clientHostaddress penvs@(x:xs) =
             let newval = setPartnerHostAddress clientHostaddress $ snd x in
             (fst x, newval):setPartnerHostAddressPEnv clientHostaddress xs
-
+-}
 
 printConErr :: String -> String -> IOException -> IO ()
 printConErr hostname port err = Config.traceIO $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
@@ -285,12 +286,13 @@ sendDisconnect ac mvar = do
             rest <- doForall ac xs
             return $ xres && rest
         doForall ac [] = return True
+        sendDisconnectNetworkConnection :: NMC.ActiveConnections -> NetworkConnection Value -> IO Bool
         sendDisconnectNetworkConnection ac con = do
-            writeVals <- MVar.readMVar ncWrite con
-            connectionState <- MVar.readMVar ncConnectionState con
+            let writeVals = ncWrite con
+            connectionState <- MVar.readMVar $ ncConnectionState con
             unreadVals <- DC.unreadMessageStart writeVals
             lengthVals <- DC.countMessages writeVals
             if unreadVals == lengthVals then do
-                when (connectionState /= Disconnected {}) $ sentNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) (-1)
+                when (connectionState /= Disconnected {}) $ sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) (-1)
                 return True
             else return False

@@ -53,7 +53,7 @@ checkAndSendRedirectRequest handle ncmap userid = do
         Nothing -> return False
         
 
-handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Messages -> IO ()
+handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Message -> IO ()
 handleClient activeCons mvar clientlist clientsocket hdl ownport message deserialmessages = do
     let userid = getUserID deserialmessages
     clientHostaddress <- case snd clientsocket of
@@ -72,7 +72,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                 Just num -> do
                     constate <- MVar.readMVar $ ncConnectionState networkcon
                     reply <- case constate of
-                        RedirectRequest _ _ host port -> do 
+                        RedirectRequest _ _ host port _ _ _ -> do 
                             recievedNetLog message $ "Found redirect request for: " ++ userid
                             recievedNetLog message $ "Send redirect to:" ++ host ++ ":" ++ port
                             SSem.signal $ ncHandlingIncomingMessage networkcon
@@ -88,16 +88,17 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 recievedNetLog message "Sent okay"
                                 ND.unlockInterpreterReads (ncRead networkcon)
                                 return Nothing
-                            Requestvalue userid count -> do
+                            RequestValue userid count -> do
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
-                                mbyval <- DC.readMessageMaybe $ NCon.ncWrite networkcon
-                                Data.Maybe.maybe (return ()) (\val -> sendNetworkMessage activeCons networkcon (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) count val) 0) mbyval
+                                mbyval <- DC.readMessageMaybe (NCon.ncWrite networkcon) count
+                                Data.Maybe.maybe (return ()) (\val -> NClient.sendNetworkMessage activeCons networkcon (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) count val) 0) mbyval
                                 return Nothing
                             AcknowledgeValue userid count -> do
                                 DC.setUnreadCount (NCon.ncWrite networkcon) count
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
+                                return Nothing
                             NewPartnerAddress userid port connectionID -> do
                                 recievedNetLog message $ "Trying to change the address to: " ++ clientHostaddress ++ ":" ++ port
                                 NCon.changePartnerAddress networkcon clientHostaddress port connectionID
@@ -109,7 +110,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 if conConfirmed then NC.sendResponse hdl Messages.Okay else NC.sendResponse hdl Messages.Error
                                 return Nothing
-                            Disconnect UserID -> do
+                            Disconnect userid -> do
                                 NCon.disconnectFromPartner networkcon
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
@@ -137,7 +138,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
             case deserialmessages of
                 IntroduceClient userid clientport synname syntype -> do
                     serverid <- UserID.newRandomUserID
-                    newpeer <- newNetworkConnection userid serverid clientHostaddress clientport
+                    newpeer <- newNetworkConnection userid serverid clientHostaddress clientport userid serverid
                     NC.sendResponse hdl (Messages.OkayIntroduce serverid)
                     repserial <- NSerialize.serialize $ Messages.OkayIntroduce serverid
                     recievedNetLog message $ "    Response to "++ userid ++ ": " ++ repserial
@@ -146,9 +147,6 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                     MVar.putMVar clientlist $ clientlistraw ++ [(userid, (synname, syntype))]
 
                     return $ Just newpeer
-                IntroduceNewPartnerAddress userid port -> do
-                    placeholder <- NCon.newPlaceHolderConnection userid clientHostaddress port
-                    return $ Just placeholder
                 _ -> do
                     serial <- NSerialize.serialize deserialmessages
                     recievedNetLog message $ "Error unsupported networkmessage: "++ serial
@@ -168,6 +166,7 @@ recievedNetLog :: String -> String -> IO ()
 recievedNetLog msg info = Config.traceNetIO $ "Recieved message: "++msg++" \n    Status: "++info
 
 
+{-
 setPartnerHostAddress ::  String -> Value -> Value
 setPartnerHostAddress address input = case input of
     VSend v -> VSend $ setPartnerHostAddress address v
@@ -196,7 +195,7 @@ setPartnerHostAddress address input = case input of
         setPartnerHostAddressPEnv clientHostaddress penvs@(x:xs) =
             let newval = setPartnerHostAddress clientHostaddress $ snd x in
             (fst x, newval):setPartnerHostAddressPEnv clientHostaddress xs
-
+-}
 
 waitUntilContactedNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
 waitUntilContactedNewPeers activeCons input ownport = do
@@ -227,7 +226,7 @@ contactNewPeers activeCons input ownport = case input of
     VChan nc bool -> do
         connectionState <- MVar.readMVar $ ncConnectionState nc
         if csConfirmedConnection connectionState then return True else do
-            NClient.sendNetworkMessage activeCons tempNC (Messages.IntroduceNewPartnerAddress o ownport) 0
+            NClient.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
             return False
     _ -> return True
     where
@@ -306,7 +305,7 @@ replaceVChanSerial activeCons mvar input = case input of
             Nothing -> return ()
 
         MVar.putMVar mvar $ Map.insert p networkconnection ncmap
-        NClient.sendNetworkMessage activeCons networkconnection (RequestSync o $ length r) 5
+        -- NClient.sendNetworkMessage activeCons networkconnection (RequestSync o $ length r) 5
         used<- MVar.newEmptyMVar
         MVar.putMVar used False
         return $ VChan networkconnection used
@@ -323,18 +322,20 @@ replaceVChanSerial activeCons mvar input = case input of
 recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
 recieveValue = recieveValueInternal 0
     where
+        recieveValueInternal :: Int -> VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
         recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
-            mbyUnclean <- DC.readUnreadMessageInterpreter
+            let readDC = ncRead networkconnection 
+            mbyUnclean <- DC.readUnreadMessageInterpreter readDC
             case mbyUnclean of
                 Just unclean -> do
-                    val <- NS.replaceVChanSerial activeConnections vchanconnections unclean
-                    waitUntilContactedNewPeers vchanconsvar val ownport
+                    val <- replaceVChanSerial activeCons vchanconsvar unclean
+                    waitUntilContactedNewPeers activeCons val ownport
                     msgCount <- NCon.unreadMessageStart $ ncRead networkconnection
-                    NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkcon)) $ msgCount-1)
+                    NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) $ msgCount-1) 0
                     return val
                 Nothing -> if count == 0 then do
                         msgCount <- NCon.countMessages $ ncRead networkconnection
-                        NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkcon)) msgCount)
+                        NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) 0
                         recieveValueInternal 10 vchanconsvar activeCons networkconnection ownport
                         else do 
                             threadDelay 50000
