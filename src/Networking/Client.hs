@@ -294,8 +294,11 @@ sendDisconnect ac mvar = do
             unreadVals <- DC.unreadMessageStart writeVals
             lengthVals <- DC.countMessages writeVals
             Config.traceNetIO $ show unreadVals ++ "/" ++ show lengthVals
-            if unreadVals >= lengthVals-1 then do
+            if unreadVals >= lengthVals then do
                 Config.traceNetIO "Found a member to disconnect"
-                when (connectionState /= Disconnected {}) $ sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) (-1)
+                case connectionState of
+                    Connected {}-> sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) (-1)
+                    _ -> return ()
+                    
                 return True
             else return False

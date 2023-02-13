@@ -91,7 +91,7 @@ readMessageMaybe connection index = do
 setUnreadCount :: DirectionalConnection a -> Int -> IO ()
 setUnreadCount connection index = do
     msgLength <- readMVar $ messagesCount connection
-    when (msgLength > index) $ do
+    when (msgLength >= index) $ do
         unreadLength <- takeMVar $ messagesUnreadStart connection
         if index > unreadLength then putMVar (messagesUnreadStart connection) index else putMVar (messagesUnreadStart connection) unreadLength
 

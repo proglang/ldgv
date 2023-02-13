@@ -332,7 +332,7 @@ recieveValue = recieveValueInternal 0
                     val <- replaceVChanSerial activeCons vchanconsvar unclean
                     waitUntilContactedNewPeers activeCons val ownport
                     msgCount <- NCon.unreadMessageStart $ ncRead networkconnection
-                    NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) $ msgCount-1) 0
+                    NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) $ -1
                     return val
                 Nothing -> if count == 0 then do
                         msgCount <- NCon.countMessages $ ncRead networkconnection
