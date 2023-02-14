@@ -14,14 +14,17 @@ import Control.Exception
 
 import Networking.Messages
 import Networking.NetworkConnection
+import qualified Networking.DirectionalConnection as DC
 import ProcessEnvironmentTypes
 import qualified Networking.Serialize as NSerialize
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
 import qualified Syntax
+import qualified Networking.DirectionalConnection as DC
+import qualified Networking.DirectionalConnection as DC
 
-type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Conversation -> String -> String -> Messages -> IO ()
+type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Message -> IO ()
 
 type Conversation = ConversationStateless 
 
@@ -71,8 +74,9 @@ startConversation _ hostname port waitTime tries = do
         addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
         clientsocket <- openSocketNC $ head addrInfo
         connect clientsocket $ addrAddress $ head addrInfo
-        handle <- getSocketFromHandle clientsocket
+        handle <- getHandleFromSocket clientsocket
         MVar.putMVar convMVar (handle, (clientsocket, addrAddress $ head addrInfo))
+        Config.traceNetIO $ "Connected to: " ++ hostname ++ ":"++port
         ) $ printConErr hostname port
     getFromNetworkThread Nothing threadid convMVar waitTime tries
 
@@ -104,7 +108,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             MVar.putMVar socketsmvar updatedMap
             return newsocket
     where
-        createServer :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> VChanConnections -> IO (MVar.MVar [(String, Syntax.Type)])
+        createServer :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> VChanConnections -> IO (MVar.MVar [(String, (Syntax.Type, Syntax.Type))])
         createServer activeCons connectionhandler port vchanconnections = do
             -- serverid <- UserID.newRandomUserID
             sock <- socket AF_INET Stream 0
@@ -123,7 +127,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             MVar.putMVar clientlist []
             forkIO $ acceptClients activeCons connectionhandler vchanconnections clientlist sock $ show port
             return clientlist
-        acceptClients :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> String -> IO ()
+        acceptClients :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> Socket -> String -> IO ()
         acceptClients activeCons connectionhandler mvar clientlist socket ownport = do
             Config.traceIO "Waiting for clients"
             clientsocket <- accept socket
@@ -132,9 +136,9 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             forkIO $ acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport
             acceptClients activeCons connectionhandler mvar clientlist socket ownport
 
-        acceptClient :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> String -> IO ()
+        acceptClient :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> String -> IO ()
         acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
-            hdl <- getSocketFromHandle $ fst clientsocket
+            hdl <- getHandleFromSocket $ fst clientsocket
             let conv = (hdl, clientsocket)
             recieveMessageInternal conv VG.parseMessages (\_ -> return ()) $ connectionhandler activeCons mvar clientlist clientsocket conv ownport
             hClose hdl
@@ -150,21 +154,21 @@ getFromNetworkThreadWithModification conv func threadid mvar waitTime currentTry
         case mbyResult of
             Just result -> return $ func result
             Nothing -> do
-                convClosed <- Data.Maybe.maybe (return False) (hIsClosed . fst) conv
-                if currentTry /= 0 && not convClosed then do
+                -- convClosed <- Data.Maybe.maybe (return False) (hIsClosed . fst) conv
+                if currentTry /= 0 {-&& not convClosed-} then do
                     threadDelay waitTime
                     getFromNetworkThreadWithModification conv func threadid mvar waitTime $ max (currentTry-1) (-1)
                 else do
                     killThread threadid
                     return Nothing
 
-recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Responses)
+recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Response)
 recieveResponse conv waitTime tries = do
     retVal <- MVar.newEmptyMVar
     threadid <- forkIO $ recieveMessageInternal conv VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
     getFromNetworkThreadWithModification (Just conv) id threadid retVal waitTime tries
 
-recieveNewMessage :: Conversation -> IO (Conversation, String, Messages)
+recieveNewMessage :: Conversation -> IO (Conversation, String, Message)
 recieveNewMessage conv = do
     recieveMessageInternal conv VG.parseMessages (\_ -> recieveNewMessage conv) $ \s des -> return (conv, s, des)
 
@@ -182,8 +186,8 @@ createActiveConnections = return ActiveConnectionsStateless
 openSocketNC :: AddrInfo -> IO Socket
 openSocketNC addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
 
-getSocketFromHandle :: Socket -> IO Handle
-getSocketFromHandle socket = do
+getHandleFromSocket :: Socket -> IO Handle
+getHandleFromSocket socket = do
     hdl <- socketToHandle socket ReadWriteMode
     -- hSetBuffering hdl NoBuffering
     hSetBuffering hdl LineBuffering
@@ -191,9 +195,10 @@ getSocketFromHandle socket = do
 
 sayGoodbye :: ActiveConnectionsStateless -> IO ()
 sayGoodbye _ = return ()
+                
 
-isClosed :: Conversation -> IO Bool
-isClosed = hIsClosed . fst
+{-isClosed :: Conversation -> IO Bool
+isClosed = hIsClosed . fst-}
 
 hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do

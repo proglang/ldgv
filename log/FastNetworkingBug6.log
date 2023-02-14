@@ -1,0 +1,568 @@
+2 Bidirhandoff
+subtype: Entering [(c, (0, SendInt))] (Nat) (Int)
+subtype: Entering [ (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Nat) (Int)
+subtype: Entering [ (y2, (_, ()))
+, (m, (_, Int))
+, (y, (0, ?Int. ()))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Int) (Int)
+subtype: Entering [(c, (0, SendInt))] (Nat) (Int)
+subtype: Entering [ (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Nat) (Int)
+subtype: Entering [ (y2, (_, ()))
+, (m, (_, Int))
+, (y, (0, ?Int. ()))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Int) (Int)
+subtype: Entering [ (y2, (_, ()))
+, (m, (_, Int))
+, (y, (0, ?Int. ()))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Int) (Int)
+subtype: Entering [ (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (c32, (_, ()))
+, (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (c32, (_, ()))
+, (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (c2, (0, !Int. ()))
+, (m, (_, Int))
+, (c1, (_, ()))
+, (talk, (0, SendIntServer))
+, (con, (0, ~SendSendIntServer))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+Trying to connect to: 127.0.0.1:4242
+subtype: Entering [(c, (0, SendInt))] (Nat) (Int)
+subtype: Entering [ (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Nat) (Int)
+subtype: Entering [ (y2, (_, ()))
+, (m, (_, Int))
+, (y, (0, ?Int. ()))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Int) (Int)
+subtype: Entering [(c, (0, SendInt))] (Nat) (Int)
+subtype: Entering [ (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Nat) (Int)
+subtype: Entering [ (y2, (_, ()))
+, (m, (_, Int))
+, (y, (0, ?Int. ()))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Int) (Int)
+subtype: Entering [ (y2, (_, ()))
+, (m, (_, Int))
+, (y, (0, ?Int. ()))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Int) (Int)
+subtype: Entering [ (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (c32, (_, ()))
+, (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (c32, (_, ()))
+, (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (y, (_, ()))
+, (talk, (0, SendIntClient))
+, (con, (0, ~SendSendIntClient))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (y2, (_, ()))
+, (m, (_, Int))
+, (y, (0, ?Int. ()))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Int) (Int)
+subtype: Entering [ (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (c32, (_, ()))
+, (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (c32, (_, ()))
+, (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (con2, (0, SendSendIntServer))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (?Int. !Int. ()) (SendIntServer)
+subtype: Entering [ (con2, (0, SendSendIntServer))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (?Int. !Int. ()) (?Int. !Int. ())
+subtype: Entering [ (y2, (_, ()))
+, (m, (_, Int))
+, (y, (0, ?Int. ()))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (c, (0, SendInt)) ] (Int) (Int)
+subtype: Entering [ (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (c32, (_, ()))
+, (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (c32, (_, ()))
+, (c3, (0, !Int. ()))
+, (n, (_, Int))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (c1, (0, ~SendInt))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Nat) (Int)
+subtype: Entering [ (con2, (0, SendSendIntClient))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (!Int. ?Int. ()) (SendIntClient)
+subtype: Entering [ (con2, (0, SendSendIntClient))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (!Int. ?Int. ()) (!Int. ?Int. ())
+subtype: Entering [ (con2, (0, SendSendIntServer))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: [ (con2, (0, SendSendIntServer))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int) = Kunit
+subtype: Entering [ (zz8, (_, Int))
+, (con2, (0, SendSendIntServer))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (!Int. ()) (!Int. ())
+subtype: Entering [ (zz8, (_, Int))
+, (con2, (0, SendSendIntServer))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: [ (zz8, (_, Int))
+, (con2, (0, SendSendIntServer))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int) = Kunit
+subtype: Entering [ (zz9, (_, Int))
+, (zz8, (_, Int))
+, (con2, (0, SendSendIntServer))
+, (c22, (0, ?Int. !Int. ()))
+, (c2, (0, !Int. ?Int. !Int. ()))
+, (m, (_, Int))
+, (con, (0, ~SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (()) (())
+subtype: Entering [ (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: Entering [ (con2, (0, SendSendIntClient))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: [ (con2, (0, SendSendIntClient))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int) = Kunit
+subtype: Entering [ (zz8, (_, Int))
+, (con2, (0, SendSendIntClient))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (?Int. ()) (?Int. ())
+subtype: Entering [ (zz8, (_, Int))
+, (con2, (0, SendSendIntClient))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+subtype: [ (zz8, (_, Int))
+, (con2, (0, SendSendIntClient))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int) = Kunit
+subtype: Entering [ (zz9, (_, Int))
+, (zz8, (_, Int))
+, (con2, (0, SendSendIntClient))
+, (x2, (0, !Int. ?Int. ()))
+, (n, (_, Int))
+, (x, (0, ?Int. !Int. ?Int. ()))
+, (con, (0, SendInt))
+, (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (()) (())
+subtype: Entering [ (main, (_, Int))
+, (add2, (_, (c1 : ~SendInt) -> Int))
+, (send2, (_, (c : SendInt) -> Int)) ] (Int) (Int)
+Trying to connect to: 127.0.0.1:4242
+Recieved message from unknown connection!
+    Response to 7rgEnvHL: NOkayIntroduce (String:"nISByehk")
+    Message: NConversationMessage (String:"shD3v8xj") (NIntroduceClient (String:"7rgEnvHL") (String:"4343") (TName (Bool:False) (String:"SendInt")) (TSend (String:"#!") (TInt) (TRecv (String:"#?") (TInt) (TSend (String:"#!") (TInt) (TRecv (String:"#?") (TInt) (TUnit)))))) 
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4242
+Trying to connect to: 127.0.0.1:4242
+    Message: NIntroduceClient (String:"7rgEnvHL") (String:"4343") (TName (Bool:False) (String:"SendInt")) (TSend (String:"#!") (TInt) (TRecv (String:"#?") (TInt) (TSend (String:"#!") (TInt) (TRecv (String:"#?") (TInt) (TUnit)))))
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4242
+    Message: NNewValue (String:"7rgEnvHL") (Int:1) (VInt (Int:1))
+Recieved message from unknown connection!
+    Response to 4MHbSLnZ: NOkayIntroduce (String:"qZXgVJiD")
+    Message: NConversationMessage (String:"yCLqfaI7") (NIntroduceClient (String:"4MHbSLnZ") (String:"4240") (TName (Bool:True) (String:"SendSendIntServer")) (TSend (String:"#!") (TName (Bool:False) (String:"SendIntServer")) (TUnit))) 
+Recieved message as: nISByehk (4242) from: 7rgEnvHL
+    NConversationMessage (String:"KPyBCp2x") (NNewValue (String:"7rgEnvHL") (Int:1) (VInt (Int:1))) 
+    Message: NConversationMessage (String:"KPyBCp2x") (NNewValue (String:"7rgEnvHL") (Int:1) (VInt (Int:1))) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4343
+    Message: NNewValue (String:"nISByehk") (Int:1) (VInt (Int:1300))
+Trying to connect to: 127.0.0.1:4343
+Sending message as: 4MHbSLnZ to: qZXgVJiD
+    Over: 127.0.0.1:4242
+    Message: NIntroduceClient (String:"4MHbSLnZ") (String:"4240") (TName (Bool:True) (String:"SendSendIntServer")) (TSend (String:"#!") (TName (Bool:False) (String:"SendIntServer")) (TUnit))
+Message okay: NNewValue (String:"7rgEnvHL") (Int:1) (VInt (Int:1))
+Recieved message as: 7rgEnvHL (4343) from: nISByehk
+    NConversationMessage (String:"9dblOYp2") (NNewValue (String:"nISByehk") (Int:1) (VInt (Int:1300))) 
+    Message: NConversationMessage (String:"9dblOYp2") (NNewValue (String:"nISByehk") (Int:1) (VInt (Int:1300))) 
+Trying to connect to: 127.0.0.1:4340
+Recieved message from unknown connection!
+    Response to 7tTIigo7: NOkayIntroduce (String:"MiquZROF")
+    Message: NConversationMessage (String:"jVHOkaFZ") (NIntroduceClient (String:"7tTIigo7") (String:"4343") (TName (Bool:False) (String:"SendSendIntClient")) (TSend (String:"#!") (TName (Bool:False) (String:"SendIntClient")) (TUnit))) 
+Message okay: NNewValue (String:"nISByehk") (Int:1) (VInt (Int:1300))
+Trying to set RedirectRequest for 7rgEnvHL to 127.0.0.1:4240
+Set RedirectRequest for 7rgEnvHL to 127.0.0.1:4240
+Sending message as: qZXgVJiD to: 4MHbSLnZ
+    Over: 127.0.0.1:4240
+    Message: NNewValue (String:"qZXgVJiD") (Int:1) (VChanSerial (((SValuesArray [VInt (Int:1)]) (Int:1))) (((SValuesArray [VInt (Int:1300)]) (Int:0))) (String:"7rgEnvHL") (String:"nISByehk") (((String:"127.0.0.1") (String:"4343"))))
+Trying to connect to: 127.0.0.1:4240
+Sending message as: 7tTIigo7 to: MiquZROF
+    Over: 127.0.0.1:4340
+    Message: NIntroduceClient (String:"7tTIigo7") (String:"4343") (TName (Bool:False) (String:"SendSendIntClient")) (TSend (String:"#!") (TName (Bool:False) (String:"SendIntClient")) (TUnit))
+Trying to set RedirectRequest for nISByehk to 127.0.0.1:4340
+Set RedirectRequest for nISByehk to 127.0.0.1:4340
+Sending message as: 7tTIigo7 to: MiquZROF
+    Over: 127.0.0.1:4340
+    Message: NNewValue (String:"7tTIigo7") (Int:1) (VChanSerial (((SValuesArray [VInt (Int:1300)]) (Int:1))) (((SValuesArray [VInt (Int:1)]) (Int:0))) (String:"nISByehk") (String:"7rgEnvHL") (((String:"127.0.0.1") (String:"4242"))))
+Recieved message as: MiquZROF (4340) from: 7tTIigo7
+    NConversationMessage (String:"r4mVhKcq") (NNewValue (String:"7tTIigo7") (Int:1) (VChanSerial (((SValuesArray [VInt (Int:1300)]) (Int:1))) (((SValuesArray [VInt (Int:1)]) (Int:0))) (String:"nISByehk") (String:"7rgEnvHL") (((String:"127.0.0.1") (String:"4242"))))) 
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4242
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Trying to connect to: 127.0.0.1:4242
+Recieved message as: 4MHbSLnZ (4240) from: qZXgVJiD
+    NConversationMessage (String:"vn4kpvnc") (NNewValue (String:"qZXgVJiD") (Int:1) (VChanSerial (((SValuesArray [VInt (Int:1)]) (Int:1))) (((SValuesArray [VInt (Int:1300)]) (Int:0))) (String:"7rgEnvHL") (String:"nISByehk") (((String:"127.0.0.1") (String:"4343"))))) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4343
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Trying to connect to: 127.0.0.1:4343
+Recieved message as: nISByehk (4242) from: 7rgEnvHL
+    NConversationMessage (String:"mc7wMrHY") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Found redirect request for: 7rgEnvHL
+Send redirect to:127.0.0.1:4240
+    Message: NConversationMessage (String:"mc7wMrHY") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Recieved message as: 7rgEnvHL (4343) from: nISByehk
+    NConversationMessage (String:"jzQaGVfj") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Found redirect request for: nISByehk
+Send redirect to:127.0.0.1:4340
+    Message: NConversationMessage (String:"jzQaGVfj") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication partner changed address, resending
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Trying to connect to: 127.0.0.1:4240
+Communication partner changed address, resending
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Trying to connect to: 127.0.0.1:4340
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"PiKTMZk3") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"Wgc8VSWd") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"8tRv7zEU") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"nsMTLUV5") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"psB35Ww8") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"NHp37pNy") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"XGzPe347") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"nc4kbQGE") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"65nMnuAF") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"gWXy1btd") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"wsiXKJj6") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"F8J2w78a") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+^VSending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"6e1XCkd1") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"lFGrxfAz") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"E7AhHqgg") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"E8i7UHZA") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"zXWZieG6") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"jVfvJugy") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"846ygNLv") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"mGc2GaJY") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+Sending message as: 7rgEnvHL to: nISByehk
+    Over: 127.0.0.1:4240
+    Message: NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"VUuwAOk8") (NIntroduceNewPartnerAddress (String:"7rgEnvHL") (String:"4340")) 
+Sending message as: nISByehk to: 7rgEnvHL
+    Over: 127.0.0.1:4340
+    Message: NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")
+Recieved message from unknown connection!
+    Message: NConversationMessage (String:"WLnyAVFy") (NIntroduceNewPartnerAddress (String:"nISByehk") (String:"4240")) 
+Communication out of sync lets wait!
+Communication out of sync lets wait!
+^C[laeuferle@workbench ldgvnetworking]$ ^C
+[laeuferle@workbench ldgvnetworking]$ ^C
+[laeuferle@workbench ldgvnetworking]$ 

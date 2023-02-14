@@ -24,11 +24,11 @@ import qualified Networking.NetworkingMethod.Stateless as Stateless
 import ProcessEnvironmentTypes
 import qualified Control.Concurrent.SSem as SSem
 
-type ResponseMapMVar = MVar.MVar (Map.Map String (String, Responses))
+type ResponseMapMVar = MVar.MVar (Map.Map String (String, Response))
 
 data Conversation = Conversation {convID :: String, convHandle :: Stateless.Conversation, convRespMap :: ResponseMapMVar, convSending :: SSem.SSem}
 
-type ConnectionHandler = ActiveConnectionsFast -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Conversation -> String -> String -> Messages -> IO ()
+type ConnectionHandler = ActiveConnectionsFast -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Message -> IO ()
 
 -- type NetworkAddress = (String, String)
 --  deriving (Eq, Show, Ord)
@@ -36,10 +36,10 @@ type ConnectionHandler = ActiveConnectionsFast -> MVar.MVar (Map.Map String (Net
 -- type Connectionhandler = MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> Handle -> String -> String -> Messages -> IO ()
 
 
-sendMessage ::  Conversation -> Messages -> IO ()
+sendMessage ::  Conversation -> Message -> IO ()
 sendMessage conv value = SSem.withSem (convSending conv) $ Stateless.sendMessage (convHandle conv) (ConversationMessage (convID conv) value)
 
-sendResponse :: Conversation -> Responses -> IO ()
+sendResponse :: Conversation -> Response -> IO ()
 sendResponse conv value = SSem.withSem (convSending conv) $ Stateless.sendResponse (convHandle conv) (ConversationResponse (convID conv) value)
 
 conversationHandler :: Stateless.Conversation -> IO Connection
@@ -54,23 +54,24 @@ conversationHandlerChangeHandle handle chan mvar sem = do
     isClosed <- MVar.newEmptyMVar
     MVar.putMVar isClosed False
     forkIO $ whileNotMVar isClosed (do
-        -- Config.traceNetIO "Waiting for new conversation"
+        Config.traceNetIO "Waiting for new conversation"
         Stateless.recieveMessageInternal handle VG.parseConversation (\_ -> return ()) (\mes des -> do
-            -- Config.traceNetIO "Got new conversation"  
+            Config.traceNetIO $ "Got new conversation: " ++ mes
             case des of
                 ConversationMessage cid message -> Chan.writeChan chan (cid, (mes, message))
                 ConversationResponse cid response -> do
-                    -- Config.traceNetIO "Trying to take mvar"
+                    Config.traceNetIO "Trying to take mvar"
                     mymap <- MVar.takeMVar mvar
                     MVar.putMVar mvar $ Map.insert cid (mes, response) mymap
-                    -- Config.traceNetIO "Set responses mvar"
+                    Config.traceNetIO "Set responses mvar"
                 ConversationCloseAll -> do
                     Config.traceNetIO $ "Recieved Message: " ++ mes
                     MVar.takeMVar isClosed
                     MVar.putMVar isClosed True
                     forkIO $ catch (do
-                        closed <- hIsClosed $ fst handle
-                        unless closed $ hClose $ fst handle) onException
+                        -- closed <- hIsClosed $ fst handle
+                        -- unless closed $ 
+                        hClose $ fst handle) onException
                     return ()
             )
         )
@@ -88,24 +89,24 @@ conversationHandlerChangeHandle handle chan mvar sem = do
 
 
 
-recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Responses)
-recieveResponse conv{-ersation@(cid, handle, mvar, sem)-} waitTime tries = do
+recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Response)
+recieveResponse conv waitTime tries = do
     -- Config.traceNetIO "Trying to take mvar for responses mvar"
-    responsesMap <- MVar.takeMVar $ convRespMap conv
+    responsesMap <- MVar.readMVar $ convRespMap conv
     -- Config.traceNetIO "Got MVar for responses"
     case Map.lookup (convID conv) responsesMap of
         Just (messages, deserial) -> do
-            MVar.putMVar (convRespMap conv) $ Map.delete (convID conv) responsesMap
+            -- MVar.putMVar (convRespMap conv) $ Map.delete (convID conv) responsesMap
             return $ Just deserial
         Nothing -> do
-            MVar.putMVar (convRespMap conv) responsesMap
-            handleClosed <- hIsClosed $ fst (convHandle conv)
-            if tries /= 0 && not handleClosed then do
+            -- MVar.putMVar (convRespMap conv) responsesMap
+            -- handleClosed <- hIsClosed $ fst (convHandle conv)
+            if tries /= 0 {-&& not handleClosed-} then do
                 -- Config.traceNetIO "Nothing yet retrying!" 
                 threadDelay waitTime
                 recieveResponse conv waitTime $ max (tries-1) (-1) else return Nothing
 
-recieveNewMessage :: Connection -> IO (Conversation, String, Messages)
+recieveNewMessage :: Connection -> IO (Conversation, String, Message)
 recieveNewMessage connection@(handle, isClosed, chan, mvar, sem) = do
     (cid, (serial, deserial)) <- Chan.readChan chan
     return (Conversation cid handle mvar sem, serial, deserial)
@@ -174,7 +175,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             MVar.putMVar socketsmvar updatedMap
             return newsocket
     where
-        createServer :: ActiveConnectionsFast -> ConnectionHandler -> Int -> VChanConnections ->  IO (MVar.MVar [(String, Syntax.Type)])
+        createServer :: ActiveConnectionsFast -> ConnectionHandler -> Int -> VChanConnections ->  IO (MVar.MVar [(String, (Syntax.Type, Syntax.Type))])
         createServer activeCons connectionhandler port vchanconnections = do
             -- serverid <- UserID.newRandomUserID
             sock <- socket AF_INET Stream 0
@@ -192,7 +193,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             forkIO $ acceptClients activeCons connectionhandler vchanconnections clientlist sock $ show port
             return clientlist
 
-        acceptClients :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> Socket -> String -> IO ()
+        acceptClients :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> Socket -> String -> IO ()
         acceptClients activeCons connectionhandler mvar clientlist socket ownport = do
             Config.traceIO "Waiting for clients"
             clientsocket <- accept socket
@@ -201,9 +202,9 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             forkIO $ acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport
             acceptClients activeCons connectionhandler mvar clientlist socket ownport
 
-        acceptClient :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, Syntax.Type)] -> (Socket, SockAddr) -> String -> IO ()
+        acceptClient :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> String -> IO ()
         acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
-            hdl <- Stateless.getSocketFromHandle $ fst clientsocket
+            hdl <- Stateless.getHandleFromSocket $ fst clientsocket
             let statelessConv = (hdl, clientsocket)
             connection@(handle, isClosed, chan, responsesMvar, sem) <- conversationHandler statelessConv 
             -- NC.recieveMessage hdl VG.parseMessages (\_ -> return ()) $ connectionhandler mvar clientlist clientsocket hdl ownport
@@ -242,8 +243,8 @@ sayGoodbye activeCons = do
         onException _ = return ()
 
 
-isClosed :: Conversation -> IO Bool
-isClosed = hIsClosed . fst . convHandle
+{-isClosed :: Conversation -> IO Bool
+isClosed = hIsClosed . fst . convHandle-}
 
 getPartnerHostaddress :: Conversation -> String
 getPartnerHostaddress = Stateless.getPartnerHostaddress . convHandle

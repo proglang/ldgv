@@ -40,7 +40,7 @@ instance Show FuncType where
 -- data NetworkAddress = NetworkAddress {hostname :: String, port :: String}
 --   deriving (Eq, Show)
 
-type ServerSocket = (MVar.MVar [(String, Type)], String)
+type ServerSocket = (MVar.MVar [(String, (Type, Type))], String)
 
 type VChanConnections = MVar.MVar (Map.Map String (NCon.NetworkConnection Value))
 
@@ -54,7 +54,7 @@ data Value
   | VDouble Double
   | VString String
   | VChan (NCon.NetworkConnection Value) (MVar.MVar Bool) --Maybe a "used" mvar to notify that this vchan should no longer be used
-  | VChanSerial ([Value], Int) ([Value], Int) String String (String, String)
+  | VChanSerial ([Value], Int) ([Value], Int) String String (String, String, String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
   | VType S.Type
@@ -78,15 +78,16 @@ disableOldVChan value = case value of
   _ -> return value
 
 
+{-
 disableVChan :: Value -> IO ()
 disableVChan value = case value of
   VChan nc _ -> do
     mbystate <- MVar.tryTakeMVar $ NCon.ncConnectionState nc  --I dont fully understand why this mvar isnt filled but lets bypass this problem
     case mbystate of
-      Nothing -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
+      Nothing -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected 
       Just state -> case state of
-          NCon.Connected _ _ -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
-          NCon.Emulated -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
+          NCon.Connected {} -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
+          NCon.Emulated {} -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
           _ -> MVar.putMVar (NCon.ncConnectionState nc) state
   _ -> return ()
 
@@ -132,7 +133,7 @@ disableVChans input = case input of
             rest <- disableVChansPEnv xs
             return ()
             -- return $ (fst x, newval):rest
-
+-}
 
 instance Show Value where
   show = \case

@@ -9,8 +9,8 @@ import qualified Networking.Serialize as NSerialize
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
-import qualified Networking.NetworkingMethod.Stateless as NetMethod
--- import qualified Networking.NetworkingMethod.Fast as NetMethod
+-- import qualified Networking.NetworkingMethod.Stateless as NetMethod
+import qualified Networking.NetworkingMethod.Fast as NetMethod
 
 
 type ConversationOrHandle = NetMethod.Conversation 
@@ -36,8 +36,4 @@ endConversation con waitTime tries = NetMethod.endConversation con waitTime trie
 
 sayGoodbye con = NetMethod.sayGoodbye con
 
-isClosed con = NetMethod.isClosed con
-
 getPartnerHostaddress conv = NetMethod.getPartnerHostaddress conv
-
-

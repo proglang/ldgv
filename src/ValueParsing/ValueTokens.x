@@ -129,15 +129,17 @@ tokens :-
 
   "NIntroduceClient"                    { tok $ const NIntroduceClient }
   "NNewValue"                           { tok $ const NNewValue }
-  "NSyncIncoming"                       { tok $ const NSyncIncoming }
-  "NRequestSync"                        { tok $ const NRequestSync }
-  "NChangePartnerAddress"               { tok $ const NChangePartnerAddress }
-  "NIntroduceNewPartnerAddress"         { tok $ const NIntroduceNewPartnerAddress}
+  "NRequestValue"                       { tok $ const NRequestValue }
+  "NAcknowledgeValue"                   { tok $ const NAcknowledgeValue }
+  "NNewPartnerAddress"                  { tok $ const NNewPartnerAddress }
+  "NAcknowledgePartnerAddress"          { tok $ const NAcknowledgePartnerAddress }
+  "NDisconnect"                         { tok $ const NDisconnect }
+  "NAcknowledgeDisconnect"              { tok $ const NAcknowledgeDisconnect }
   "NRedirect"                           { tok $ const NRedirect }
   "NOkay"                               { tok $ const NOkay }
   "NOkayIntroduce"                      { tok $ const NOkayIntroduce }
-  "NOkaySync"                           { tok $ const NOkaySync }
-  "NWait"                               { tok $ const NWait}
+  "NWait"                               { tok $ const NWait }
+  "NError"                              { tok $ const NError }
   "NConversationMessage"                { tok $ const NConversationMessage }
   "NConversationResponse"               { tok $ const NConversationResponse }
   "NConversationCloseAll"               { tok $ const NConversationCloseAll }
@@ -256,15 +258,17 @@ data Token
 
   | NIntroduceClient
   | NNewValue
-  | NSyncIncoming
-  | NRequestSync
-  | NChangePartnerAddress
-  | NIntroduceNewPartnerAddress
+  | NRequestValue
+  | NAcknowledgeValue
+  | NNewPartnerAddress
+  | NAcknowledgePartnerAddress
+  | NDisconnect
+  | NAcknowledgeDisconnect
   | NRedirect
   | NOkay
   | NOkayIntroduce
-  | NOkaySync
   | NWait
+  | NError
   | NConversationMessage
   | NConversationResponse
   | NConversationCloseAll
