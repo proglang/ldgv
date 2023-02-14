@@ -1,11 +1,7 @@
 module Networking.NetworkConnection where
 
 import Networking.DirectionalConnection
-    ( DirectionalConnection,
-      newConnection,
-      createConnection,
-      serializeConnection )
-import Networking.UserID
+import Networking.RandomID
 import qualified Data.Maybe
 import qualified Data.Map as Map
 import qualified Control.Concurrent.MVar as MVar
@@ -34,7 +30,7 @@ createNetworkConnection :: ([a], Int) -> ([a], Int) -> String -> String -> (Stri
 createNetworkConnection (readList, readNew) (writeList, writeNew) partnerID ownID (hostname, port, partnerConnectionID) = do
     read <- createConnection readList readNew
     write <- createConnection writeList writeNew
-    ownConnectionID <- newRandomUserID
+    ownConnectionID <- newRandomID
     connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID False
     incomingMsg <- SSem.new 1
     return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate incomingMsg
@@ -47,12 +43,12 @@ newEmulatedConnection mvar = do
     write <- newConnection
     read2 <- newConnection
     write2 <- newConnection
-    connectionid1 <- newRandomUserID 
-    connectionid2 <- newRandomUserID 
+    connectionid1 <- newRandomID 
+    connectionid2 <- newRandomID 
     connectionstate <- MVar.newMVar $ Emulated connectionid2 connectionid1 True
     connectionstate2 <- MVar.newMVar $ Emulated connectionid1 connectionid2 True
-    userid <- newRandomUserID
-    userid2 <- newRandomUserID
+    userid <- newRandomID
+    userid2 <- newRandomID
     incomingMsg <- SSem.new 1
     incomingMsg2 <- SSem.new 1
     let nc1 = NetworkConnection read write (Just userid2) (Just userid) connectionstate incomingMsg

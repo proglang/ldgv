@@ -8,7 +8,7 @@ import Networking.Messages
 import qualified Control.Concurrent.MVar as MVar
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.Messages as Messages
-import qualified Networking.UserID as UserID
+import qualified Networking.RandomID as RandomID
 import qualified Data.Map as Map
 import qualified Data.Maybe
 import Control.Concurrent
@@ -134,7 +134,7 @@ initialConnect activeCons mvar hostname port ownport syntype= do
 
     case mbycon of
         Just con -> do
-            ownuserid <- UserID.newRandomUserID
+            ownuserid <- RandomID.newRandomID
             NC.sendMessage con (Messages.IntroduceClient ownuserid ownport (fst syntype) $ snd syntype)
             mbyintroductionanswer <- NC.recieveResponse con 10000 (-1)
             NC.endConversation con 10000 10

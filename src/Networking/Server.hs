@@ -14,7 +14,7 @@ import qualified Networking.Serialize as NSerialize
 import ProcessEnvironmentTypes
 import qualified Syntax
 
-import qualified Networking.UserID as UserID
+import qualified Networking.RandomID as RandomID
 import qualified Networking.Messages as Messages
 import qualified Networking.Client as NClient
 
@@ -46,7 +46,6 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
     case Map.lookup userid netcons of 
         Just networkcon -> do 
             recievedNetLog message $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " (" ++ ownport ++ ") from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
-            -- Config.traceNetIO $ "    "++message
             busy <- SSem.tryWait $ ncHandlingIncomingMessage networkcon
             case busy of
                 Just num -> do
@@ -110,7 +109,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
             recievedNetLog message "Recieved message from unknown connection"
             case deserialmessages of
                 IntroduceClient userid clientport synname syntype -> do
-                    serverid <- UserID.newRandomUserID
+                    serverid <- RandomID.newRandomID
                     newpeer <- newNetworkConnection userid serverid clientHostaddress clientport userid serverid
                     NC.sendResponse hdl (Messages.OkayIntroduce serverid)
                     repserial <- NSerialize.serialize $ Messages.OkayIntroduce serverid

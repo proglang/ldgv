@@ -11,13 +11,8 @@ module Interpreter
 import qualified Config as C
 import Syntax
 import PrettySyntax
-import qualified Control.Concurrent.Chan as Chan
 import qualified Control.Concurrent.MVar as MVar
-import Network.Socket
--- import qualified Network.Socket as NSocket
-import Control.Concurrent (forkIO)
 import Data.Foldable (find)
-import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Map as Map
 import ProcessEnvironment
 import Networking.NetworkingMethod.NetworkingMethodCommon
@@ -27,42 +22,17 @@ import Control.Applicative ((<|>))
 import Control.Exception
 import Kinds (Multiplicity(..))
 
-import qualified ValueParsing.ValueTokens as VT
-import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.Common as NC
 import qualified Networking.Client as NClient
-
-import Network.Run.TCP
 import qualified Networking.Server as NS
 
-import Networking.UserID as UserID
 
 import Control.Concurrent
-import qualified Networking.UserID as UserID
-
-import qualified Networking.Messages as Messages
 import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkConnection as NCon
-import qualified Networking.Serialize
--- import ProcessEnvironment (CommunicationChannel(CommunicationChannel, ccChannelState, ccPartnerUserID), ConnectionInfo (ciReadChannel, ciWriteChannel))
--- import ProcessEnvironment
-import qualified Control.Concurrent as MVar
-import ProcessEnvironment
 import ProcessEnvironmentTypes
-import Networking.NetworkConnection (NetworkConnection(ncPartnerUserID))
-import qualified Control.Concurrent as MVar
-import qualified Control.Concurrent as MVar
-import qualified Control.Concurrent as MVar
-import qualified Control.Concurrent as MVar
-import qualified Control.Concurrent as MVar
-import qualified Control.Concurrent as MVar
-import qualified Control.Concurrent.SSem as SSem
--- import qualified Networking.NetworkConnection as NCon
--- import qualified Networking.NetworkConnection as NCon
-
 import qualified Data.Bifunctor
--- import qualified Networking.NetworkingMethod.Stateless as NetMethod
--- import qualified Networking.NetworkingMethod.Fast as NetMethod
+import Data.Maybe
 
 data InterpreterException
   = MathException String

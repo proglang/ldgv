@@ -12,7 +12,7 @@ import Control.Exception
 
 import Networking.Messages
 import Networking.NetworkConnection
-import Networking.UserID
+import Networking.RandomID
 import qualified Syntax
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
@@ -44,16 +44,12 @@ conversationHandlerChangeHandle handle chan mvar sem = do
     isClosed <- MVar.newEmptyMVar
     MVar.putMVar isClosed False
     forkIO $ whileNotMVar isClosed (do
-        Config.traceNetIO "Waiting for new conversation"
         Stateless.recieveMessageInternal handle VG.parseConversation (\_ -> return ()) (\mes des -> do
-            Config.traceNetIO $ "Got new conversation: " ++ mes
             case des of
                 ConversationMessage cid message -> Chan.writeChan chan (cid, (mes, message))
                 ConversationResponse cid response -> do
-                    Config.traceNetIO "Trying to take mvar"
                     mymap <- MVar.takeMVar mvar
                     MVar.putMVar mvar $ Map.insert cid (mes, response) mymap
-                    Config.traceNetIO "Set responses mvar"
                 ConversationCloseAll -> do
                     Config.traceNetIO $ "Recieved Message: " ++ mes
                     MVar.takeMVar isClosed
@@ -92,7 +88,7 @@ recieveNewMessage connection@(handle, isClosed, chan, mvar, sem) = do
 
 startConversation :: ActiveConnectionsFast -> String -> String -> Int -> Int -> IO (Maybe Conversation)
 startConversation acmvar hostname port waitTime tries = do
-    conversationid <- newRandomUserID
+    conversationid <- newRandomID
     connectionMap <- MVar.takeMVar acmvar
     case Map.lookup (hostname, port) connectionMap of
         Just (handle, isClosed, chan, mvar, sem) -> do
@@ -144,9 +140,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             MVar.putMVar socketsmvar sockets
             return socket
         Nothing -> do
-            Config.traceIO "Creating socket!"
             clientlist <- createServer ac connectionhandler port vchanconnections
-            Config.traceIO "Socket created"
             let newsocket = (clientlist, show port)
             let updatedMap = Map.insert port newsocket sockets
             MVar.putMVar socketsmvar updatedMap
@@ -171,9 +165,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
 
         acceptClients :: ActiveConnectionsFast -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> Socket -> String -> IO ()
         acceptClients activeCons connectionhandler mvar clientlist socket ownport = do
-            Config.traceIO "Waiting for clients"
             clientsocket <- accept socket
-            Config.traceIO "Accepted new client"
 
             forkIO $ acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport
             acceptClients activeCons connectionhandler mvar clientlist socket ownport
