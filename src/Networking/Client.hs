@@ -57,8 +57,8 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
             vchancons <- MVar.readMVar vchanconsmvar
             valCleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valCleaned
-            let partnerid = Data.Maybe.fromMaybe "" $ ncPartnerUserID networkconnection
-            let mbypartner = Map.lookup partnerid vchancons
+            let ownid = Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection
+            let mbypartner = Map.lookup ownid vchancons
             case mbypartner of
                 Just partner -> do 
                     DC.writeMessage (ncRead partner) valCleaned
@@ -77,6 +77,7 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
     case connectionstate of
         NCon.Connected hostname port _ _ _ -> do
             tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
+        NCon.Emulated {} -> return True
         _ -> do 
             Config.traceNetIO "Error when sending message: This channel is disconnected"
             return False

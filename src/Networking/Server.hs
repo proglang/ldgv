@@ -80,7 +80,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                         Connected {} -> case deserialmessages of
                             NewValue userid count val -> do
                                 ND.lockInterpreterReads (ncRead networkcon)
-                                ND.writeMessageIfNext (ncRead networkcon) count val
+                                ND.writeMessageIfNext (ncRead networkcon) count $ setPartnerHostAddress clientHostaddress val
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 recievedNetLog message "Message written to Channel" 
                                 NC.sendResponse hdl Messages.Okay
@@ -157,7 +157,7 @@ recievedNetLog :: String -> String -> IO ()
 recievedNetLog msg info = Config.traceNetIO $ "Recieved message: "++msg++" \n    Status: "++info
 
 
-{-
+
 setPartnerHostAddress ::  String -> Value -> Value
 setPartnerHostAddress address input = case input of
     VSend v -> VSend $ setPartnerHostAddress address v
@@ -177,8 +177,8 @@ setPartnerHostAddress address input = case input of
         let newpenv = setPartnerHostAddressPEnv address penv in
         VNewNatRec newpenv a b c d e f g
     VChanSerial r w p o c -> do
-        let (hostname, port) = c
-        VChanSerial r w p o (if hostname == "" then address else hostname, port)
+        let (hostname, port, partnerID) = c
+        VChanSerial r w p o (if hostname == "" then address else hostname, port, partnerID)
     _ -> input -- return input
     where
         setPartnerHostAddressPEnv :: String -> [(String, Value)] -> [(String, Value)]
@@ -186,7 +186,6 @@ setPartnerHostAddress address input = case input of
         setPartnerHostAddressPEnv clientHostaddress penvs@(x:xs) =
             let newval = setPartnerHostAddress clientHostaddress $ snd x in
             (fst x, newval):setPartnerHostAddressPEnv clientHostaddress xs
--}
 
 waitUntilContactedNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
 waitUntilContactedNewPeers activeCons input ownport = do
@@ -216,9 +215,12 @@ contactNewPeers activeCons input ownport = case input of
         contactNewPeersPEnv activeCons penv ownport
     VChan nc bool -> do
         connectionState <- MVar.readMVar $ ncConnectionState nc
-        if csConfirmedConnection connectionState then return True else do
-            NClient.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
-            return False
+        case connectionState of
+            Emulated {} -> return True
+            _ -> do
+                if csConfirmedConnection connectionState then return True else do
+                    NClient.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
+                    return False
     _ -> return True
     where
         contactNewPeersPEnv :: NMC.ActiveConnections -> [(String, Value)] -> String -> IO Bool -- [(String, Value)]
@@ -313,7 +315,11 @@ replaceVChanSerial activeCons mvar input = case input of
 
 
 recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
-recieveValue = recieveValueInternal 0
+recieveValue vchanconsvar activeCons networkconnection ownport = do
+    connectionState <- MVar.readMVar $ ncConnectionState networkconnection
+    case connectionState of
+        Emulated {} -> recieveValueEmulated vchanconsvar activeCons networkconnection ownport
+        _ -> recieveValueInternal 0 vchanconsvar activeCons networkconnection ownport
     where
         recieveValueInternal :: Int -> VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
         recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
@@ -346,3 +352,39 @@ recieveValue = recieveValueInternal 0
                         else do 
                             threadDelay 5000
                             recieveValueInternal (count-1) vchanconsvar activeCons networkconnection ownport
+        recieveValueEmulated :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
+        recieveValueEmulated vchanconsvar activeCons networkconnection ownport = do
+            let readDC = ncRead networkconnection 
+            mbyUnclean <- DC.readUnreadMessageInterpreter readDC
+            -- allValues <- DC.allMessages $ ncWrite networkconnection
+            -- Config.traceNetIO $ "all Values: "++ show allValues
+            case mbyUnclean of
+                Just unclean -> do
+                    Config.traceNetIO "Preparing value"
+                    uncleanser <- NSerialize.serialize unclean
+                    Config.traceNetIO uncleanser
+                    val <- replaceVChanSerial activeCons vchanconsvar unclean
+                    cleanser <- NSerialize.serialize val
+                    Config.traceNetIO cleanser
+                    waitUntilContactedNewPeers activeCons val ownport
+                    case val of
+                        VChan nc _ -> do 
+                            connectionState <- MVar.readMVar $ ncConnectionState nc
+                            Config.traceNetIO $ show connectionState
+                        _ -> return ()
+
+                    msgCount <- NCon.unreadMessageStart $ ncRead networkconnection
+                    Config.traceNetIO "Trying to acknowledge message"
+                    vchancons <- MVar.readMVar vchanconsvar
+                    let partnerid = Data.Maybe.fromMaybe "" $ ncPartnerUserID networkconnection
+                    let mbypartner = Map.lookup partnerid vchancons
+                    case mbypartner of
+                        Just partner -> do 
+                            DC.setUnreadCount  (ncRead partner) msgCount
+                        _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection"
+                    
+                    return val
+                Nothing -> do 
+                    threadDelay 5000
+                    recieveValueEmulated vchanconsvar activeCons networkconnection ownport
+
