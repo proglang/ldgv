@@ -287,21 +287,10 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
             mbyUnclean <- DC.readUnreadMessageInterpreter readDC
             case mbyUnclean of
                 Just unclean -> do
-                    Config.traceNetIO "Preparing value"
-                    uncleanser <- NSerialize.serialize unclean
-                    Config.traceNetIO uncleanser
                     val <- replaceVChanSerial activeCons vchanconsvar unclean
-                    cleanser <- NSerialize.serialize val
-                    Config.traceNetIO cleanser
                     waitUntilContactedNewPeers activeCons val ownport
-                    case val of
-                        VChan nc _ -> do 
-                            connectionState <- MVar.readMVar $ ncConnectionState nc
-                            Config.traceNetIO $ show connectionState
-                        _ -> return ()
 
                     msgCount <- DC.unreadMessageStart $ ncRead networkconnection
-                    Config.traceNetIO "Trying to acknowledge message"
                     NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) $ -1
                     return val
                 Nothing -> if count == 0 then do
@@ -317,12 +306,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
             mbyUnclean <- DC.readUnreadMessageInterpreter readDC
             case mbyUnclean of
                 Just unclean -> do
-                    Config.traceNetIO "Preparing value"
-                    uncleanser <- NSerialize.serialize unclean
-                    Config.traceNetIO uncleanser
                     val <- replaceVChanSerial activeCons vchanconsvar unclean
-                    cleanser <- NSerialize.serialize val
-                    Config.traceNetIO cleanser
                     waitUntilContactedNewPeers activeCons val ownport
                     case val of
                         VChan nc _ -> do 
@@ -331,10 +315,9 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                         _ -> return ()
 
                     msgCount <- DC.unreadMessageStart $ ncRead networkconnection
-                    Config.traceNetIO "Trying to acknowledge message"
                     vchancons <- MVar.readMVar vchanconsvar
-                    let partnerid = Data.Maybe.fromMaybe "" $ ncPartnerUserID networkconnection
-                    let mbypartner = Map.lookup partnerid vchancons
+                    let ownid = Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection
+                    let mbypartner = Map.lookup ownid vchancons
                     case mbypartner of
                         Just partner -> do 
                             DC.setUnreadCount  (ncRead partner) msgCount
