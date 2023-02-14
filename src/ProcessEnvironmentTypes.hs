@@ -1,10 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module ProcessEnvironmentTypes where
 import Syntax as S
-import GHC.IO.Handle
-import Control.Concurrent.Chan as C
 import Control.Concurrent.MVar as MVar
-import Control.Monad.Reader as T
 import Data.Set (Set)
 import Data.Map as Map
 import qualified Data.Set as Set
@@ -31,9 +28,6 @@ data FuncType = FuncType PEnv String S.Type S.Type
 instance Show FuncType where
   show (FuncType _ s t1 t2) = "FuncType " ++ show s ++ " " ++ show t1 ++ " " ++ show t2
 
--- data NetworkAddress = NetworkAddress {hostname :: String, port :: String}
---   deriving (Eq, Show)
-
 type ServerSocket = (MVar.MVar [(String, (Type, Type))], String)
 
 type VChanConnections = MVar.MVar (Map.Map String (NCon.NetworkConnection Value))
@@ -47,7 +41,7 @@ data Value
   | VInt Int
   | VDouble Double
   | VString String
-  | VChan (NCon.NetworkConnection Value) (MVar.MVar Bool) --Maybe a "used" mvar to notify that this vchan should no longer be used
+  | VChan (NCon.NetworkConnection Value) (MVar.MVar Bool)
   | VChanSerial ([Value], Int) ([Value], Int) String String (String, String, String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
