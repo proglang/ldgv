@@ -40,12 +40,12 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
             valcleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valcleaned
             messagesCount <- DC.countMessages $ ncWrite networkconnection
-            tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
+            tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
         Emulated {} -> do
             vchancons <- MVar.readMVar vchanconsmvar
             valCleaned <- replaceVChan val
             DC.writeMessage (ncWrite networkconnection) valCleaned
-            let ownid = Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection
+            let ownid = ncOwnUserID networkconnection
             let mbypartner = Map.lookup ownid vchancons
             case mbypartner of
                 Just partner -> do 
@@ -72,7 +72,7 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Message -> Int -> IO Bool
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
     serializedMessage <- NSerialize.serialize message
-    sendingNetLog serializedMessage $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection) ++ " Over: " ++ hostname ++ ":" ++ port
+    sendingNetLog serializedMessage $ "Sending message as: " ++ ncOwnUserID networkconnection ++ " to: " ++  ncPartnerUserID networkconnection ++ " Over: " ++ hostname ++ ":" ++ port
 
     mbycon <- NC.startConversation activeCons hostname port 10000 10
     mbyresponse <- case mbycon of
@@ -180,7 +180,7 @@ setRedirectRequests vchanconmvar newhost newport ownport input = case input of
     VRec penv a b c d -> setRedirectRequestsPEnv vchanconmvar newhost newport ownport penv
     VNewNatRec penv a b c d e f g -> setRedirectRequestsPEnv vchanconmvar newhost newport ownport penv
     VChan nc _ -> do
-        Config.traceNetIO $ "Trying to set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
+        Config.traceNetIO $ "Trying to set RedirectRequest for " ++ ncPartnerUserID nc ++ " to " ++ newhost ++ ":" ++ newport
 
         SSem.withSem (ncHandlingIncomingMessage nc) (do
             oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
@@ -192,7 +192,7 @@ setRedirectRequests vchanconmvar newhost newport ownport input = case input of
                     vchanconnections <- MVar.takeMVar vchanconmvar
 
                     let userid = ncOwnUserID nc
-                    let mbypartner = Map.lookup (Data.Maybe.fromMaybe "" userid) vchanconnections  
+                    let mbypartner = Map.lookup userid vchanconnections  
                     case mbypartner of
                         Just partner -> do
                             MVar.putMVar (ncConnectionState nc) $ RedirectRequest "" ownport newhost newport partConID ownConID confirmed -- Setting this to 127.0.0.1 is a temporary hack
@@ -206,7 +206,7 @@ setRedirectRequests vchanconmvar newhost newport ownport input = case input of
                     MVar.putMVar vchanconmvar vchanconnections
                 Disconnected partConID ownConID confirmed -> Config.traceNetIO "Cannot set RedirectRequest for a disconnected channel"
             )
-        Config.traceNetIO $ "Set RedirectRequest for " ++ (Data.Maybe.fromMaybe "" $ ncPartnerUserID nc) ++ " to " ++ newhost ++ ":" ++ newport
+        Config.traceNetIO $ "Set RedirectRequest for " ++ ncPartnerUserID nc ++ " to " ++ newhost ++ ":" ++ newport
     _ -> return ()
     where
         setRedirectRequestsPEnv :: VChanConnections -> String -> String -> String -> [(String, Value)] -> IO ()
@@ -274,6 +274,6 @@ sendDisconnect ac mvar = do
             case connectionState of
                 Connected host port _ _ _ -> if unreadVals >= lengthVals then do
 
-                    catch (sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) 0) $ printConErr host port
+                    catch (sendNetworkMessage ac con (Messages.Disconnect $ ncOwnUserID con) 0) $ printConErr host port
                     return True else return False
                 _ -> return True

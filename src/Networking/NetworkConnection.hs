@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
 
-data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: Maybe String, ncOwnUserID :: Maybe String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
+data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: String, ncOwnUserID :: String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
     deriving Eq
 
 data ConnectionState = Connected {csHostname :: String, csPort :: String, csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
@@ -23,7 +23,7 @@ newNetworkConnection partnerID ownID hostname port partnerConnectionID ownConnec
     write <- newConnection
     connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID True
     incomingMsg <- SSem.new 1
-    return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate incomingMsg
+    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
 
 
 createNetworkConnection :: ([a], Int) -> ([a], Int) -> String -> String -> (String, String, String) -> IO (NetworkConnection a)
@@ -33,7 +33,7 @@ createNetworkConnection (readList, readNew) (writeList, writeNew) partnerID ownI
     ownConnectionID <- newRandomID
     connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID False
     incomingMsg <- SSem.new 1
-    return $ NetworkConnection read write (Just partnerID) (Just ownID) connectionstate incomingMsg
+    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
 
 
 newEmulatedConnection :: MVar.MVar (Map.Map String (NetworkConnection a)) -> IO (NetworkConnection a, NetworkConnection a)
@@ -51,8 +51,8 @@ newEmulatedConnection mvar = do
     userid2 <- newRandomID
     incomingMsg <- SSem.new 1
     incomingMsg2 <- SSem.new 1
-    let nc1 = NetworkConnection read write (Just userid2) (Just userid) connectionstate incomingMsg
-    let nc2 = NetworkConnection read2 write2 (Just userid) (Just userid2) connectionstate2 incomingMsg2
+    let nc1 = NetworkConnection read write userid2 userid connectionstate incomingMsg
+    let nc2 = NetworkConnection read2 write2 userid userid2 connectionstate2 incomingMsg2
     let ncmap1 = Map.insert userid2 nc1 ncmap
     let ncmap2 = Map.insert userid nc2 ncmap1
     MVar.putMVar mvar ncmap2
@@ -69,7 +69,7 @@ serializeNetworkConnection nc = do
         Connected address port partnerConnectionID _ _ -> return (address, port, partnerConnectionID)
         RedirectRequest address port _ _ partnerConnectionID _ _ -> return (address, port, partnerConnectionID)
         _ -> return ("", "", csPartnerConnectionID constate)
-    return (readList, readUnread, writeList, writeUnread, Data.Maybe.fromMaybe "" $ ncPartnerUserID nc, Data.Maybe.fromMaybe "" $ ncOwnUserID nc, address, port, partnerConnectionID)
+    return (readList, readUnread, writeList, writeUnread, ncPartnerUserID nc, ncOwnUserID nc, address, port, partnerConnectionID)
 
 changePartnerAddress :: NetworkConnection a -> String -> String -> String -> IO ()
 changePartnerAddress con hostname port partnerConnectionID = do

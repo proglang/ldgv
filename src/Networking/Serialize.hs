@@ -62,7 +62,7 @@ instance Serializable (NCon.NetworkConnection Value) where
     (readList, readUnread) <- DC.serializeConnection $ NCon.ncRead con
     (writeList, writeUnread) <- DC.serializeConnection $ NCon.ncWrite con
 
-    serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncPartnerUserID con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncOwnUserID con) $ sLast constate
+    serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (NCon.ncPartnerUserID con) $ sNext (NCon.ncOwnUserID con) $ sLast constate
 
 instance Serializable (NCon.DirectionalConnection Value) where
   serialize dcon = do

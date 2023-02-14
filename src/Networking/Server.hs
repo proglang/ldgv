@@ -40,7 +40,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
     netcons <- MVar.readMVar mvar
     case Map.lookup userid netcons of
         Just networkcon -> do
-            recievedNetLog message $ "Recieved message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkcon) ++ " (" ++ ownport ++ ") from: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkcon)
+            recievedNetLog message $ "Recieved message as: " ++ ncOwnUserID networkcon ++ " (" ++ ownport ++ ") from: " ++  ncPartnerUserID networkcon
             busy <- SSem.tryWait $ ncHandlingIncomingMessage networkcon
             case busy of
                 Just num -> do
@@ -64,7 +64,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
                                 mbyval <- DC.readMessageMaybe (NCon.ncWrite networkcon) count
-                                Data.Maybe.maybe (return False) (\val -> NClient.sendNetworkMessage activeCons networkcon (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) count val) 0) mbyval
+                                Data.Maybe.maybe (return False) (\val -> NClient.sendNetworkMessage activeCons networkcon (Messages.NewValue (ncOwnUserID networkcon) count val) 0) mbyval
                                 return ()
                             AcknowledgeValue userid count -> do
                                 NC.sendResponse hdl Messages.Okay -- This okay is needed here to fix a race-condition with disconnects being faster than the okay
@@ -75,7 +75,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 NCon.changePartnerAddress networkcon clientHostaddress port connectionID
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
-                                NClient.sendNetworkMessage activeCons networkcon (Messages.AcknowledgePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) connectionID) 0
+                                NClient.sendNetworkMessage activeCons networkcon (Messages.AcknowledgePartnerAddress (ncOwnUserID networkcon) connectionID) 0
                                 return ()
                             AcknowledgePartnerAddress userid connectionID -> do
                                 conConfirmed <- NCon.confirmConnectionID networkcon connectionID
@@ -191,7 +191,7 @@ contactNewPeers activeCons input ownport = case input of
             Emulated {} -> return True
             _ -> do
                 if csConfirmedConnection connectionState then return True else do
-                    NClient.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
+                    NClient.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
                     return False
     _ -> return True
     where
@@ -292,11 +292,11 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                     waitUntilContactedNewPeers activeCons val ownport
 
                     msgCount <- DC.unreadMessageStart $ ncRead networkconnection
-                    NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) $ -1
+                    NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) msgCount) $ -1
                     return val
                 Nothing -> if count == 0 then do
                         msgCount <- DC.countMessages $ ncRead networkconnection
-                        NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) 0
+                        NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (ncOwnUserID networkconnection) msgCount) 0
                         recieveValueInternal 100 vchanconsvar activeCons networkconnection ownport
                         else do
                             threadDelay 5000
@@ -317,7 +317,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
 
                     msgCount <- DC.unreadMessageStart $ ncRead networkconnection
                     vchancons <- MVar.readMVar vchanconsvar
-                    let ownid = Data.Maybe.fromMaybe "" $ ncOwnUserID networkconnection
+                    let ownid = ncOwnUserID networkconnection
                     let mbypartner = Map.lookup ownid vchancons
                     case mbypartner of
                         Just partner -> do
