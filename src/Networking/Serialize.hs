@@ -90,8 +90,6 @@ instance Serializable Value where
       VFuncCast v ft1 ft2 -> serializeLabeledEntryMulti "VFuncCast" v $ sNext ft1 $ sLast ft2
       VRec env f x e0 e1 -> serializeLabeledEntryMulti "VRec" env $ sNext f $ sNext x $ sNext e0 $ sLast e1
       VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
-
-      VServerSocket {} -> throw $ UnserializableException "VServerSocket"
       VChan nc _-> serializeLabeledEntry "VChan" nc
       VChanSerial r w p o c -> serializeLabeledEntryMulti "VChanSerial" r $ sNext w $ sNext p $ sNext o $ sLast c
 
