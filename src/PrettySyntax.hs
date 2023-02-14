@@ -6,7 +6,6 @@ module PrettySyntax (Pretty(), pretty, pshow) where
 
 import Kinds
 import Syntax
-import ProcessEnvironment
 import ProcessEnvironmentTypes
 
 import Data.Text.Prettyprint.Doc
@@ -169,7 +168,7 @@ instance Pretty Value where
     VDouble d -> pretty $ show d
     VString s -> pretty $ show s
     VChan {} -> pretty "VChan"
-    -- VChanSerial {} -> pretty "VChanSerial"
+    VChanSerial {} -> pretty "VChanSerial"
     VSend v -> pretty "VSend"
     VPair a b -> pretty "&lt;" <+> pretty a <+> pretty ", " <+> pretty b <+> pretty "&gt;"
     VType t -> pretty t
@@ -178,7 +177,6 @@ instance Pretty Value where
     VFuncCast v ft1 ft2 -> pretty "(" <+> pretty v <+> pretty " : " <+> pretty ft1 <+> pretty " ⇒ " <+> pretty ft2 <+> pretty ")"
     VRec {} -> pretty "VRec"
     VNewNatRec {} -> pretty "VNewNatRec"
-    VServerSocket {}-> pretty "VServerSocket"
 
 instance Pretty FuncType where
   pretty (FuncType _ s t1 t2) = pretty "Π(" <+> pretty s <+> pretty ":" <+> pretty t1 <+> pretty ")" <+> pretty t2

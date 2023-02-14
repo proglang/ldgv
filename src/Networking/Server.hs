@@ -25,13 +25,7 @@ import Control.Monad
 
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 import qualified Control.Concurrent.SSem as SSem
-import qualified Networking.DirectionalConnection as DC
-
-checkAndSendRedirectRequest :: NC.ConversationOrHandle -> Map.Map String (NetworkConnection Value) -> String -> IO Bool
-checkAndSendRedirectRequest handle ncmap userid = do
-    case Map.lookup userid ncmap of
-        Nothing -> return False
-        
+import qualified Networking.DirectionalConnection as DC     
 
 handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Message -> IO ()
 handleClient activeCons mvar clientlist clientsocket hdl ownport message deserialmessages = do
@@ -134,8 +128,6 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
 
 recievedNetLog :: String -> String -> IO ()
 recievedNetLog msg info = Config.traceNetIO $ "Recieved message: "++msg++" \n    Status: "++info
-
-
 
 setPartnerHostAddress ::  String -> Value -> Value
 setPartnerHostAddress address input = case input of
@@ -282,7 +274,6 @@ replaceVChanSerial activeCons mvar input = case input of
             rest <- replaceVChanSerialPEnv activeCons mvar xs
             return $ (fst x, newval):rest
 
-
 recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
 recieveValue vchanconsvar activeCons networkconnection ownport = do
     connectionState <- MVar.readMVar $ ncConnectionState networkconnection
@@ -294,7 +285,6 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
         recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
             let readDC = ncRead networkconnection 
             mbyUnclean <- DC.readUnreadMessageInterpreter readDC
-            -- Config.traceNetIO $ "Current unreadMSG:" ++ show mbyUnclean
             case mbyUnclean of
                 Just unclean -> do
                     Config.traceNetIO "Preparing value"
@@ -325,8 +315,6 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
         recieveValueEmulated vchanconsvar activeCons networkconnection ownport = do
             let readDC = ncRead networkconnection 
             mbyUnclean <- DC.readUnreadMessageInterpreter readDC
-            -- allValues <- DC.allMessages $ ncWrite networkconnection
-            -- Config.traceNetIO $ "all Values: "++ show allValues
             case mbyUnclean of
                 Just unclean -> do
                     Config.traceNetIO "Preparing value"
