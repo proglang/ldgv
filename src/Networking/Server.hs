@@ -1,51 +1,31 @@
-{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant return" #-}
 module Networking.Server where
 
 import qualified Control.Concurrent.MVar as MVar
-import qualified Control.Concurrent.Chan as Chan
-import Control.Monad.IO.Class
 import qualified Data.Map as Map
 import qualified Data.Maybe
-import GHC.IO.Handle
 import Network.Socket
 import Control.Concurrent
 
 import Networking.Messages
-import qualified ValueParsing.ValueTokens as VT
-import qualified ValueParsing.ValueGrammar as VG
 import qualified Networking.Common as NC
 import qualified Networking.Serialize as NSerialize
 import ProcessEnvironmentTypes
 import qualified Syntax
 
-import Control.Exception
 import qualified Networking.UserID as UserID
 import qualified Networking.Messages as Messages
-import qualified Networking.DirectionalConnection as ND
 import qualified Networking.Client as NClient
 
 import Networking.NetworkConnection
-import qualified Networking.Common as NC
 import qualified Config
 import qualified Networking.NetworkConnection as NCon
-import qualified Control.Concurrent as MVar
-import qualified Networking.Client as NC
 import Control.Monad
 
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 import qualified Control.Concurrent.SSem as SSem
 import qualified Networking.DirectionalConnection as DC
-import qualified Networking.NetworkConnection as NCon
-import qualified Networking.DirectionalConnection as DC
-import Networking.NetworkingMethod.Stateless (recieveMessageInternal)
-import qualified Networking.Client as NClient
-import qualified Networking.DirectionalConnection as NCon
-import Networking.NetworkConnection (NetworkConnection(ncRead))
-import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
-import Control.Concurrent (threadDelay)
-import qualified Networking.Client as NClient
 
 checkAndSendRedirectRequest :: NC.ConversationOrHandle -> Map.Map String (NetworkConnection Value) -> String -> IO Bool
 checkAndSendRedirectRequest handle ncmap userid = do
@@ -79,13 +59,13 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                             NC.sendResponse hdl (Messages.Redirect host port)
                         Connected {} -> case deserialmessages of
                             NewValue userid count val -> do
-                                ND.lockInterpreterReads (ncRead networkcon)
-                                ND.writeMessageIfNext (ncRead networkcon) count $ setPartnerHostAddress clientHostaddress val
+                                DC.lockInterpreterReads (ncRead networkcon)
+                                DC.writeMessageIfNext (ncRead networkcon) count $ setPartnerHostAddress clientHostaddress val
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 recievedNetLog message "Message written to Channel" 
                                 NC.sendResponse hdl Messages.Okay
                                 recievedNetLog message "Sent okay"
-                                ND.unlockInterpreterReads (ncRead networkcon)
+                                DC.unlockInterpreterReads (ncRead networkcon)
                             RequestValue userid count -> do
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
@@ -290,17 +270,7 @@ replaceVChanSerial activeCons mvar input = case input of
     VChanSerial r w p o c -> do
         networkconnection <- createNetworkConnection r w p o c
         ncmap <- MVar.takeMVar mvar
-        {-
-        case Map.lookup p ncmap of
-            Just networkcon -> do
-                connectionState <- MVar.readMVar $ ncConnectionState networkcon
-                MVar.takeMVar $ ncConnectionState networkconnection
-                MVar.putMVar (ncConnectionState networkconnection) connectionState
-            Nothing -> return ()
-            -}
-
         MVar.putMVar mvar $ Map.insert p networkconnection ncmap
-        -- NClient.sendNetworkMessage activeCons networkconnection (RequestSync o $ length r) 5
         used<- MVar.newEmptyMVar
         MVar.putMVar used False
         return $ VChan networkconnection used
@@ -341,12 +311,12 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                             Config.traceNetIO $ show connectionState
                         _ -> return ()
 
-                    msgCount <- NCon.unreadMessageStart $ ncRead networkconnection
+                    msgCount <- DC.unreadMessageStart $ ncRead networkconnection
                     Config.traceNetIO "Trying to acknowledge message"
                     NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) $ -1
                     return val
                 Nothing -> if count == 0 then do
-                        msgCount <- NCon.countMessages $ ncRead networkconnection
+                        msgCount <- DC.countMessages $ ncRead networkconnection
                         NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection)) msgCount) 0
                         recieveValueInternal 100 vchanconsvar activeCons networkconnection ownport
                         else do 
@@ -373,7 +343,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                             Config.traceNetIO $ show connectionState
                         _ -> return ()
 
-                    msgCount <- NCon.unreadMessageStart $ ncRead networkconnection
+                    msgCount <- DC.unreadMessageStart $ ncRead networkconnection
                     Config.traceNetIO "Trying to acknowledge message"
                     vchancons <- MVar.readMVar vchanconsvar
                     let partnerid = Data.Maybe.fromMaybe "" $ ncPartnerUserID networkconnection

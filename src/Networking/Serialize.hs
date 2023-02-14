@@ -217,12 +217,6 @@ instance Serializable Bool where
 instance Serializable Double where
   serialize d = return $ "Double:" ++ show d
 
--- instance (Serializable a => Serializable (Set a)) where 
---   serialize as = "{" ++ serializeElements (elems as) ++ "}"
-
--- instance {-# OVERLAPPABLE #-} (Serializable a => Serializable [a]) where
---   serialize arr = "["++ serializeElements arr ++"]"
-
 instance ((Serializable a, Serializable b) => Serializable (a, b)) where
   serialize (s, t) = do
     ss <- serialize s

@@ -3,7 +3,6 @@ module Networking.DirectionalConnection where
 import Control.Concurrent.MVar
 import Control.Concurrent
 import qualified Control.Concurrent.SSem as SSem
-import qualified System.Directory
 import Control.Monad
 
 data DirectionalConnection a = DirectionalConnection { messages :: MVar [a], messagesUnreadStart :: MVar Int, messagesCount :: MVar Int, readLock :: SSem.SSem}
@@ -70,7 +69,7 @@ allMessages connection = readMVar (messages connection)
 readUnreadMessageMaybe :: DirectionalConnection a -> IO (Maybe a)
 readUnreadMessageMaybe connection = modifyMVar (messagesUnreadStart connection) (\i -> do
     messagesBind <- allMessages connection
-    if length messagesBind <= i then return (i, Nothing) else return ((i+1), Just (messagesBind!!i))
+    if length messagesBind <= i then return (i, Nothing) else return (i+1, Just (messagesBind!!i))
     )
 
 -- Basically only used for the internal tests at this point

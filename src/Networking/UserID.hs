@@ -10,7 +10,6 @@ mapToChar val
     | 36 <= val && val <= 61 = chr (val + 61)
     | otherwise = '-'
 
--- This is "probably" unique
 newRandomUserID :: IO String
 newRandomUserID = map mapToChar . take 8 . randomRs (0, 61) <$> newStdGen
 -- newRandomUserID = map mapToChar . take 128 . randomRs (0, 61) <$> newStdGen
