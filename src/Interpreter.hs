@@ -184,31 +184,20 @@ eval = \case
         return $ VPair val newV
   Case e cases -> interpret' e >>= \(VLabel s) -> interpret' $ fromJust $ lookup s cases
   Accept e tname -> do
-    liftIO $ C.traceIO "Accepting new client!"
-
     val <- interpret' e
     case val of
       VInt port -> do
         (env, (sockets, vchanconnections, activeConnections)) <- ask
         (clientlist, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets vchanconnections
-        -- newuser <- liftIO $ Chan.readChan chan
-        liftIO $ C.traceIO "Searching for correct communicationpartner"
-
-
         t <- case tname of 
           TName _ s -> maybe (throw $ LookupException s) (\(VType t) -> return t) (lookup s env)
           _ -> return tname
 
-        -- tserial <- liftIO $ Networking.Serialize.serialize t
-        -- C.traceNetIO $ "Interpreter: " ++ tserial
-
-        newuser <- liftIO $ NS.findFittingClient clientlist (tname, t) -- There is still an issue
-        liftIO $ C.traceIO "Client accepted"
+        newuser <- liftIO $ NS.findFittingClient clientlist (tname, t)
         networkconnectionmap <- liftIO $ MVar.readMVar vchanconnections
         case Map.lookup newuser networkconnectionmap of
           Nothing -> throw $ CommunicationPartnerNotFoundException newuser
           Just networkconnection -> do
-            liftIO $ C.traceIO "Client successfully accepted!"
             used <- liftIO MVar.newEmptyMVar
             liftIO $ MVar.putMVar used False
             return $ VChan networkconnection used
@@ -217,7 +206,6 @@ eval = \case
   Connect e0 tname e1 e2-> do
     r <- liftIO DC.newConnection
     w <- liftIO DC.newConnection
-    liftIO $ C.traceIO "Client trying to connect"
     val <- interpret' e0
     case val of
       VInt port -> do
@@ -270,26 +258,13 @@ interpretApp _ natrec@(VNewNatRec env f n1 tid ty ez y es) (VInt n)
   | n  > 0 = do
     let env' = extendEnv n1 (VInt (n-1)) (extendEnv f natrec env)
     R.local (Data.Bifunctor.first (const env')) (interpret' es)
--- interpretApp _ (VSend v@(VChan _ c handle _ _ _)) w = do
 interpretApp _ (VSend v@(VChan cc usedmvar)) w = do
   used <- liftIO $ MVar.readMVar usedmvar
   if used then throw $ VChanIsUsedException $ show v else do
     (env, (sockets, vchanconnections, activeConnections)) <- ask
-
-    -- This needs to be modified to look for VChans also in subtypes
-    {- case w of
-      VChan nc _ _ -> liftIO $ SSem.wait (NCon.ncHandlingIncomingMessage nc)
-      _ -> return ()-}
-
-    -- liftIO $  NClient.sendValue activeConnections cc w (-1)
     socketsraw <- liftIO $ MVar.readMVar sockets
     let port = show $ head $ Map.keys socketsraw
     liftIO $  NClient.sendValue vchanconnections activeConnections cc w port (-1)
-
-    {-case w of
-      VChan nc _ _ -> liftIO $ SSem.signal (NCon.ncHandlingIncomingMessage nc)
-      _ -> return ()-}
-
     -- Disable old VChan
     liftIO $ disableOldVChan v
 interpretApp e _ _ = throw $ ApplicationException e
