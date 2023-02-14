@@ -42,7 +42,7 @@ instance Show ClientException where
 
 instance Exception ClientException
 
-sendValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> Value -> String -> Int -> IO ()
+sendValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> Value -> String -> Int -> IO Bool
 sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
@@ -60,20 +60,28 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
             let partnerid = Data.Maybe.fromMaybe "" $ ncPartnerUserID networkconnection
             let mbypartner = Map.lookup partnerid vchancons
             case mbypartner of
-                Just partner -> DC.writeMessage (ncRead partner) valCleaned
-                _ -> Config.traceNetIO "Something went wrong when sending over a emulated connection"
+                Just partner -> do 
+                    DC.writeMessage (ncRead partner) valCleaned
+                    return True
+                _ -> do 
+                    Config.traceNetIO "Something went wrong when sending over a emulated connection"
+                    return False
             -- disableVChans val
-        _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
+        _ -> do 
+            Config.traceNetIO "Error when sending message: This channel is disconnected"
+            return False
 
-sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Message -> Int -> IO ()
+sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Message -> Int -> IO Bool
 sendNetworkMessage activeCons networkconnection message resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         NCon.Connected hostname port _ _ _ -> do
             tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
-        _ -> Config.traceNetIO "Error when sending message: This channel is disconnected"
+        _ -> do 
+            Config.traceNetIO "Error when sending message: This channel is disconnected"
+            return False
 
-tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Message -> Int -> IO ()
+tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Message -> Int -> IO Bool
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
     serializedMessage <- NSerialize.serialize message
     sendingNetLog serializedMessage $ "Sending message as: " ++ Data.Maybe.fromMaybe "" (ncOwnUserID networkconnection) ++ " to: " ++  Data.Maybe.fromMaybe "" (ncPartnerUserID networkconnection) ++ " Over: " ++ hostname ++ ":" ++ port
@@ -93,9 +101,11 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             sendingNetLog serializedMessage "Connecting unsuccessful"
             return Nothing
 
-    case mbyresponse of
+    success <- case mbyresponse of
         Just response -> case response of
-            Okay -> sendingNetLog serializedMessage "Message okay" 
+            Okay -> do 
+                sendingNetLog serializedMessage "Message okay" 
+                return True
             Redirect host port -> do
                 sendingNetLog serializedMessage "Communication partner changed address, resending"
                 -- NCon.changePartnerAddress networkconnection host port "" -- TODO properly fix this
@@ -104,11 +114,22 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
                 sendingNetLog serializedMessage "Communication out of sync lets wait!"
                 threadDelay 1000000
                 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
-            _ -> sendingNetLog serializedMessage "Unknown communication error"
+            _ -> do 
+                sendingNetLog serializedMessage "Unknown communication error"
+                return False
 
         Nothing -> do
             sendingNetLog serializedMessage "Error when recieving response"
+            if resendOnError /= 0 then do
+                connectionState <- MVar.readMVar $ ncConnectionState networkconnection
+                case connectionState of
+                    Connected updatedhost updatedport _ _ _ -> do 
+                        sendingNetLog serializedMessage $ "Trying to resend to: " ++ updatedhost ++ ":" ++ updatedport
+                        tryToSendNetworkMessage activeCons networkconnection updatedhost updatedport message $ max (resendOnError-1) (-1)
+                    _ -> return False
+            else return False
     sendingNetLog serializedMessage "Message got send or finally failed!"
+    return success
 
 
 sendingNetLog :: String -> String -> IO ()
@@ -145,8 +166,10 @@ setPartnerHostAddress address input = case input of
             (fst x, newval):setPartnerHostAddressPEnv clientHostaddress xs
 -}
 
-printConErr :: String -> String -> IOException -> IO ()
-printConErr hostname port err = Config.traceIO $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
+printConErr :: String -> String -> IOException -> IO Bool
+printConErr hostname port err = do 
+    Config.traceIO $ "Communication Partner " ++ hostname ++ ":" ++ port ++ "not found! \n    " ++ show err
+    return False
 
 
 initialConnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> String -> String -> String -> (Syntax.Type, Syntax.Type) -> IO Value
@@ -295,7 +318,8 @@ sendDisconnect ac mvar = do
             lengthVals <- DC.countMessages writeVals
             --Config.traceNetIO $ show unreadVals ++ "/" ++ show lengthVals
             case connectionState of
-                Connected {} -> if unreadVals >= lengthVals then do
-                    sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) (-1)
+                Connected host port _ _ _ -> if unreadVals >= lengthVals then do
+
+                    catch (sendNetworkMessage ac con (Messages.Disconnect $ Data.Maybe.fromMaybe "" (ncOwnUserID con)) 0) $ printConErr host port
                     return True else return False
                 _ -> return True

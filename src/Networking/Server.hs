@@ -90,17 +90,19 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
                                 mbyval <- DC.readMessageMaybe (NCon.ncWrite networkcon) count
-                                Data.Maybe.maybe (return ()) (\val -> NClient.sendNetworkMessage activeCons networkcon (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) count val) 0) mbyval
+                                Data.Maybe.maybe (return False) (\val -> NClient.sendNetworkMessage activeCons networkcon (Messages.NewValue (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) count val) 0) mbyval
+                                return ()
                             AcknowledgeValue userid count -> do
+                                NC.sendResponse hdl Messages.Okay -- This okay is needed here to fix a race-condition with disconnects being faster than the okay
                                 DC.setUnreadCount (NCon.ncWrite networkcon) count
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
-                                NC.sendResponse hdl Messages.Okay
                             NewPartnerAddress userid port connectionID -> do
                                 recievedNetLog message $ "Trying to change the address to: " ++ clientHostaddress ++ ":" ++ port
                                 NCon.changePartnerAddress networkcon clientHostaddress port connectionID
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
                                 NClient.sendNetworkMessage activeCons networkcon (Messages.AcknowledgePartnerAddress (Data.Maybe.fromMaybe "" $ ncOwnUserID networkcon) connectionID) 0
+                                return ()
                             AcknowledgePartnerAddress userid connectionID -> do
                                 conConfirmed <- NCon.confirmConnectionID networkcon connectionID
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
