@@ -74,9 +74,9 @@ library
       Networking.NetworkingMethod.Fast
       Networking.NetworkingMethod.NetworkingMethodCommon
       Networking.NetworkingMethod.Stateless
+      Networking.RandomID
       Networking.Serialize
       Networking.Server
-      Networking.UserID
       Parsing
       Parsing.Grammar
       Parsing.Tokens

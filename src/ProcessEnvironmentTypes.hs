@@ -1,22 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
 module ProcessEnvironmentTypes where
 import Syntax as S
-import GHC.IO.Handle
-import Control.Concurrent.Chan as C
 import Control.Concurrent.MVar as MVar
-import Control.Monad.Reader as T
 import Data.Set (Set)
 import Data.Map as Map
 import qualified Data.Set as Set
 import Kinds (Multiplicity(..))
 
-import qualified Data.Maybe
-
-import Networking.DirectionalConnection
 import qualified Networking.NetworkConnection as NCon
--- import qualified Networking.Common as NC
-
-import Network.Socket
 
 extendEnv :: String -> Value -> PEnv -> PEnv
 extendEnv = curry (:)
@@ -37,9 +28,6 @@ data FuncType = FuncType PEnv String S.Type S.Type
 instance Show FuncType where
   show (FuncType _ s t1 t2) = "FuncType " ++ show s ++ " " ++ show t1 ++ " " ++ show t2
 
--- data NetworkAddress = NetworkAddress {hostname :: String, port :: String}
---   deriving (Eq, Show)
-
 type ServerSocket = (MVar.MVar [(String, (Type, Type))], String)
 
 type VChanConnections = MVar.MVar (Map.Map String (NCon.NetworkConnection Value))
@@ -53,7 +41,7 @@ data Value
   | VInt Int
   | VDouble Double
   | VString String
-  | VChan (NCon.NetworkConnection Value) (MVar.MVar Bool) --Maybe a "used" mvar to notify that this vchan should no longer be used
+  | VChan (NCon.NetworkConnection Value) (MVar.MVar Bool)
   | VChanSerial ([Value], Int) ([Value], Int) String String (String, String, String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
@@ -63,8 +51,6 @@ data Value
   | VFuncCast Value FuncType FuncType -- (Value : (ρ,α,Π(x:A)A') => (ρ,α,Π(x:B)B'))
   | VRec PEnv String String Exp Exp
   | VNewNatRec PEnv String String String Type Exp String Exp
-  | VServerSocket (MVar.MVar (Map.Map String (NCon.NetworkConnection Value))) (MVar.MVar [(String, Type)]) String
-                                                                                              -- Own Port Number
   deriving Eq
 
 disableOldVChan :: Value -> IO Value
@@ -76,64 +62,6 @@ disableOldVChan value = case value of
       MVar.putMVar unused False
       return $ VChan nc unused
   _ -> return value
-
-
-{-
-disableVChan :: Value -> IO ()
-disableVChan value = case value of
-  VChan nc _ -> do
-    mbystate <- MVar.tryTakeMVar $ NCon.ncConnectionState nc  --I dont fully understand why this mvar isnt filled but lets bypass this problem
-    case mbystate of
-      Nothing -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected 
-      Just state -> case state of
-          NCon.Connected {} -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
-          NCon.Emulated {} -> MVar.putMVar (NCon.ncConnectionState nc) NCon.Disconnected
-          _ -> MVar.putMVar (NCon.ncConnectionState nc) state
-  _ -> return ()
-
-
-
-disableVChans :: Value -> IO ()
-disableVChans input = case input of
-    VSend v -> do
-        nv <- disableVChans v
-        return ()
-        -- return $ VSend nv
-    VPair v1 v2 -> do 
-        nv1 <- disableVChans v1
-        nv2 <- disableVChans v2
-        return ()
-        -- return $ VPair nv1 nv2
-    VFunc penv a b -> do
-        newpenv <- disableVChansPEnv penv
-        return ()
-        -- return $ VFunc newpenv a b
-    VDynCast v g -> do 
-        nv <- disableVChans v
-        return ()
-        -- return $ VDynCast nv g
-    VFuncCast v a b -> do 
-        nv <- disableVChans v
-        return ()
-        -- return $ VFuncCast nv a b
-    VRec penv a b c d -> do 
-        newpenv <- disableVChansPEnv penv
-        return ()
-        -- return $ VRec newpenv a b c d
-    VNewNatRec penv a b c d e f g -> do 
-        newpenv <- disableVChansPEnv penv
-        return ()
-        -- return $ VNewNatRec newpenv a b c d e f g
-    _ -> disableVChan input -- This handles vchans and the default case
-    where
-        disableVChansPEnv :: [(String, Value)] -> IO ()
-        disableVChansPEnv [] = return ()
-        disableVChansPEnv (x:xs) = do 
-            newval <- disableVChans $ snd x
-            rest <- disableVChansPEnv xs
-            return ()
-            -- return $ (fst x, newval):rest
--}
 
 instance Show Value where
   show = \case
@@ -152,7 +80,6 @@ instance Show Value where
     VFuncCast v ft1 ft2 -> "VFuncCast (" ++ show v ++ ") (" ++ show ft1 ++ ") (" ++ show ft2 ++ ")"
     VRec env f x e1 e0 -> "VRec " ++ " " ++ f ++ " " ++ x ++ " " ++ show e1 ++ " " ++ show e0
     VNewNatRec env f n tid ty ez x es -> "VNewNatRec " ++ f ++ n ++ tid ++ show ty ++ show ez ++ x ++ show es
-    VServerSocket {} -> "VServerSocket"
 
 class Subtypeable t where
   isSubtypeOf :: t -> t -> Bool

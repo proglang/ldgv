@@ -62,7 +62,7 @@ instance Serializable (NCon.NetworkConnection Value) where
     (readList, readUnread) <- DC.serializeConnection $ NCon.ncRead con
     (writeList, writeUnread) <- DC.serializeConnection $ NCon.ncWrite con
 
-    serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncPartnerUserID con) $ sNext (Data.Maybe.fromMaybe "" $ NCon.ncOwnUserID con) $ sLast constate
+    serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (NCon.ncPartnerUserID con) $ sNext (NCon.ncOwnUserID con) $ sLast constate
 
 instance Serializable (NCon.DirectionalConnection Value) where
   serialize dcon = do
@@ -90,8 +90,6 @@ instance Serializable Value where
       VFuncCast v ft1 ft2 -> serializeLabeledEntryMulti "VFuncCast" v $ sNext ft1 $ sLast ft2
       VRec env f x e0 e1 -> serializeLabeledEntryMulti "VRec" env $ sNext f $ sNext x $ sNext e0 $ sLast e1
       VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
-
-      VServerSocket {} -> throw $ UnserializableException "VServerSocket"
       VChan nc _-> serializeLabeledEntry "VChan" nc
       VChanSerial r w p o c -> serializeLabeledEntryMulti "VChanSerial" r $ sNext w $ sNext p $ sNext o $ sLast c
 
@@ -216,12 +214,6 @@ instance Serializable Bool where
 
 instance Serializable Double where
   serialize d = return $ "Double:" ++ show d
-
--- instance (Serializable a => Serializable (Set a)) where 
---   serialize as = "{" ++ serializeElements (elems as) ++ "}"
-
--- instance {-# OVERLAPPABLE #-} (Serializable a => Serializable [a]) where
---   serialize arr = "["++ serializeElements arr ++"]"
 
 instance ((Serializable a, Serializable b) => Serializable (a, b)) where
   serialize (s, t) = do

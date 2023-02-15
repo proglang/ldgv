@@ -17,7 +17,7 @@ data ActiveConnectionsStateless = ActiveConnectionsStateless
 type ConversationStateless = (Handle, (Socket, SockAddr))
 
 type Connection = (ConversationStateless, MVar.MVar Bool, Chan.Chan (String, (String, Message)), MVar.MVar (Map.Map String (String, Response)), SSem.SSem)
---                             isClosed                Conversationid serial deserial
+--                                            isClosed                Conversationid serial deserial
 type ActiveConnectionsFast = MVar.MVar (Map.Map NetworkAddress Connection)
 
 type NetworkAddress = (String, String)

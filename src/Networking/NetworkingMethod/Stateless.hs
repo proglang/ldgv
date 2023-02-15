@@ -7,22 +7,18 @@ import GHC.IO.Handle
 import System.IO
 import qualified Control.Concurrent.MVar as MVar
 import qualified Data.Map as Map
-import qualified Data.Maybe
 import Control.Concurrent
 import Control.Monad
 import Control.Exception
 
 import Networking.Messages
 import Networking.NetworkConnection
-import qualified Networking.DirectionalConnection as DC
 import ProcessEnvironmentTypes
 import qualified Networking.Serialize as NSerialize
 import qualified ValueParsing.ValueTokens as VT
 import qualified ValueParsing.ValueGrammar as VG
 import qualified Config
 import qualified Syntax
-import qualified Networking.DirectionalConnection as DC
-import qualified Networking.DirectionalConnection as DC
 
 type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Message -> IO ()
 
@@ -45,7 +41,6 @@ recieveMessageInternal conv@(handle, _) grammar fallbackResponse messageHandler 
             Config.traceNetIO $ "Error during recieving a networkmessage: "++err++" Malformed message: " ++ message
             fallbackResponse message
         Right deserialmessage -> do
-            -- Config.traceNetIO $ "New superficially valid message recieved: "++message
             messageHandler message deserialmessage
 
 
@@ -110,7 +105,6 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
     where
         createServer :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> VChanConnections -> IO (MVar.MVar [(String, (Syntax.Type, Syntax.Type))])
         createServer activeCons connectionhandler port vchanconnections = do
-            -- serverid <- UserID.newRandomUserID
             sock <- socket AF_INET Stream 0
             setSocketOption sock ReuseAddr 1
             let hints = defaultHints {
@@ -121,17 +115,13 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             addrInfo <- getAddrInfo (Just hints) Nothing $ Just $ show port
             bind sock $ addrAddress $ head addrInfo
             listen sock 1024
-            -- mvar <- MVar.newEmptyMVar
-            -- MVar.putMVar mvar Map.empty
             clientlist <- MVar.newEmptyMVar
             MVar.putMVar clientlist []
             forkIO $ acceptClients activeCons connectionhandler vchanconnections clientlist sock $ show port
             return clientlist
         acceptClients :: ActiveConnectionsStateless -> ConnectionHandler -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> Socket -> String -> IO ()
         acceptClients activeCons connectionhandler mvar clientlist socket ownport = do
-            Config.traceIO "Waiting for clients"
             clientsocket <- accept socket
-            Config.traceIO "Accepted new client"
 
             forkIO $ acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport
             acceptClients activeCons connectionhandler mvar clientlist socket ownport
@@ -143,8 +133,6 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
             recieveMessageInternal conv VG.parseMessages (\_ -> return ()) $ connectionhandler activeCons mvar clientlist clientsocket conv ownport
             hClose hdl
 
-
-
 getFromNetworkThread :: Maybe Conversation -> ThreadId -> MVar.MVar a -> Int -> Int -> IO (Maybe a)
 getFromNetworkThread conv = getFromNetworkThreadWithModification conv Just
 
@@ -154,8 +142,7 @@ getFromNetworkThreadWithModification conv func threadid mvar waitTime currentTry
         case mbyResult of
             Just result -> return $ func result
             Nothing -> do
-                -- convClosed <- Data.Maybe.maybe (return False) (hIsClosed . fst) conv
-                if currentTry /= 0 {-&& not convClosed-} then do
+                if currentTry /= 0 then do
                     threadDelay waitTime
                     getFromNetworkThreadWithModification conv func threadid mvar waitTime $ max (currentTry-1) (-1)
                 else do
@@ -195,10 +182,6 @@ getHandleFromSocket socket = do
 
 sayGoodbye :: ActiveConnectionsStateless -> IO ()
 sayGoodbye _ = return ()
-                
-
-{-isClosed :: Conversation -> IO Bool
-isClosed = hIsClosed . fst-}
 
 hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do
