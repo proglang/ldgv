@@ -191,7 +191,7 @@ Value : vunit { VUnit }
        | vdouble '(' double ')' {VDouble $3}
        | vstring '(' String ')' {VString $3 }
        -- | vchan '(' SValuesArray ')' '(' int ')' '(' SValuesArray ')' '(' int ')' '(' String ')' '(' String ')' '(' String ')' '(' String ')' {VChanSerial $3 $6 $9 $12 $15 $18 $21 $24 }
-       | vchan '(' NetworkConnection ')' {$3}
+       -- | vchan '(' NetworkConnection ')' {$3}
        | vchanserial '(' SArrayIntElement ')' '(' SArrayIntElement ')' '(' String ')' '(' String ')' '(' SStringStringElement3 ')' {VChanSerial $3 $6 $9 $12 $15}
        | vsend '(' Value ')' {VSend $3}
        | vpair '(' Value ')' '(' Value ')' {VPair $3 $6}
@@ -204,9 +204,9 @@ Value : vunit { VUnit }
 
 String : string {trimQuote $1}
 
-NetworkConnection : snetworkconnection '(' DirectionalConnection ')' '(' DirectionalConnection ')' '(' String ')' '(' String ')' '(' ConnectionState ')' {VChanSerial $3 $6 $9 $12 $15}
+-- NetworkConnection : snetworkconnection '(' DirectionalConnection ')' '(' DirectionalConnection ')' '(' String ')' '(' String ')' '(' ConnectionState ')' {VChanSerial $3 $6 $9 $12 $15}
 
-DirectionalConnection : sdirectionalconnection '(' SValuesArray ')' '(' int ')' {($3, $6)}
+-- DirectionalConnection : sdirectionalconnection '(' SValuesArray ')' '(' int ')' {($3, $6)}
 
 ConnectionState : sconnected '(' String ')' '(' String ')' '(' String ')' {($3, $6, $9)}
 
@@ -342,7 +342,7 @@ SValuesElements : Value ',' SValuesElements {$1 : $3}
 
 LabelType : slabeltype '{' SStringElements '}' {$3}
 
-SArrayIntElement : '(' '(' SValuesArray ')' '(' int ')' ')' {($3, $6)}
+SArrayIntElement : '(' '(' SValuesArray ')' '(' int ')' '(' int ')' '(' int ')' ')' {($3, $6, $9, $12)}
 
 SStringStringElement : '(' '(' String ')' '(' String ')' ')' {($3, $6)}
 

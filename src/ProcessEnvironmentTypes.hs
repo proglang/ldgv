@@ -42,7 +42,7 @@ data Value
   | VDouble Double
   | VString String
   | VChan (NCon.NetworkConnection Value) (MVar.MVar Bool)
-  | VChanSerial ([Value], Int) ([Value], Int) String String (String, String, String)
+  | VChanSerial ([Value], Int, Int, Int) ([Value], Int, Int, Int) String String (String, String, String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values
   | VType S.Type

@@ -7,6 +7,7 @@ import ProcessEnvironmentTypes
 import Networking.Messages
 import qualified Control.Concurrent.MVar as MVar
 import qualified Networking.DirectionalConnection as DC
+import qualified Networking.NetworkBuffer as NB
 import qualified Networking.Messages as Messages
 import qualified Networking.RandomID as RandomID
 import qualified Data.Map as Map
@@ -38,18 +39,17 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
         Connected hostname port _ _ _ -> do
             setRedirectRequests vchanconsmvar hostname port ownport val
             valcleaned <- replaceVChan val
-            DC.writeMessage (ncWrite networkconnection) valcleaned
-            messagesCount <- DC.countMessages $ ncWrite networkconnection
+            messagesCount <- NB.writeNetworkBuffer (ncWrite networkconnection) valcleaned
             tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
         Emulated {} -> do
             vchancons <- MVar.readMVar vchanconsmvar
             valCleaned <- replaceVChan val
-            DC.writeMessage (ncWrite networkconnection) valCleaned
+            NB.writeNetworkBuffer (ncWrite networkconnection) valCleaned
             let ownid = ncOwnUserID networkconnection
             let mbypartner = Map.lookup ownid vchancons
             case mbypartner of
                 Just partner -> do 
-                    DC.writeMessage (ncRead partner) valCleaned
+                    NB.writeNetworkBuffer (ncRead partner) valCleaned
                     return True
                 _ -> do 
                     Config.traceNetIO "Something went wrong when sending over a emulated connection"
@@ -240,8 +240,8 @@ replaceVChan input = case input of
         newpenv <- replaceVChanPEnv penv
         return $ VNewNatRec newpenv a b c d e f g
     VChan nc _-> do
-        (r, rl, w, wl, pid, oid, h, p, partConID) <- serializeNetworkConnection nc
-        return $ VChanSerial (r, rl) (w, wl) pid oid (h, p, partConID)
+        (r, ru, ra, rl, w, wu, wa, wl, pid, oid, h, p, partConID) <- serializeNetworkConnection nc
+        return $ VChanSerial (r, ru, ra, rl) (w, wu, wa, wl) pid oid (h, p, partConID)
     _ -> return input
     where
         replaceVChanPEnv :: [(String, Value)] -> IO [(String, Value)]
@@ -269,10 +269,12 @@ sendDisconnect ac mvar = do
         sendDisconnectNetworkConnection ac con = do
             let writeVals = ncWrite con
             connectionState <- MVar.readMVar $ ncConnectionState con
-            unreadVals <- DC.unreadMessageStart writeVals
-            lengthVals <- DC.countMessages writeVals
+            -- unreadVals <- DC.unreadMessageStart writeVals
+            -- lengthVals <- DC.countMessages writeVals
+            allAcknowledged <- NB.isAllAcknowledged writeVals
             case connectionState of
-                Connected host port _ _ _ -> if unreadVals >= lengthVals then do
+                -- Connected host port _ _ _ -> if unreadVals >= lengthVals then do
+                Connected host port _ _ _ -> if allAcknowledged then do
 
                     catch (sendNetworkMessage ac con (Messages.Disconnect $ ncOwnUserID con) 0) $ printConErr host port
                     return True else return False
