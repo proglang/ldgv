@@ -69,6 +69,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 return ()
                             AcknowledgeValue userid count -> do
                                 NC.sendResponse hdl Messages.Okay -- This okay is needed here to fix a race-condition with disconnects being faster than the okay
+                                NB.serialize (ncWrite networkcon) >>= \x -> Config.traceNetIO $ "Online before acknowlegment: " ++ show x
                                 NB.updateAcknowledgements (NCon.ncWrite networkcon) count
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                             NewPartnerAddress userid port connectionID -> do
@@ -278,6 +279,49 @@ replaceVChanSerial activeCons mvar input = case input of
 
 recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
 recieveValue vchanconsvar activeCons networkconnection ownport = do
+    recieveValueInternal 0 vchanconsvar activeCons networkconnection ownport
+    where
+        recieveValueInternal :: Int -> VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
+        recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
+            let readDC = ncRead networkconnection
+            mbyUnclean <- NB.tryTake readDC
+            case mbyUnclean of
+                Just unclean -> do
+                    val <- replaceVChanSerial activeCons vchanconsvar $ fst unclean
+                    waitUntilContactedNewPeers activeCons val ownport
+                    -- msgCount <- DC.unreadMessageStart $ ncRead networkconnection
+                    connectionState <- MVar.readMVar $ ncConnectionState networkconnection
+                    case connectionState of
+                        Connected {} -> NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) $ snd unclean) $ -1
+                        Emulated {} -> do
+                            vchancons <- MVar.readMVar vchanconsvar
+                            let ownid = ncOwnUserID networkconnection
+                            let mbypartner = Map.lookup ownid vchancons
+                            case mbypartner of
+                                Just partner -> do
+                                    NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowlegment: " ++ show x
+                                    NB.updateAcknowledgements (ncWrite partner) $ snd unclean
+                                    return True
+                                _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection" >> return True
+                        _ -> return True
+                    
+                    return val
+                Nothing -> if count == 0 then do
+                        msgCount <- NB.getNextOffset $ ncRead networkconnection
+                        connectionState <- MVar.readMVar $ ncConnectionState networkconnection
+                        case connectionState of
+                            Connected {} -> NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (ncOwnUserID networkconnection) msgCount) 0
+                            _ -> return True
+                        recieveValueInternal 100 vchanconsvar activeCons networkconnection ownport
+                        else do
+                            threadDelay 5000
+                            recieveValueInternal (count-1) vchanconsvar activeCons networkconnection ownport
+
+
+{-
+
+recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
+recieveValue vchanconsvar activeCons networkconnection ownport = do
     connectionState <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionState of
         Emulated {} -> recieveValueEmulated vchanconsvar activeCons networkconnection ownport
@@ -321,6 +365,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                     let mbypartner = Map.lookup ownid vchancons
                     case mbypartner of
                         Just partner -> do
+                            NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowlegment: " ++ show x
                             NB.updateAcknowledgements (ncWrite partner) $ snd unclean
                             return ()
                         _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection"
@@ -330,3 +375,8 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                     threadDelay 5000
                     recieveValueEmulated vchanconsvar activeCons networkconnection ownport
 
+
+
+
+
+-}
