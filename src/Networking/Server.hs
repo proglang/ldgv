@@ -69,7 +69,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 return ()
                             AcknowledgeValue userid count -> do
                                 NC.sendResponse hdl Messages.Okay -- This okay is needed here to fix a race-condition with disconnects being faster than the okay
-                                NB.serialize (ncWrite networkcon) >>= \x -> Config.traceNetIO $ "Online before acknowlegment: " ++ show x
+                                -- NB.serialize (ncWrite networkcon) >>= \x -> Config.traceNetIO $ "Online before acknowlegment: " ++ show x
                                 NB.updateAcknowledgements (NCon.ncWrite networkcon) count
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                             NewPartnerAddress userid port connectionID -> do
@@ -299,7 +299,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                             let mbypartner = Map.lookup ownid vchancons
                             case mbypartner of
                                 Just partner -> do
-                                    NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowlegment: " ++ show x
+                                    -- NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowlegment: " ++ show x
                                     NB.updateAcknowledgements (ncWrite partner) $ snd unclean
                                     return True
                                 _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection" >> return True
