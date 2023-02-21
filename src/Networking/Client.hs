@@ -271,9 +271,9 @@ sendDisconnect ac mvar = do
             connectionState <- MVar.readMVar $ ncConnectionState con
             -- unreadVals <- DC.unreadMessageStart writeVals
             -- lengthVals <- DC.countMessages writeVals
-            Config.traceNetIO "Checking if everything is acknowledged"
-            NB.serialize writeVals >>= Config.traceNetIO . show
-            NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
+            -- Config.traceNetIO "Checking if everything is acknowledged"
+            -- NB.serialize writeVals >>= Config.traceNetIO . show
+            -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
             allAcknowledged <- NB.isAllAcknowledged writeVals
             case connectionState of
                 -- Connected host port _ _ _ -> if unreadVals >= lengthVals then do
