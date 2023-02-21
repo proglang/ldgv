@@ -19,10 +19,12 @@ data NetworkBufferSerial a = NetworkBufferSerial {serialList :: [a], serialBuffe
 type MinimalNetworkBufferSerial a = ([a], Int, Int)
 
 data NetworkBufferException = InvalidAcknowledgementCount Int Int
+                            | InvalidNetworkBufferState Int Int Int
 
 instance Show NetworkBufferException where
     show = \case
         InvalidAcknowledgementCount found requested -> "NetworkBufferException (InvalidAcknowledgement): Only " ++ show found ++ " values found, out of the requested " ++ show requested ++ " values to acknowledge!"
+        InvalidNetworkBufferState len offset allMsgs -> "NetworkBufferException (InvalidNetworkBufferState): List Length " ++ show len ++ " + " ++ show offset ++ " need to equal " ++ show allMsgs ++ "!"
 
 instance Exception NetworkBufferException
 
@@ -90,7 +92,7 @@ serialize nb = SSem.withSem (working nb) $ do
 
 deserialize :: NetworkBufferSerial a -> IO (NetworkBuffer a)
 deserialize nbs@(NetworkBufferSerial list offset allMsgs ) = do
-    when (offset<allMsgs) $ throw $ InvalidAcknowledgementCount offset allMsgs
+    when (length list + offset/=allMsgs) $ throw $ InvalidNetworkBufferState (length list) offset allMsgs
     buffer <- newBuffer
     -- Write all the values to buffer
     foldM_ (\x y -> writeBuffer x y >> return x) buffer list
