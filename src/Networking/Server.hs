@@ -321,7 +321,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                     let mbypartner = Map.lookup ownid vchancons
                     case mbypartner of
                         Just partner -> do
-                            NB.updateAcknowledgements (ncRead partner) $ snd unclean
+                            NB.updateAcknowledgements (ncWrite partner) $ snd unclean
                             return ()
                         _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection"
 
