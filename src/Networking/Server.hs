@@ -55,16 +55,16 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                         Connected {} -> case deserialmessages of
                             NewValue userid count val -> do
                                 -- DC.lockInterpreterReads (ncRead networkcon)
-                                NB.writeNetworkBufferIfNext (ncRead networkcon) count $ setPartnerHostAddress clientHostaddress val
+                                success <- NB.writeIfNext (ncRead networkcon) count $ setPartnerHostAddress clientHostaddress val
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
-                                recievedNetLog message "Message written to Channel"
+                                if success then recievedNetLog message "Message written to Channel" else recievedNetLog message "Message not correct"
                                 NC.sendResponse hdl Messages.Okay
                                 recievedNetLog message "Sent okay"
                                 -- DC.unlockInterpreterReads (ncRead networkcon)
                             RequestValue userid count -> do
                                 SSem.signal $ ncHandlingIncomingMessage networkcon
                                 NC.sendResponse hdl Messages.Okay
-                                mbyval <- NB.tryGetAcknowledgeAt (NCon.ncWrite networkcon) count
+                                mbyval <- NB.tryGetAtNB (NCon.ncWrite networkcon) count
                                 Data.Maybe.maybe (return False) (\val -> NClient.sendNetworkMessage activeCons networkcon (Messages.NewValue (ncOwnUserID networkcon) count val) 0) mbyval
                                 return ()
                             AcknowledgeValue userid count -> do
@@ -286,19 +286,16 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
         recieveValueInternal :: Int -> VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
         recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
             let readDC = ncRead networkconnection
-            mbyUnclean <- NB.tryTakeAcknowledgeValue readDC
+            mbyUnclean <- NB.tryTake readDC
             case mbyUnclean of
                 Just unclean -> do
                     val <- replaceVChanSerial activeCons vchanconsvar $ fst unclean
                     waitUntilContactedNewPeers activeCons val ownport
-                    
-                    -- Since we currently do both acknowleding and reading in one function we need to iterate both
-                    NB.tryTakeReadValue readDC
                     -- msgCount <- DC.unreadMessageStart $ ncRead networkconnection
                     NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) $ snd unclean) $ -1
                     return val
                 Nothing -> if count == 0 then do
-                        msgCount <- NB.getRequiredReadValue $ ncRead networkconnection
+                        msgCount <- NB.getNextOffset $ ncRead networkconnection
                         NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (ncOwnUserID networkconnection) msgCount) 0
                         recieveValueInternal 100 vchanconsvar activeCons networkconnection ownport
                         else do
@@ -307,7 +304,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
         recieveValueEmulated :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
         recieveValueEmulated vchanconsvar activeCons networkconnection ownport = do
             let readDC = ncRead networkconnection
-            mbyUnclean <- NB.tryTakeAcknowledgeValue readDC
+            mbyUnclean <- NB.tryTake readDC
             case mbyUnclean of
                 Just unclean -> do
                     val <- replaceVChanSerial activeCons vchanconsvar $ fst unclean

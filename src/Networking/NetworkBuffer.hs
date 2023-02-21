@@ -8,14 +8,15 @@ import Control.Exception
 import Data.Functor
 import qualified Data.Maybe
 import Control.Monad
+import qualified Control.Concurrent.SSem as SSem
 
-data NetworkBuffer a = NetworkBuffer {readNetworkBuffer :: Buffer a, readCounter :: MVar Int, acknowledgeNetworkBuffer :: Buffer a, acknowledgeCounter :: MVar Int, writeCounter :: MVar Int}
+data NetworkBuffer a = NetworkBuffer {buffer :: Buffer a, bufferOffset :: MVar Int, bufferAllMessagesLength :: MVar Int, working :: SSem.SSem}
     deriving Eq
 
-data NetworkBufferSerial a = NetworkBufferSerial {serialList :: [a], serialReadCounter :: Int, serialAcknowledgeCounter :: Int, serialWriteCounter :: Int}
+data NetworkBufferSerial a = NetworkBufferSerial {serialList :: [a], serialBufferOffset :: Int, serialBufferAllMessagesLength :: Int}
     deriving (Show, Eq)
 
-type MinimalNetworkBufferSerial a = ([a], Int, Int, Int)
+type MinimalNetworkBufferSerial a = ([a], Int, Int)
 
 data NetworkBufferException = InvalidAcknowledgementCount Int Int
 
@@ -27,112 +28,82 @@ instance Exception NetworkBufferException
 
 newNetworkBuffer :: IO (NetworkBuffer a)
 newNetworkBuffer = do
-    readBuf <- newBuffer
-    readC <- newMVar 0
-    acknowledgeBuf <- cloneBuffer readBuf
-    acknowledgeC <- newMVar 0
-    writeC <- newMVar 0
-    return $ NetworkBuffer readBuf readC acknowledgeBuf acknowledgeC writeC
+    buf <- newBuffer
+    count <- newMVar 0
+    allMessages <- newMVar 0
+    work <- SSem.new 1
+    return $ NetworkBuffer buf count allMessages work
 
-writeNetworkBuffer :: NetworkBuffer a -> a -> IO Int
-writeNetworkBuffer nb value = modifyMVar (writeCounter nb) $ \writeCount -> do 
-    writeBuffer (readNetworkBuffer nb) value
-    return (writeCount+1, writeCount)
+write :: NetworkBuffer a -> a -> IO Int
+write nb value = SSem.withSem (working nb) $ modifyMVar (bufferAllMessagesLength nb) $ \len -> do 
+    writeBuffer (buffer nb) value
+    return (len+1, len)
 
-writeNetworkBufferIfNext :: NetworkBuffer a -> Int -> a -> IO Bool
-writeNetworkBufferIfNext nb count value = modifyMVar (writeCounter nb) $ \writeCount -> do
-    if writeCount == count then do 
-        writeBuffer (readNetworkBuffer nb) value
-        return (writeCount+1, True) else return (writeCount, False)
+writeIfNext :: NetworkBuffer a -> Int -> a -> IO Bool
+writeIfNext nb index value = SSem.withSem (working nb) $ modifyMVar (bufferAllMessagesLength nb) $ \len -> if index == len then do
+    writeBuffer (buffer nb) value
+    return (len+1, True) else return (len, False)
 
-tryTakeAcknowledgeValue :: NetworkBuffer a -> IO (Maybe (a, Int))
-tryTakeAcknowledgeValue nb = modifyMVar (acknowledgeCounter nb) (\acknowledgeCount -> do
-    mbyAcknowledgeValue <- tryTakeBuffer $ acknowledgeNetworkBuffer nb
-    case mbyAcknowledgeValue of
-        Just acknowledgeValue -> return (acknowledgeCount+1, Just (acknowledgeValue, acknowledgeCount+1))
-        Nothing -> return (acknowledgeCount, Nothing)
+tryGetAtNB :: NetworkBuffer a -> Int -> IO (Maybe a)
+tryGetAtNB nb count = SSem.withSem (working nb) $ do  
+    offset <- readMVar $ bufferOffset nb
+    tryGetAt (buffer nb) (count-offset)
+
+tryTake :: NetworkBuffer a -> IO (Maybe (a, Int))
+tryTake nb = SSem.withSem (working nb) $ modifyMVar (bufferOffset nb) (\offset -> do
+    mbyTakeValue <- tryTakeBuffer (buffer nb)
+    case mbyTakeValue of
+        Just value -> return (offset+1, Just (value, offset))
+        Nothing -> return (offset, Nothing)
     )
 
-tryTakeReadValue :: NetworkBuffer a -> IO (Maybe a)
-tryTakeReadValue nb = modifyMVar (acknowledgeCounter nb) (\acknowledgeCount -> do
-    retval <- modifyMVar (readCounter nb) (\readCount ->
-        if acknowledgeCount > readCount then (do
-            mbyReadValue <- tryTakeBuffer $ readNetworkBuffer nb
-            case mbyReadValue of
-                Just readValue -> return (readCount+1, Just readValue)
-                Nothing -> return (readCount, Nothing)
-            )
-        else return (readCount, Nothing)
-        )
-    return (acknowledgeCount, retval)
-    )
-
-getRequiredReadValue :: NetworkBuffer a -> IO Int
-getRequiredReadValue = readMVar . readCounter
+getNextOffset :: NetworkBuffer a -> IO Int
+getNextOffset = readMVar . bufferOffset
 
 isAllAcknowledged :: NetworkBuffer a -> IO Bool
 isAllAcknowledged nb = do
-    mbyBuffer <- tryReadBuffer $ acknowledgeNetworkBuffer nb
+    mbyBuffer <- tryReadBuffer $ buffer nb
     return $ Data.Maybe.isNothing mbyBuffer
 
-tryGetReadAt :: NetworkBuffer a -> Int -> IO (Maybe a)
-tryGetReadAt nb count = modifyMVar (readCounter nb) (\readCount -> do 
-    ret <- tryGetAt (readNetworkBuffer nb) (count-readCount)
-    return (readCount, ret)
+updateAcknowledgements :: NetworkBuffer a -> Int -> IO ()
+updateAcknowledgements nb target = SSem.withSem (working nb) $ modifyMVar_ (bufferOffset nb) (\offset -> do
+        updateAcknowledgementsInternal (buffer nb) target offset
+        return $ target+1
     )
-
-tryGetAcknowledgeAt :: NetworkBuffer a -> Int -> IO (Maybe a)
-tryGetAcknowledgeAt nb count = modifyMVar (acknowledgeCounter nb) (\ackCount -> do
-    ret <- tryGetAt (readNetworkBuffer nb) (count-ackCount) 
-    return (ackCount, ret)
-    )
-
-
-
-
-updateAcknowledgements :: NetworkBuffer a -> Int -> IO Bool
-updateAcknowledgements nb target = modifyMVar (acknowledgeCounter nb) (updateAcknowledgementsInternal (acknowledgeNetworkBuffer nb) target)
     where
-        updateAcknowledgementsInternal :: Buffer a -> Int -> Int -> IO (Int, Bool)
-        updateAcknowledgementsInternal ackBuffer targetCount nbCount = do
-            when (nbCount > targetCount) $ throw $ InvalidAcknowledgementCount nbCount targetCount
-            if nbCount == targetCount then return (nbCount, True) else do
-                mbyTakeBuffer <- tryTakeBuffer ackBuffer
-                case mbyTakeBuffer of
-                    Just takeBuffer -> updateAcknowledgementsInternal ackBuffer targetCount (nbCount+1)
-                    Nothing -> throw $ InvalidAcknowledgementCount nbCount targetCount
+        updateAcknowledgementsInternal :: Buffer a -> Int -> Int -> IO ()
+        updateAcknowledgementsInternal buf target current | target < current = return ()
+                                                          | otherwise = do
+                                                            mbyTake <- tryTakeBuffer buf
+                                                            case mbyTake of
+                                                                Just _ -> updateAcknowledgementsInternal buf target $ current+1
+                                                                Nothing -> throw $ InvalidAcknowledgementCount current target
 
 serialize :: NetworkBuffer a -> IO (NetworkBufferSerial a)
-serialize nb = modifyMVar (writeCounter nb) (\writeCount -> do 
-    (bufferList, readCount, acknowledgeCount) <- modifyMVar (acknowledgeCounter nb) (\acknowledgeCount -> do
-        (bufferList, readCount) <- modifyMVar (readCounter nb) (\readCount -> do
-                bufferList <- writeBufferToList $ readNetworkBuffer nb
-                return (readCount, (bufferList, readCount))
-            )
-        return (acknowledgeCount, (bufferList, readCount, acknowledgeCount))
-        )
-    return (writeCount, NetworkBufferSerial bufferList readCount acknowledgeCount writeCount)
-    )
+serialize nb = SSem.withSem (working nb) $ do
+    list <- writeBufferToList $ buffer nb
+    offset <- readMVar $ bufferOffset nb
+    allMsgs <- readMVar $ bufferAllMessagesLength nb
+    return $ NetworkBufferSerial list offset allMsgs
+
+
 
 deserialize :: NetworkBufferSerial a -> IO (NetworkBuffer a)
-deserialize nbs@(NetworkBufferSerial list readCount ackCount writeCount) = do
-    when (ackCount<readCount) $ throw $ InvalidAcknowledgementCount readCount ackCount
-    readB <- newBuffer
+deserialize nbs@(NetworkBufferSerial list offset allMsgs ) = do
+    when (offset<allMsgs) $ throw $ InvalidAcknowledgementCount offset allMsgs
+    buffer <- newBuffer
     -- Write all the values to buffer
-    foldM_ (\x y -> writeBuffer x y >> return x) readB list
-    ackB <- cloneBuffer readB
-    ackC <- newMVar ackCount
-    readC <- newMVar readCount
-    writeC <- newMVar writeCount
-    -- Drop the values already acknowledged but not read
-    forM_ [1..(ackCount-readCount)] $ \_ -> takeBuffer ackB
-    return $ NetworkBuffer readB readC ackB ackC writeC
+    foldM_ (\x y -> writeBuffer x y >> return x) buffer list
+    bOffset <- newMVar offset
+    bAllMsgs <- newMVar allMsgs 
+    work <- SSem.new 1
+    return $ NetworkBuffer buffer bOffset bAllMsgs work
 
 expandSerial :: MinimalNetworkBufferSerial a -> NetworkBufferSerial a
-expandSerial (list, readC, ackC, writeC) = NetworkBufferSerial list readC ackC writeC
+expandSerial (list, readC, ackC) = NetworkBufferSerial list readC ackC
 
 compressSerial :: NetworkBufferSerial a -> MinimalNetworkBufferSerial a
-compressSerial (NetworkBufferSerial list readC ackC writeC) = (list, readC, ackC, writeC)
+compressSerial (NetworkBufferSerial list readC ackC) = (list, readC, ackC)
 
 serializeMinimal :: NetworkBuffer a -> IO (MinimalNetworkBufferSerial a)
 serializeMinimal nb = serialize nb <&> compressSerial

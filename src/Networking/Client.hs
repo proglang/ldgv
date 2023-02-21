@@ -39,17 +39,17 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
         Connected hostname port _ _ _ -> do
             setRedirectRequests vchanconsmvar hostname port ownport val
             valcleaned <- replaceVChan val
-            messagesCount <- NB.writeNetworkBuffer (ncWrite networkconnection) valcleaned
+            messagesCount <- NB.write (ncWrite networkconnection) valcleaned
             tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
         Emulated {} -> do
             vchancons <- MVar.readMVar vchanconsmvar
             valCleaned <- replaceVChan val
-            NB.writeNetworkBuffer (ncWrite networkconnection) valCleaned
+            NB.write(ncWrite networkconnection) valCleaned
             let ownid = ncOwnUserID networkconnection
             let mbypartner = Map.lookup ownid vchancons
             case mbypartner of
                 Just partner -> do 
-                    NB.writeNetworkBuffer (ncRead partner) valCleaned
+                    NB.write (ncRead partner) valCleaned
                     return True
                 _ -> do 
                     Config.traceNetIO "Something went wrong when sending over a emulated connection"
@@ -240,8 +240,8 @@ replaceVChan input = case input of
         newpenv <- replaceVChanPEnv penv
         return $ VNewNatRec newpenv a b c d e f g
     VChan nc _-> do
-        (r, ru, ra, rl, w, wu, wa, wl, pid, oid, h, p, partConID) <- serializeNetworkConnection nc
-        return $ VChanSerial (r, ru, ra, rl) (w, wu, wa, wl) pid oid (h, p, partConID)
+        (r, ro, rl, w, wo, wl, pid, oid, h, p, partConID) <- serializeNetworkConnection nc
+        return $ VChanSerial (r, ro, rl) (w, wo, wl) pid oid (h, p, partConID)
     _ -> return input
     where
         replaceVChanPEnv :: [(String, Value)] -> IO [(String, Value)]

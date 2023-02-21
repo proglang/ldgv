@@ -342,7 +342,7 @@ SValuesElements : Value ',' SValuesElements {$1 : $3}
 
 LabelType : slabeltype '{' SStringElements '}' {$3}
 
-SArrayIntElement : '(' '(' SValuesArray ')' '(' int ')' '(' int ')' '(' int ')' ')' {($3, $6, $9, $12)}
+SArrayIntElement : '(' '(' SValuesArray ')' '(' int ')' '(' int ')' ')' {($3, $6, $9)}
 
 SStringStringElement : '(' '(' String ')' '(' String ')' ')' {($3, $6)}
 

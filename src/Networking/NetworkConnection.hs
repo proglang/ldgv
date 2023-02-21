@@ -1,6 +1,5 @@
 module Networking.NetworkConnection where
 
-import Networking.DirectionalConnection
 import Networking.NetworkBuffer
 import Networking.RandomID
 import qualified Data.Map as Map
@@ -26,10 +25,10 @@ newNetworkConnection partnerID ownID hostname port partnerConnectionID ownConnec
     return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
 
 
-createNetworkConnection :: ([a], Int, Int, Int) -> ([a], Int, Int, Int) -> String -> String -> (String, String, String) -> IO (NetworkConnection a)
-createNetworkConnection (readList, readNew, readAck, readListLength) (writeList, writeNew, writeAck, writeListLength) partnerID ownID (hostname, port, partnerConnectionID) = do
-    read <- deserializeMinimal (readList, readNew, readAck, readListLength)
-    write <- deserializeMinimal (writeList, writeNew, writeAck, writeListLength)
+createNetworkConnection :: ([a], Int, Int) -> ([a], Int, Int) -> String -> String -> (String, String, String) -> IO (NetworkConnection a)
+createNetworkConnection (readList, readOffset, readLength) (writeList, writeOffset, writeLength) partnerID ownID (hostname, port, partnerConnectionID) = do
+    read <- deserializeMinimal (readList, readOffset, readLength)
+    write <- deserializeMinimal (writeList, writeOffset, writeLength)
     ownConnectionID <- newRandomID
     connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID False
     incomingMsg <- SSem.new 1
@@ -58,16 +57,16 @@ newEmulatedConnection mvar = do
     MVar.putMVar mvar ncmap2
     return (nc1, nc2)
 
-serializeNetworkConnection :: NetworkConnection a -> IO ([a], Int, Int, Int, [a], Int, Int, Int, String, String, String, String, String)
+serializeNetworkConnection :: NetworkConnection a -> IO ([a], Int, Int, [a], Int, Int, String, String, String, String, String)
 serializeNetworkConnection nc = do
     constate <- MVar.readMVar $ ncConnectionState nc
-    (readList, readUnread, readUnAck, readListC) <- serializeMinimal $ ncRead nc
-    (writeList, writeUnread, writeUnAck, writeListC) <- serializeMinimal $ ncWrite nc
+    (readList, readOffset, readLength) <- serializeMinimal $ ncRead nc
+    (writeList, writeOffset, writeLength) <- serializeMinimal $ ncWrite nc
     (address, port, partnerConnectionID) <- case constate of
         Connected address port partnerConnectionID _ _ -> return (address, port, partnerConnectionID)
         RedirectRequest address port _ _ partnerConnectionID _ _ -> return (address, port, partnerConnectionID)
         _ -> return ("", "", csPartnerConnectionID constate)
-    return (readList, readUnread, readUnAck, readListC, writeList, writeUnread, writeUnAck, writeListC, ncPartnerUserID nc, ncOwnUserID nc, address, port, partnerConnectionID)
+    return (readList, readOffset, readLength, writeList, writeOffset, writeLength, ncPartnerUserID nc, ncOwnUserID nc, address, port, partnerConnectionID)
 
 changePartnerAddress :: NetworkConnection a -> String -> String -> String -> IO ()
 changePartnerAddress con hostname port partnerConnectionID = do
