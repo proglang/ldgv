@@ -28,7 +28,6 @@ import qualified Networking.Server as NS
 
 
 import Control.Concurrent
-import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkConnection as NCon
 import ProcessEnvironmentTypes
 import qualified Data.Bifunctor
@@ -204,8 +203,6 @@ eval = \case
       _ -> throw $ NotAnExpectedValueException "VInt" val
 
   Connect e0 tname e1 e2-> do
-    r <- liftIO DC.newConnection
-    w <- liftIO DC.newConnection
     val <- interpret' e0
     case val of
       VInt port -> do

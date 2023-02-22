@@ -25,7 +25,6 @@ import Control.Monad
 
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 import qualified Control.Concurrent.SSem as SSem
-import qualified Networking.DirectionalConnection as DC
 import qualified Data.Bifunctor
 import qualified Networking.NetworkBuffer as NB
 
@@ -316,67 +315,3 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                         else do
                             threadDelay 5000
                             recieveValueInternal (count-1) vchanconsvar activeCons networkconnection ownport
-
-
-{-
-
-recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
-recieveValue vchanconsvar activeCons networkconnection ownport = do
-    connectionState <- MVar.readMVar $ ncConnectionState networkconnection
-    case connectionState of
-        Emulated {} -> recieveValueEmulated vchanconsvar activeCons networkconnection ownport
-        _ -> recieveValueInternal 0 vchanconsvar activeCons networkconnection ownport
-    where
-        recieveValueInternal :: Int -> VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
-        recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
-            let readDC = ncRead networkconnection
-            mbyUnclean <- NB.tryTake readDC
-            case mbyUnclean of
-                Just unclean -> do
-                    val <- replaceVChanSerial activeCons vchanconsvar $ fst unclean
-                    waitUntilContactedNewPeers activeCons val ownport
-                    -- msgCount <- DC.unreadMessageStart $ ncRead networkconnection
-                    NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) $ snd unclean) $ -1
-                    return val
-                Nothing -> if count == 0 then do
-                        msgCount <- NB.getNextOffset $ ncRead networkconnection
-                        NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (ncOwnUserID networkconnection) msgCount) 0
-                        recieveValueInternal 100 vchanconsvar activeCons networkconnection ownport
-                        else do
-                            threadDelay 5000
-                            recieveValueInternal (count-1) vchanconsvar activeCons networkconnection ownport
-        recieveValueEmulated :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
-        recieveValueEmulated vchanconsvar activeCons networkconnection ownport = do
-            let readDC = ncRead networkconnection
-            mbyUnclean <- NB.tryTake readDC
-            case mbyUnclean of
-                Just unclean -> do
-                    val <- replaceVChanSerial activeCons vchanconsvar $ fst unclean
-                    waitUntilContactedNewPeers activeCons val ownport
-                    case val of
-                        VChan nc _ -> do
-                            connectionState <- MVar.readMVar $ ncConnectionState nc
-                            Config.traceNetIO $ show connectionState
-                        _ -> return ()
-
-                    -- msgCount <- DC.unreadMessageStart $ ncRead networkconnection
-                    vchancons <- MVar.readMVar vchanconsvar
-                    let ownid = ncOwnUserID networkconnection
-                    let mbypartner = Map.lookup ownid vchancons
-                    case mbypartner of
-                        Just partner -> do
-                            NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowlegment: " ++ show x
-                            NB.updateAcknowledgements (ncWrite partner) $ snd unclean
-                            return ()
-                        _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection"
-
-                    return val
-                Nothing -> do
-                    threadDelay 5000
-                    recieveValueEmulated vchanconsvar activeCons networkconnection ownport
-
-
-
-
-
--}

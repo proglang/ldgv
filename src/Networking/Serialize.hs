@@ -11,13 +11,9 @@ import Data.Set
 import Control.Exception
 import ProcessEnvironmentTypes
 import Networking.Messages
-import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkBuffer as NB
 import qualified Networking.NetworkConnection as NCon 
 import qualified Data.Maybe
-import qualified Networking.DirectionalConnection as NCon
-import qualified Networking.NetworkBuffer as NB
-
 
 newtype SerializationException = UnserializableException String
     deriving Eq
@@ -67,13 +63,6 @@ instance Serializable (NCon.NetworkConnection Value) where
 
     serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (NCon.ncPartnerUserID con) $ sNext (NCon.ncOwnUserID con) $ sLast constate
 -}
-
-
-instance Serializable (NCon.DirectionalConnection Value) where
-  serialize dcon = do
-    (msg, msgUnread) <- DC.serializeConnection dcon
-
-    serializeLabeledEntryMulti "SDirectionalConnection" msg $ sLast msgUnread
 
 instance Serializable NCon.ConnectionState where
   serialize = \case

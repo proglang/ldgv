@@ -6,7 +6,6 @@ import qualified Config
 import ProcessEnvironmentTypes
 import Networking.Messages
 import qualified Control.Concurrent.MVar as MVar
-import qualified Networking.DirectionalConnection as DC
 import qualified Networking.NetworkBuffer as NB
 import qualified Networking.Messages as Messages
 import qualified Networking.RandomID as RandomID
