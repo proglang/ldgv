@@ -10,7 +10,6 @@ import qualified Networking.NetworkBuffer as NB
 import qualified Networking.Messages as Messages
 import qualified Networking.RandomID as RandomID
 import qualified Data.Map as Map
-import qualified Data.Maybe
 import Control.Concurrent
 import Control.Exception
 import qualified Syntax
@@ -166,53 +165,41 @@ initialConnect activeCons mvar hostname port ownport syntype= do
             threadDelay 1000000
             initialConnect activeCons mvar hostname port ownport syntype
 
--- This is still broken
-setRedirectRequests :: VChanConnections -> String -> String -> String -> Value -> IO ()
-setRedirectRequests vchanconmvar newhost newport ownport input = case input of
-    VSend v -> setRedirectRequests vchanconmvar newhost newport ownport v
-    VPair v1 v2 -> do
-        setRedirectRequests vchanconmvar newhost newport ownport v1
-        setRedirectRequests vchanconmvar newhost newport ownport v2
-    VFunc penv a b -> setRedirectRequestsPEnv vchanconmvar newhost newport ownport penv
-    VDynCast v g -> setRedirectRequests vchanconmvar newhost newport ownport v
-    VFuncCast v a b -> setRedirectRequests vchanconmvar newhost newport ownport v
-    VRec penv a b c d -> setRedirectRequestsPEnv vchanconmvar newhost newport ownport penv
-    VNewNatRec penv a b c d e f g -> setRedirectRequestsPEnv vchanconmvar newhost newport ownport penv
-    VChan nc _ -> do
-        Config.traceNetIO $ "Trying to set RedirectRequest for " ++ ncPartnerUserID nc ++ " to " ++ newhost ++ ":" ++ newport
-
-        SSem.withSem (ncHandlingIncomingMessage nc) (do
-            oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
-            case oldconnectionstate of
-                Connected hostname port partConID ownConID confirmed -> MVar.putMVar (ncConnectionState nc) $ RedirectRequest hostname port newhost newport partConID ownConID confirmed
-                RedirectRequest hostname port _ _ partConID ownConID confirmed -> MVar.putMVar (ncConnectionState nc) $ RedirectRequest hostname port newhost newport partConID ownConID confirmed
-                Emulated partConID ownConID confirmed -> do 
-                    Config.traceNetIO "TODO: Allow RedirectRequest for Emulated channel"
-                    vchanconnections <- MVar.takeMVar vchanconmvar
-
-                    let userid = ncOwnUserID nc
-                    let mbypartner = Map.lookup userid vchanconnections  
-                    case mbypartner of
-                        Just partner -> do
-                            MVar.putMVar (ncConnectionState nc) $ RedirectRequest "" ownport newhost newport partConID ownConID confirmed -- Setting this to 127.0.0.1 is a temporary hack
-                            oldconectionstatePartner <- MVar.takeMVar $ ncConnectionState partner
-                            MVar.putMVar (ncConnectionState partner) $ Connected newhost newport partConID ownConID confirmed
-                        Nothing -> do 
-                            MVar.putMVar (ncConnectionState nc) oldconnectionstate
-                            Config.traceNetIO "Error occured why getting the linked emulated channel"
-
-
-                    MVar.putMVar vchanconmvar vchanconnections
-                Disconnected partConID ownConID confirmed -> Config.traceNetIO "Cannot set RedirectRequest for a disconnected channel"
-            )
-        Config.traceNetIO $ "Set RedirectRequest for " ++ ncPartnerUserID nc ++ " to " ++ newhost ++ ":" ++ newport
-    _ -> return ()
+setRedirectRequests :: VChanConnections -> String -> String -> String -> Value -> IO Bool
+setRedirectRequests vchanconmvar newhost newport ownport = searchVChans (handleVChan vchanconmvar newhost newport ownport) True (&&)
     where
-        setRedirectRequestsPEnv :: VChanConnections -> String -> String -> String -> [(String, Value)] -> IO ()
-        setRedirectRequestsPEnv _ _ _ _ [] = return ()
-        setRedirectRequestsPEnv vchanconmvar newhost newport ownport (x:xs) = do
-            setRedirectRequests vchanconmvar newhost newport ownport $ snd x
-            setRedirectRequestsPEnv vchanconmvar newhost newport ownport xs
+        handleVChan ::  VChanConnections -> String -> String -> String -> Value -> IO Bool
+        handleVChan vchanconmvar newhost newport ownport input = case input of
+            VChan nc _ -> do
+                Config.traceNetIO $ "Trying to set RedirectRequest for " ++ ncPartnerUserID nc ++ " to " ++ newhost ++ ":" ++ newport
+
+                SSem.withSem (ncHandlingIncomingMessage nc) (do
+                    oldconnectionstate <- MVar.takeMVar $ ncConnectionState nc
+                    case oldconnectionstate of
+                        Connected hostname port partConID ownConID confirmed -> MVar.putMVar (ncConnectionState nc) $ RedirectRequest hostname port newhost newport partConID ownConID confirmed
+                        RedirectRequest hostname port _ _ partConID ownConID confirmed -> MVar.putMVar (ncConnectionState nc) $ RedirectRequest hostname port newhost newport partConID ownConID confirmed
+                        Emulated partConID ownConID confirmed -> do 
+                            Config.traceNetIO "TODO: Allow RedirectRequest for Emulated channel"
+                            vchanconnections <- MVar.takeMVar vchanconmvar
+
+                            let userid = ncOwnUserID nc
+                            let mbypartner = Map.lookup userid vchanconnections  
+                            case mbypartner of
+                                Just partner -> do
+                                    MVar.putMVar (ncConnectionState nc) $ RedirectRequest "" ownport newhost newport partConID ownConID confirmed -- Setting this to 127.0.0.1 is a temporary hack
+                                    oldconectionstatePartner <- MVar.takeMVar $ ncConnectionState partner
+                                    MVar.putMVar (ncConnectionState partner) $ Connected newhost newport partConID ownConID confirmed
+                                Nothing -> do 
+                                    MVar.putMVar (ncConnectionState nc) oldconnectionstate
+                                    Config.traceNetIO "Error occured why getting the linked emulated channel"
+
+
+                            MVar.putMVar vchanconmvar vchanconnections
+                        Disconnected partConID ownConID confirmed -> Config.traceNetIO "Cannot set RedirectRequest for a disconnected channel"
+                    )
+                Config.traceNetIO $ "Set RedirectRequest for " ++ ncPartnerUserID nc ++ " to " ++ newhost ++ ":" ++ newport
+                return True
+            _ -> return True
 
 serializeVChan :: Value -> IO Value
 serializeVChan = modifyVChans handleVChan
@@ -223,45 +210,6 @@ serializeVChan = modifyVChans handleVChan
                 (r, ro, rl, w, wo, wl, pid, oid, h, p, partConID) <- serializeNetworkConnection nc
                 return $ VChanSerial (r, ro, rl) (w, wo, wl) pid oid (h, p, partConID)
             _ -> return input
-
-{-
-replaceVChan :: Value -> IO Value
-replaceVChan input = case input of
-    VSend v -> do
-        nv <- replaceVChan v
-        return $ VSend nv
-    VPair v1 v2 -> do
-        nv1 <- replaceVChan v1
-        nv2 <- replaceVChan v2
-        return $ VPair nv1 nv2
-    VFunc penv a b -> do
-        newpenv <- replaceVChanPEnv penv
-        return $ VFunc newpenv a b
-    VDynCast v g -> do
-        nv <- replaceVChan v
-        return $ VDynCast nv g
-    VFuncCast v a b -> do
-        nv <- replaceVChan v
-        return $ VFuncCast nv a b
-    VRec penv a b c d -> do
-        newpenv <- replaceVChanPEnv penv
-        return $ VRec newpenv a b c d
-    VNewNatRec penv a b c d e f g -> do
-        newpenv <- replaceVChanPEnv penv
-        return $ VNewNatRec newpenv a b c d e f g
-    VChan nc _-> do
-        (r, ro, rl, w, wo, wl, pid, oid, h, p, partConID) <- serializeNetworkConnection nc
-        return $ VChanSerial (r, ro, rl) (w, wo, wl) pid oid (h, p, partConID)
-    _ -> return input
-    where
-        replaceVChanPEnv :: [(String, Value)] -> IO [(String, Value)]
-        replaceVChanPEnv [] = return []
-        replaceVChanPEnv (x:xs) = do
-            newval <- replaceVChan $ snd x
-            rest <- replaceVChanPEnv xs
-            return $ (fst x, newval):rest
--}
-
 
 sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
 sendDisconnect ac mvar = do

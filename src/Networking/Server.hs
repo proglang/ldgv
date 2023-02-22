@@ -162,47 +162,25 @@ setPartnerHostAddress address input = case input of
 
 waitUntilContactedNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
 waitUntilContactedNewPeers activeCons input ownport = do
-    contactedPeers <- contactNewPeers activeCons input ownport
+    contactedPeers <- contactNewPeers activeCons ownport input
     unless contactedPeers $ do
         threadDelay 50000
         waitUntilContactedNewPeers activeCons input ownport
 
-
-contactNewPeers :: NMC.ActiveConnections -> Value -> String -> IO Bool
-contactNewPeers activeCons input ownport = case input of
-    VSend v -> do
-        contactNewPeers activeCons v ownport
-    VPair v1 v2 -> do
-        nv1 <- contactNewPeers activeCons v1 ownport
-        nv2 <- contactNewPeers activeCons v2 ownport
-        return (nv1 || nv2)
-    VFunc penv a b -> do
-        contactNewPeersPEnv activeCons penv ownport
-    VDynCast v g -> do
-        contactNewPeers activeCons v ownport
-    VFuncCast v a b -> do
-        contactNewPeers activeCons v ownport
-    VRec penv a b c d -> do
-        contactNewPeersPEnv activeCons penv ownport
-    VNewNatRec penv a b c d e f g -> do
-        contactNewPeersPEnv activeCons penv ownport
-    VChan nc bool -> do
-        connectionState <- MVar.readMVar $ ncConnectionState nc
-        case connectionState of
-            Emulated {} -> return True
-            _ -> do
-                if csConfirmedConnection connectionState then return True else do
-                    NClient.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
-                    return False
-    _ -> return True
+contactNewPeers :: NMC.ActiveConnections -> String -> Value  -> IO Bool
+contactNewPeers activeCons ownport = searchVChans (handleVChan activeCons ownport) True (&&)
     where
-        contactNewPeersPEnv :: NMC.ActiveConnections -> [(String, Value)] -> String -> IO Bool -- [(String, Value)]
-        contactNewPeersPEnv _ [] _ = return True
-        contactNewPeersPEnv activeCons (x:xs) ownport = do
-            newval <- contactNewPeers activeCons (snd x) ownport
-            rest <- contactNewPeersPEnv activeCons xs ownport
-            -- return $ (fst x, newval):rest
-            return (newval || rest)
+        handleVChan :: NMC.ActiveConnections -> String -> Value  -> IO Bool
+        handleVChan activeCons ownport input = case input of
+            VChan nc bool -> do
+                connectionState <- MVar.readMVar $ ncConnectionState nc
+                case connectionState of
+                    Emulated {} -> return True
+                    _ -> do
+                        if csConfirmedConnection connectionState then return True else do
+                            NClient.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
+                            return False
+            _ -> return True
 
 hostaddressTypeToString :: HostAddress -> String
 hostaddressTypeToString hostaddress = do
@@ -238,7 +216,7 @@ findFittingClient clientlist desiredType = do
 
 replaceVChanSerial :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> Value -> IO Value
 replaceVChanSerial activeCons mvar input = modifyVChans (handleSerial activeCons mvar) input
-    where 
+    where
         handleSerial :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> Value -> IO Value
         handleSerial activeCons mvar input = case input of
             VChanSerial r w p o c -> do
@@ -249,49 +227,6 @@ replaceVChanSerial activeCons mvar input = modifyVChans (handleSerial activeCons
                 MVar.putMVar used False
                 return $ VChan networkconnection used
             _ -> return input
-
-
-{-
-replaceVChanSerial :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> Value -> IO Value
-replaceVChanSerial activeCons mvar input = case input of
-    VSend v -> do
-        nv <- replaceVChanSerial activeCons mvar v
-        return $ VSend nv
-    VPair v1 v2 -> do
-        nv1 <- replaceVChanSerial activeCons mvar v1
-        nv2 <- replaceVChanSerial activeCons mvar v2
-        return $ VPair nv1 nv2
-    VFunc penv a b -> do
-        newpenv <- replaceVChanSerialPEnv activeCons mvar penv
-        return $ VFunc newpenv a b
-    VDynCast v g -> do
-        nv <- replaceVChanSerial activeCons mvar v
-        return $ VDynCast nv g
-    VFuncCast v a b -> do
-        nv <- replaceVChanSerial activeCons mvar v
-        return $ VFuncCast nv a b
-    VRec penv a b c d -> do
-        newpenv <- replaceVChanSerialPEnv activeCons mvar penv
-        return $ VRec newpenv a b c d
-    VNewNatRec penv a b c d e f g -> do
-        newpenv <- replaceVChanSerialPEnv activeCons mvar penv
-        return $ VNewNatRec newpenv a b c d e f g
-    VChanSerial r w p o c -> do
-        networkconnection <- createNetworkConnection r w p o c
-        ncmap <- MVar.takeMVar mvar
-        MVar.putMVar mvar $ Map.insert p networkconnection ncmap
-        used<- MVar.newEmptyMVar
-        MVar.putMVar used False
-        return $ VChan networkconnection used
-    _ -> return input
-    where
-        replaceVChanSerialPEnv :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> [(String, Value)] -> IO [(String, Value)]
-        replaceVChanSerialPEnv _ _ [] = return []
-        replaceVChanSerialPEnv activeCons mvar (x:xs) = do
-            newval <- replaceVChanSerial activeCons mvar $ snd x
-            rest <- replaceVChanSerialPEnv activeCons mvar xs
-            return $ (fst x, newval):rest
--}
 
 recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
 recieveValue vchanconsvar activeCons networkconnection ownport = do
@@ -320,7 +255,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                                     return True
                                 _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection" >> return True
                         _ -> return True
-                    
+
                     return val
                 Nothing -> if count == 0 then do
                         msgCount <- NB.getNextOffset $ ncRead networkconnection

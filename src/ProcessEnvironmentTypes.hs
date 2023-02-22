@@ -88,6 +88,31 @@ modifyVChans vchanhandler input = case input of
             rest <- modifyVChansPEnv vchanhandler xs
             return $ (fst x, newval):rest
 
+searchVChans ::  (Value -> IO r) -> r -> (r -> r -> r) -> Value -> IO r
+searchVChans vchanhandler defaultResult mergeResults input = case input of
+    VSend v -> searchVChans vchanhandler defaultResult mergeResults v
+        
+    VPair v1 v2 -> do
+        nv1 <- searchVChans vchanhandler defaultResult mergeResults v1
+        nv2 <- searchVChans vchanhandler defaultResult mergeResults v2
+        return $ mergeResults nv1 nv2
+    VFunc penv a b -> searchVChansPEnv vchanhandler defaultResult mergeResults penv
+    VDynCast v g -> searchVChans vchanhandler defaultResult mergeResults v
+    VFuncCast v a b -> searchVChans vchanhandler defaultResult mergeResults v
+    VRec penv a b c d -> searchVChansPEnv vchanhandler defaultResult mergeResults penv
+    VNewNatRec penv a b c d e f g -> searchVChansPEnv vchanhandler defaultResult mergeResults penv
+    VChan nc used-> vchanhandler input
+    VChanSerial r w p o c -> vchanhandler input
+    _ -> return defaultResult
+    where
+        searchVChansPEnv :: (Value -> IO r) -> r -> (r -> r -> r) -> [(String, Value)] -> IO r
+        searchVChansPEnv _ defaultResult _ [] = return defaultResult
+        searchVChansPEnv vchanhandler defaultResult mergeResults penvs@(x:xs) = do
+            newval <- searchVChans vchanhandler defaultResult mergeResults $ snd x
+            rest <- searchVChansPEnv vchanhandler defaultResult mergeResults xs
+            return $ mergeResults newval rest
+
+
 -- type ModifyVChansResult = r
 {-
 modifyVChans ::  (Value -> r) -> (Value -> r) -> (Value -> r) -> (Value -> r -> r) -> (Value -> r -> r -> r) -> (Value -> [(String, r)] -> r) -> Value -> r
