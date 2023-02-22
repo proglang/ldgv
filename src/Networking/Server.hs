@@ -39,66 +39,66 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
 
     netcons <- MVar.readMVar mvar
     case Map.lookup userid netcons of
-        Just networkcon -> do
-            recievedNetLog message $ "Recieved message as: " ++ ncOwnUserID networkcon ++ " (" ++ ownport ++ ") from: " ++  ncPartnerUserID networkcon
-            busy <- SSem.tryWait $ ncHandlingIncomingMessage networkcon
+        Just ncToPartner -> do
+            recievedNetLog message $ "Recieved message as: " ++ ncOwnUserID ncToPartner ++ " (" ++ ownport ++ ") from: " ++  ncPartnerUserID ncToPartner
+            busy <- SSem.tryWait $ ncHandlingIncomingMessage ncToPartner
             case busy of
                 Just num -> do
-                    constate <- MVar.readMVar $ ncConnectionState networkcon
+                    constate <- MVar.readMVar $ ncConnectionState ncToPartner
                     reply <- case constate of
                         RedirectRequest _ _ host port _ _ _ -> do
                             recievedNetLog message $ "Found redirect request for: " ++ userid
                             recievedNetLog message $ "Send redirect to:" ++ host ++ ":" ++ port
-                            SSem.signal $ ncHandlingIncomingMessage networkcon
+                            SSem.signal $ ncHandlingIncomingMessage ncToPartner
                             NC.sendResponse hdl (Messages.Redirect host port)
                         Connected {} -> case deserialmessages of
                             NewValue userid count val -> do
-                                -- DC.lockInterpreterReads (ncRead networkcon)
-                                success <- NB.writeIfNext (ncRead networkcon) count $ setPartnerHostAddress clientHostaddress val
-                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                -- DC.lockInterpreterReads (ncRead ncToPartner)
+                                success <- NB.writeIfNext (ncRead ncToPartner) count $ setPartnerHostAddress clientHostaddress val
+                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 if success then recievedNetLog message "Message written to Channel" else recievedNetLog message "Message not correct"
                                 NC.sendResponse hdl Messages.Okay
                                 recievedNetLog message "Sent okay"
-                                -- DC.unlockInterpreterReads (ncRead networkcon)
+                                -- DC.unlockInterpreterReads (ncRead ncToPartner)
                             RequestValue userid count -> do
-                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 NC.sendResponse hdl Messages.Okay
-                                mbyval <- NB.tryGetAtNB (NCon.ncWrite networkcon) count
-                                Data.Maybe.maybe (return False) (\val -> NClient.sendNetworkMessage activeCons networkcon (Messages.NewValue (ncOwnUserID networkcon) count val) 0) mbyval
+                                mbyval <- NB.tryGetAtNB (NCon.ncWrite ncToPartner) count
+                                Data.Maybe.maybe (return False) (\val -> NClient.sendNetworkMessage activeCons ncToPartner (Messages.NewValue (ncOwnUserID ncToPartner) count val) 0) mbyval
                                 return ()
                             AcknowledgeValue userid count -> do
                                 NC.sendResponse hdl Messages.Okay -- This okay is needed here to fix a race-condition with disconnects being faster than the okay
-                                -- NB.serialize (ncWrite networkcon) >>= \x -> Config.traceNetIO $ "Online before acknowlegment: " ++ show x
-                                NB.updateAcknowledgements (NCon.ncWrite networkcon) count
-                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                -- NB.serialize (ncWrite ncToPartner) >>= \x -> Config.traceNetIO $ "Online before acknowlegment: " ++ show x
+                                NB.updateAcknowledgements (NCon.ncWrite ncToPartner) count
+                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
                             NewPartnerAddress userid port connectionID -> do
                                 recievedNetLog message $ "Trying to change the address to: " ++ clientHostaddress ++ ":" ++ port
-                                NCon.changePartnerAddress networkcon clientHostaddress port connectionID
-                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                NCon.changePartnerAddress ncToPartner clientHostaddress port connectionID
+                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 NC.sendResponse hdl Messages.Okay
-                                NClient.sendNetworkMessage activeCons networkcon (Messages.AcknowledgePartnerAddress (ncOwnUserID networkcon) connectionID) 0
+                                NClient.sendNetworkMessage activeCons ncToPartner (Messages.AcknowledgePartnerAddress (ncOwnUserID ncToPartner) connectionID) 0
                                 return ()
                             AcknowledgePartnerAddress userid connectionID -> do
-                                conConfirmed <- NCon.confirmConnectionID networkcon connectionID
-                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                conConfirmed <- NCon.confirmConnectionID ncToPartner connectionID
+                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 if conConfirmed then NC.sendResponse hdl Messages.Okay else NC.sendResponse hdl Messages.Error
                             Disconnect userid -> do
-                                NCon.disconnectFromPartner networkcon
-                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                NCon.disconnectFromPartner ncToPartner
+                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 NC.sendResponse hdl Messages.Okay
                             _ -> do
                                 serial <- NSerialize.serialize deserialmessages
                                 recievedNetLog message $ "Error unsupported networkmessage: "++ serial
-                                SSem.signal $ ncHandlingIncomingMessage networkcon
+                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 NC.sendResponse hdl Messages.Okay
                         _ -> do
                             recievedNetLog message "Network Connection is in a illegal state!"
-                            SSem.signal $ ncHandlingIncomingMessage networkcon
+                            SSem.signal $ ncHandlingIncomingMessage ncToPartner
                             NC.sendResponse hdl Messages.Okay
                     return reply
                 Nothing -> do
                     recievedNetLog message "Message cannot be handled at the moment! Sending wait response"
-                    SSem.signal $ ncHandlingIncomingMessage networkcon
+                    SSem.signal $ ncHandlingIncomingMessage ncToPartner
                     NC.sendResponse hdl Messages.Wait
 
         Nothing -> do
