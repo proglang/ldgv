@@ -53,6 +53,39 @@ data Value
   | VNewNatRec PEnv String String String Type Exp String Exp
   deriving Eq
 
+
+modifyVChansStatic ::  (Value -> Value) -> Value -> Value
+modifyVChansStatic vchanhandler input = case input of
+    VSend v -> VSend $ modifyVChansStatic vchanhandler v
+    VPair v1 v2 -> do
+        let nv1 = modifyVChansStatic vchanhandler v1
+        let nv2 = modifyVChansStatic vchanhandler v2
+        VPair nv1 nv2
+    VFunc penv a b -> do
+        let newpenv = modifyVChansPEnvStatic vchanhandler penv
+        VFunc newpenv a b
+    VDynCast v g -> do
+        let nv = modifyVChansStatic vchanhandler v
+        VDynCast nv g
+    VFuncCast v a b -> do
+        let nv = modifyVChansStatic vchanhandler v
+        VFuncCast nv a b
+    VRec penv a b c d -> do
+        let newpenv = modifyVChansPEnvStatic vchanhandler penv
+        VRec newpenv a b c d
+    VNewNatRec penv a b c d e f g -> do
+        let newpenv = modifyVChansPEnvStatic vchanhandler penv
+        VNewNatRec newpenv a b c d e f g
+    VChan nc used-> vchanhandler input
+    VChanSerial r w p o c -> vchanhandler input
+    _ -> input
+    where
+        modifyVChansPEnvStatic :: (Value -> Value) ->  [(String, Value)] -> [(String, Value)]
+        modifyVChansPEnvStatic _ [] = []
+        modifyVChansPEnvStatic vchanhandler  penvs@(x:xs) = do
+            let newval = modifyVChansStatic vchanhandler $ snd x
+            (fst x, newval):modifyVChansPEnvStatic vchanhandler xs
+
 modifyVChans ::  (Value -> IO Value) -> Value -> IO Value
 modifyVChans vchanhandler input = case input of
     VSend v -> do

@@ -132,33 +132,14 @@ recievedNetLog :: String -> String -> IO ()
 recievedNetLog msg info = Config.traceNetIO $ "Recieved message: "++msg++" \n    Status: "++info
 
 setPartnerHostAddress ::  String -> Value -> Value
-setPartnerHostAddress address input = case input of
-    VSend v -> VSend $ setPartnerHostAddress address v
-    VPair v1 v2 ->
-        let nv1 = setPartnerHostAddress address v1 in
-        let nv2 = setPartnerHostAddress address v2 in
-        VPair nv1 nv2
-    VFunc penv a b ->
-        let newpenv = setPartnerHostAddressPEnv address penv in
-        VFunc newpenv a b
-    VDynCast v g -> VDynCast (setPartnerHostAddress address v) g
-    VFuncCast v a b -> VFuncCast (setPartnerHostAddress address v) a b
-    VRec penv a b c d ->
-        let newpenv = setPartnerHostAddressPEnv address penv in
-        VRec newpenv a b c d
-    VNewNatRec penv a b c d e f g ->
-        let newpenv = setPartnerHostAddressPEnv address penv in
-        VNewNatRec newpenv a b c d e f g
-    VChanSerial r w p o c -> do
-        let (hostname, port, partnerID) = c
-        VChanSerial r w p o (if hostname == "" then address else hostname, port, partnerID)
-    _ -> input -- return input
+setPartnerHostAddress address = modifyVChansStatic (handleSerial address)
     where
-        setPartnerHostAddressPEnv :: String -> [(String, Value)] -> [(String, Value)]
-        setPartnerHostAddressPEnv _ [] = []
-        setPartnerHostAddressPEnv clientHostaddress penvs@(x:xs) =
-            let newval = setPartnerHostAddress clientHostaddress $ snd x in
-            (fst x, newval):setPartnerHostAddressPEnv clientHostaddress xs
+        handleSerial :: String -> Value -> Value
+        handleSerial address input = case input of
+            VChanSerial r w p o c -> do
+                let (hostname, port, partnerID) = c
+                VChanSerial r w p o (if hostname == "" then address else hostname, port, partnerID)
+            _ -> input -- return input
 
 waitUntilContactedNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
 waitUntilContactedNewPeers activeCons input ownport = do
