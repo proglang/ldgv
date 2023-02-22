@@ -237,6 +237,22 @@ findFittingClient clientlist desiredType = do
             findFittingClient clientlist desiredType
 
 replaceVChanSerial :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> Value -> IO Value
+replaceVChanSerial activeCons mvar input = modifyVChans (handleSerial activeCons mvar) input
+    where 
+        handleSerial :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> Value -> IO Value
+        handleSerial activeCons mvar input = case input of
+            VChanSerial r w p o c -> do
+                networkconnection <- createNetworkConnection r w p o c
+                ncmap <- MVar.takeMVar mvar
+                MVar.putMVar mvar $ Map.insert p networkconnection ncmap
+                used<- MVar.newEmptyMVar
+                MVar.putMVar used False
+                return $ VChan networkconnection used
+            _ -> return input
+
+
+{-
+replaceVChanSerial :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> Value -> IO Value
 replaceVChanSerial activeCons mvar input = case input of
     VSend v -> do
         nv <- replaceVChanSerial activeCons mvar v
@@ -275,6 +291,7 @@ replaceVChanSerial activeCons mvar input = case input of
             newval <- replaceVChanSerial activeCons mvar $ snd x
             rest <- replaceVChanSerialPEnv activeCons mvar xs
             return $ (fst x, newval):rest
+-}
 
 recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
 recieveValue vchanconsvar activeCons networkconnection ownport = do

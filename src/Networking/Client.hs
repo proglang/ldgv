@@ -37,12 +37,12 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
     case connectionstate of
         Connected hostname port _ _ _ -> do
             setRedirectRequests vchanconsmvar hostname port ownport val
-            valcleaned <- replaceVChan val
+            valcleaned <- serializeVChan val
             messagesCount <- NB.write (ncWrite networkconnection) valcleaned
             tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
         Emulated {} -> do
             vchancons <- MVar.readMVar vchanconsmvar
-            valCleaned <- replaceVChan val
+            valCleaned <- serializeVChan val
             NB.write(ncWrite networkconnection) valCleaned
             let ownid = ncOwnUserID networkconnection
             let mbypartner = Map.lookup ownid vchancons
@@ -214,6 +214,17 @@ setRedirectRequests vchanconmvar newhost newport ownport input = case input of
             setRedirectRequests vchanconmvar newhost newport ownport $ snd x
             setRedirectRequestsPEnv vchanconmvar newhost newport ownport xs
 
+serializeVChan :: Value -> IO Value
+serializeVChan = modifyVChans handleVChan
+    where
+        handleVChan :: Value -> IO Value
+        handleVChan input = case input of
+            VChan nc _-> do
+                (r, ro, rl, w, wo, wl, pid, oid, h, p, partConID) <- serializeNetworkConnection nc
+                return $ VChanSerial (r, ro, rl) (w, wo, wl) pid oid (h, p, partConID)
+            _ -> return input
+
+{-
 replaceVChan :: Value -> IO Value
 replaceVChan input = case input of
     VSend v -> do
@@ -249,6 +260,8 @@ replaceVChan input = case input of
             newval <- replaceVChan $ snd x
             rest <- replaceVChanPEnv xs
             return $ (fst x, newval):rest
+-}
+
 
 sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
 sendDisconnect ac mvar = do
