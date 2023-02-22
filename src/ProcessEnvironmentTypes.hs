@@ -112,38 +112,6 @@ searchVChans vchanhandler defaultResult mergeResults input = case input of
             rest <- searchVChansPEnv vchanhandler defaultResult mergeResults xs
             return $ mergeResults newval rest
 
-
--- type ModifyVChansResult = r
-{-
-modifyVChans ::  (Value -> r) -> (Value -> r) -> (Value -> r) -> (Value -> r -> r) -> (Value -> r -> r -> r) -> (Value -> [(String, r)] -> r) -> Value -> r
-modifyVChans vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv input = case input of
-    VSend v -> wrapResult input $ modifyVChans vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv v
-    VPair v1 v2 ->
-        let nv1 = modifyVChans vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv v1 in
-        let nv2 = modifyVChans vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv v2 in
-        mergeResults input nv1 nv2
-    VFunc penv a b ->
-        let newpenv = modifyVChansPEnv vchanhandler vchanserialhandler defaultResult wrapResult  mergeResults mergeResultsPEnv penv in
-        mergeResultsPEnv input newpenv 
-    VDynCast v g -> wrapResult input $ modifyVChans vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv v
-    VFuncCast v a b -> wrapResult input $ modifyVChans vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv v
-    VRec penv a b c d ->
-        let newpenv = modifyVChansPEnv vchanhandler vchanserialhandler defaultResult wrapResult  mergeResults mergeResultsPEnv penv in
-        mergeResultsPEnv input newpenv 
-    VNewNatRec penv a b c d e f g ->
-        let newpenv = modifyVChansPEnv vchanhandler vchanserialhandler defaultResult wrapResult  mergeResults mergeResultsPEnv penv in
-        mergeResultsPEnv input newpenv 
-    VChan nc used-> vchanhandler input
-    VChanSerial r w p o c -> vchanserialhandler input
-    _ -> defaultResult input
-    where
-        modifyVChansPEnv :: (Value -> r) -> (Value -> r) -> (Value -> r) -> (Value -> r -> r) -> (Value ->  r -> r -> r) -> (Value -> [(String, r)] -> r) -> [(String, Value)] -> [(String, r)]
-        modifyVChansPEnv _ _ _ _ _ _[] = []
-        modifyVChansPEnv vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv penvs@(x:xs) =
-            let newval = modifyVChans vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv $ snd x in
-            (fst x, newval):modifyVChansPEnv vchanhandler vchanserialhandler defaultResult wrapResult mergeResults mergeResultsPEnv xs
--}
-
 disableOldVChan :: Value -> IO Value
 disableOldVChan value = case value of
   VChan nc used -> do
