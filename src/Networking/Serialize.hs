@@ -12,9 +12,11 @@ import Control.Exception
 import ProcessEnvironmentTypes
 import Networking.Messages
 import qualified Networking.DirectionalConnection as DC
+import qualified Networking.NetworkBuffer as NB
 import qualified Networking.NetworkConnection as NCon 
 import qualified Data.Maybe
 import qualified Networking.DirectionalConnection as NCon
+import qualified Networking.NetworkBuffer as NB
 
 
 newtype SerializationException = UnserializableException String
@@ -56,13 +58,16 @@ instance Serializable Message where
       Disconnect p -> serializeLabeledEntry "NDisconnect" p
       AcknowledgeDisconnect p -> serializeLabeledEntry "NAcknowledgeDisconnect" p
 
+{-
 instance Serializable (NCon.NetworkConnection Value) where
   serialize con = do 
     constate <- MVar.readMVar $ NCon.ncConnectionState con
-    (readList, readUnread) <- DC.serializeConnection $ NCon.ncRead con
-    (writeList, writeUnread) <- DC.serializeConnection $ NCon.ncWrite con
+    -- (readList, readUnread, readUnAck) <- NB.serializeMinimal $ NCon.ncRead con
+    -- (writeList, writeUnread, writeUnAck) <- NB.serializeMinimal $ NCon.ncWrite con
 
     serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (NCon.ncPartnerUserID con) $ sNext (NCon.ncOwnUserID con) $ sLast constate
+-}
+
 
 instance Serializable (NCon.DirectionalConnection Value) where
   serialize dcon = do
@@ -90,7 +95,8 @@ instance Serializable Value where
       VFuncCast v ft1 ft2 -> serializeLabeledEntryMulti "VFuncCast" v $ sNext ft1 $ sLast ft2
       VRec env f x e0 e1 -> serializeLabeledEntryMulti "VRec" env $ sNext f $ sNext x $ sNext e0 $ sLast e1
       VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
-      VChan nc _-> serializeLabeledEntry "VChan" nc
+      -- VChan nc _-> serializeLabeledEntry "VChan" nc
+      VChan {} -> throw $ UnserializableException "VChan"
       VChanSerial r w p o c -> serializeLabeledEntryMulti "VChanSerial" r $ sNext w $ sNext p $ sNext o $ sLast c
 
 instance Serializable Multiplicity where
@@ -222,11 +228,19 @@ instance ((Serializable a, Serializable b) => Serializable (a, b)) where
     return $ "((" ++ ss ++ ") (" ++ ts ++ "))"
 
 instance ((Serializable a, Serializable b, Serializable c) => Serializable (a, b, c)) where
-  serialize (s, t, v) = do
+  serialize (s, t, u) = do
     ss <- serialize s
     ts <- serialize t
+    us <- serialize u
+    return $ "((" ++ ss ++ ") (" ++ ts ++ ") (" ++ us ++ "))"
+
+instance ((Serializable a, Serializable b, Serializable c, Serializable d) => Serializable (a, b, c, d)) where
+  serialize (s, t, u, v) = do
+    ss <- serialize s
+    ts <- serialize t
+    us <- serialize u
     vs <- serialize v
-    return $ "((" ++ ss ++ ") (" ++ ts ++ ") (" ++ vs ++ "))"
+    return $ "((" ++ ss ++ ") (" ++ ts ++ ") (" ++ us ++ ") (" ++ vs ++ "))"
 
 instance {-# OVERLAPPING #-} Serializable PEnv where
   serialize arr = serializeLabeledArray "PEnv" arr

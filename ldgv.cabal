@@ -66,10 +66,12 @@ library
       Examples
       Interpreter
       Kinds
+      Networking.Buffer
       Networking.Client
       Networking.Common
       Networking.DirectionalConnection
       Networking.Messages
+      Networking.NetworkBuffer
       Networking.NetworkConnection
       Networking.NetworkingMethod.Fast
       Networking.NetworkingMethod.NetworkingMethodCommon

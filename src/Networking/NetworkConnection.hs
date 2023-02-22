@@ -1,13 +1,12 @@
 module Networking.NetworkConnection where
 
-import Networking.DirectionalConnection
+import Networking.NetworkBuffer
 import Networking.RandomID
-import qualified Data.Maybe
 import qualified Data.Map as Map
 import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
 
-data NetworkConnection a = NetworkConnection {ncRead :: DirectionalConnection a, ncWrite :: DirectionalConnection a, ncPartnerUserID :: String, ncOwnUserID :: String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
+data NetworkConnection a = NetworkConnection {ncRead :: NetworkBuffer a, ncWrite :: NetworkBuffer a, ncPartnerUserID :: String, ncOwnUserID :: String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
     deriving Eq
 
 data ConnectionState = Connected {csHostname :: String, csPort :: String, csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
@@ -19,17 +18,17 @@ data ConnectionState = Connected {csHostname :: String, csPort :: String, csPart
 
 newNetworkConnection :: String -> String -> String -> String -> String -> String -> IO (NetworkConnection a)
 newNetworkConnection partnerID ownID hostname port partnerConnectionID ownConnectionID = do
-    read <- newConnection
-    write <- newConnection
+    read <- newNetworkBuffer 
+    write <- newNetworkBuffer 
     connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID True
     incomingMsg <- SSem.new 1
     return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
 
 
-createNetworkConnection :: ([a], Int) -> ([a], Int) -> String -> String -> (String, String, String) -> IO (NetworkConnection a)
-createNetworkConnection (readList, readNew) (writeList, writeNew) partnerID ownID (hostname, port, partnerConnectionID) = do
-    read <- createConnection readList readNew
-    write <- createConnection writeList writeNew
+createNetworkConnection :: ([a], Int, Int) -> ([a], Int, Int) -> String -> String -> (String, String, String) -> IO (NetworkConnection a)
+createNetworkConnection (readList, readOffset, readLength) (writeList, writeOffset, writeLength) partnerID ownID (hostname, port, partnerConnectionID) = do
+    read <- deserializeMinimal (readList, readOffset, readLength)
+    write <- deserializeMinimal (writeList, writeOffset, writeLength)
     ownConnectionID <- newRandomID
     connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID False
     incomingMsg <- SSem.new 1
@@ -39,10 +38,10 @@ createNetworkConnection (readList, readNew) (writeList, writeNew) partnerID ownI
 newEmulatedConnection :: MVar.MVar (Map.Map String (NetworkConnection a)) -> IO (NetworkConnection a, NetworkConnection a)
 newEmulatedConnection mvar = do
     ncmap <- MVar.takeMVar mvar
-    read <- newConnection
-    write <- newConnection
-    read2 <- newConnection
-    write2 <- newConnection
+    read <- newNetworkBuffer 
+    write <- newNetworkBuffer
+    read2 <- newNetworkBuffer
+    write2 <- newNetworkBuffer
     connectionid1 <- newRandomID 
     connectionid2 <- newRandomID 
     connectionstate <- MVar.newMVar $ Emulated connectionid2 connectionid1 True
@@ -58,18 +57,16 @@ newEmulatedConnection mvar = do
     MVar.putMVar mvar ncmap2
     return (nc1, nc2)
 
-
-
-serializeNetworkConnection :: NetworkConnection a -> IO ([a], Int, [a], Int, String, String, String, String, String)
+serializeNetworkConnection :: NetworkConnection a -> IO ([a], Int, Int, [a], Int, Int, String, String, String, String, String)
 serializeNetworkConnection nc = do
     constate <- MVar.readMVar $ ncConnectionState nc
-    (readList, readUnread) <- serializeConnection $ ncRead nc
-    (writeList, writeUnread) <- serializeConnection $ ncWrite nc
+    (readList, readOffset, readLength) <- serializeMinimal $ ncRead nc
+    (writeList, writeOffset, writeLength) <- serializeMinimal $ ncWrite nc
     (address, port, partnerConnectionID) <- case constate of
         Connected address port partnerConnectionID _ _ -> return (address, port, partnerConnectionID)
         RedirectRequest address port _ _ partnerConnectionID _ _ -> return (address, port, partnerConnectionID)
         _ -> return ("", "", csPartnerConnectionID constate)
-    return (readList, readUnread, writeList, writeUnread, ncPartnerUserID nc, ncOwnUserID nc, address, port, partnerConnectionID)
+    return (readList, readOffset, readLength, writeList, writeOffset, writeLength, ncPartnerUserID nc, ncOwnUserID nc, address, port, partnerConnectionID)
 
 changePartnerAddress :: NetworkConnection a -> String -> String -> String -> IO ()
 changePartnerAddress con hostname port partnerConnectionID = do
