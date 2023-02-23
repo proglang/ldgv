@@ -35,11 +35,13 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         Connected hostname port _ _ _ -> do
+            waitTillReadyToSend val
             setRedirectRequests vchanconsmvar hostname port ownport val
             valcleaned <- serializeVChan val
             messagesCount <- NB.write (ncWrite networkconnection) valcleaned
             tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
         Emulated {} -> do
+            waitTillReadyToSend val
             vchancons <- MVar.readMVar vchanconsmvar
             valCleaned <- serializeVChan val
             NB.write(ncWrite networkconnection) valCleaned
@@ -55,6 +57,19 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
         _ -> do 
             Config.traceNetIO "Error when sending message: This channel is disconnected"
             return False
+
+waitTillReadyToSend :: Value -> IO ()
+waitTillReadyToSend input = do
+    ready <- channelReadyToSend input
+    unless ready $ threadDelay 5000 >> waitTillReadyToSend input
+
+channelReadyToSend :: Value -> IO Bool
+channelReadyToSend = searchVChans handleChannel True (&&)
+    where
+        handleChannel :: Value -> IO Bool
+        handleChannel input = case input of
+            VChan nc used -> NB.isAllAcknowledged $ ncWrite nc
+            _ -> return True
 
 sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Message -> Int -> IO Bool
 sendNetworkMessage activeCons networkconnection message resendOnError = do
@@ -248,7 +263,7 @@ sendDisconnect ac mvar = do
                 _ -> return True
 -}
 
-
+{-
 sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
 sendDisconnect ac mvar = do
     networkConnectionMap <- MVar.readMVar mvar
@@ -280,3 +295,34 @@ sendDisconnect ac mvar = do
                     catch (sendNetworkMessage ac con (Messages.Disconnect $ ncOwnUserID con) 0) $ printConErr host port
                     return True else return False
                 _ -> return True
+-}
+
+sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
+sendDisconnect ac mvar = do
+    networkConnectionMap <- MVar.readMVar mvar
+    let allNetworkConnections = Map.elems networkConnectionMap
+    goodbyes <- doForall ac allNetworkConnections
+    unless goodbyes $ do
+        threadDelay 100000
+        sendDisconnect ac mvar
+    where
+        doForall ac (x:xs) = do
+            xres <- sendDisconnectNetworkConnection ac x
+            rest <- doForall ac xs
+            return $ xres && rest
+        doForall ac [] = return True
+        sendDisconnectNetworkConnection :: NMC.ActiveConnections -> NetworkConnection Value -> IO Bool
+        sendDisconnectNetworkConnection ac con = do
+            let writeVals = ncWrite con
+            connectionState <- MVar.readMVar $ ncConnectionState con
+            -- unreadVals <- DC.unreadMessageStart writeVals
+            -- lengthVals <- DC.countMessages writeVals
+            -- Config.traceNetIO "Checking if everything is acknowledged"
+            -- NB.serialize writeVals >>= Config.traceNetIO . show
+            -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
+            
+            ret <- NB.isAllAcknowledged writeVals
+            unless ret $ do 
+                serial <- NB.serialize writeVals
+                Config.traceNetIO $ show serial
+            return ret
