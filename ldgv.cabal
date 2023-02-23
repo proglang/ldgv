@@ -66,6 +66,7 @@ library
       Examples
       Interpreter
       Kinds
+      Networking.Assert
       Networking.Buffer
       Networking.Client
       Networking.Common
@@ -78,6 +79,7 @@ library
       Networking.RandomID
       Networking.Serialize
       Networking.Server
+      Networking.Tests
       Parsing
       Parsing.Grammar
       Parsing.Tokens

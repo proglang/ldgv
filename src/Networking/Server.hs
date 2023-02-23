@@ -76,6 +76,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 NCon.changePartnerAddress ncToPartner clientHostaddress port connectionID
                                 SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 NC.sendResponse hdl Messages.Okay
+
                                 NClient.sendNetworkMessage activeCons ncToPartner (Messages.AcknowledgePartnerAddress (ncOwnUserID ncToPartner) connectionID) 0
                                 return ()
                             AcknowledgePartnerAddress userid connectionID -> do
