@@ -35,13 +35,13 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
         Connected hostname port _ _ _ -> do
-            waitTillReadyToSend val
+            --waitTillReadyToSend val
             setRedirectRequests vchanconsmvar hostname port ownport val
             valcleaned <- serializeVChan val
             messagesCount <- NB.write (ncWrite networkconnection) valcleaned
             tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
         Emulated {} -> do
-            waitTillReadyToSend val
+            --waitTillReadyToSend val
             vchancons <- MVar.readMVar vchanconsmvar
             valCleaned <- serializeVChan val
             NB.write(ncWrite networkconnection) valCleaned
@@ -320,9 +320,12 @@ sendDisconnect ac mvar = do
             -- Config.traceNetIO "Checking if everything is acknowledged"
             -- NB.serialize writeVals >>= Config.traceNetIO . show
             -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
-            
-            ret <- NB.isAllAcknowledged writeVals
-            unless ret $ do 
-                serial <- NB.serialize writeVals
-                Config.traceNetIO $ show serial
-            return ret
+            case connectionState of
+                Connected {} -> do
+                    ret <- NB.isAllAcknowledged writeVals
+                    unless ret $ do 
+                        serial <- NB.serialize writeVals
+                        Config.traceNetIO $ show serial
+                    return ret
+                _ -> return True
+                    
