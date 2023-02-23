@@ -1,6 +1,6 @@
 cabal-version: 1.18
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -66,10 +66,10 @@ library
       Examples
       Interpreter
       Kinds
+      Networking.Assert
       Networking.Buffer
       Networking.Client
       Networking.Common
-      Networking.DirectionalConnection
       Networking.Messages
       Networking.NetworkBuffer
       Networking.NetworkConnection
@@ -79,6 +79,7 @@ library
       Networking.RandomID
       Networking.Serialize
       Networking.Server
+      Networking.Tests
       Parsing
       Parsing.Grammar
       Parsing.Tokens
