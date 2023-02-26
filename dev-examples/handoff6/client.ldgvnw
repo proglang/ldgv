@@ -20,5 +20,6 @@ val main =
     let con = (connect 4343 SendInt "127.0.0.1" 4242 ) in
     let emptycon = send2 con in
     let handoff = (accept 4343 SendEmptyConversation) in
-    (send handoff) emptycon
+    let concon = (send handoff) emptycon in
+    ()
 

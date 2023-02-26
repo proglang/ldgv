@@ -10,7 +10,7 @@ data NetworkConnection a = NetworkConnection {ncRead :: NetworkBuffer a, ncWrite
     deriving Eq
 
 data ConnectionState = Connected {csHostname :: String, csPort :: String, csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
-                     | Disconnected {csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
+                     | Disconnected {csHostname :: String, csPort :: String, csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
                      | Emulated {csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
                      | RedirectRequest {csHostname :: String, csPort :: String, csRedirectHostname :: String, csRedirectPort :: String, csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool} -- Asks to redirect to this connection
     deriving (Eq, Show)
@@ -30,7 +30,10 @@ createNetworkConnection (readList, readOffset, readLength) (writeList, writeOffs
     read <- deserializeMinimal (readList, readOffset, readLength)
     write <- deserializeMinimal (writeList, writeOffset, writeLength)
     ownConnectionID <- newRandomID
-    connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID False
+    connectionstate <- if port=="" then 
+            MVar.newMVar $ Disconnected "" "" partnerConnectionID ownConnectionID True 
+        else 
+            MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID False
     incomingMsg <- SSem.new 1
     return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
 
@@ -76,7 +79,10 @@ changePartnerAddress con hostname port partnerConnectionID = do
 disconnectFromPartner :: NetworkConnection a -> IO ()
 disconnectFromPartner con = do
     oldConnectionState <- MVar.takeMVar $ ncConnectionState con
-    MVar.putMVar (ncConnectionState con) $ Disconnected (csPartnerConnectionID oldConnectionState) (csOwnConnectionID oldConnectionState) True
+    case oldConnectionState of
+        Emulated {} -> 
+            MVar.putMVar (ncConnectionState con) $ Disconnected "" "" (csPartnerConnectionID oldConnectionState) (csOwnConnectionID oldConnectionState) True
+        _ -> MVar.putMVar (ncConnectionState con) $ Disconnected (csHostname oldConnectionState) (csPort oldConnectionState) (csPartnerConnectionID oldConnectionState) (csOwnConnectionID oldConnectionState) True
 
 isConnectionConfirmed :: NetworkConnection a -> IO Bool
 isConnectionConfirmed con = do
@@ -89,7 +95,7 @@ confirmConnectionID con ownConnectionID = do
     if ownConnectionID == csOwnConnectionID conState then do
         newConState <- case conState of
             Connected host port part own conf -> return $ Connected host port part own True
-            Disconnected part own conf -> return $ Disconnected part own True
+            Disconnected host port part own conf -> return $ Disconnected host port part own True
             Emulated part own conf -> return $ Emulated part own True
             RedirectRequest host port rehost report part own conf -> return $ RedirectRequest host port rehost report part own True
         MVar.putMVar (ncConnectionState con) newConState

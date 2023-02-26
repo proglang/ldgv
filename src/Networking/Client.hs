@@ -34,12 +34,6 @@ sendValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Valu
 sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
-        Connected hostname port _ _ _ -> do
-            --waitTillReadyToSend val
-            setRedirectRequests vchanconsmvar hostname port ownport val
-            valcleaned <- serializeVChan val
-            messagesCount <- NB.write (ncWrite networkconnection) valcleaned
-            tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
         Emulated {} -> do
             --waitTillReadyToSend val
             vchancons <- MVar.readMVar vchanconsmvar
@@ -54,9 +48,19 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
                 _ -> do 
                     Config.traceNetIO "Something went wrong when sending over a emulated connection"
                     return False
-        _ -> do 
-            Config.traceNetIO "Error when sending message: This channel is disconnected"
-            return False
+        _ -> do
+            let hostname = csHostname connectionstate
+            let port = csPort connectionstate
+            --waitTillReadyToSend val
+            setRedirectRequests vchanconsmvar hostname port ownport val
+            Config.traceNetIO $ "Redirected: " ++ show val
+            valcleaned <- serializeVChan val
+            Config.traceNetIO $ "Serialized: " ++ show val 
+            messagesCount <- NB.write (ncWrite networkconnection) valcleaned
+            Config.traceNetIO $ "Wrote to Buffer: " ++ show val
+            result <- tryToSendNetworkMessage activeCons networkconnection hostname port (Messages.NewValue (ncOwnUserID networkconnection) messagesCount valcleaned) resendOnError
+            Config.traceNetIO $ "Sent message: " ++ show val
+            return result
 
 waitTillReadyToSend :: Value -> IO ()
 waitTillReadyToSend input = do
@@ -75,12 +79,11 @@ sendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> Messag
 sendNetworkMessage activeCons networkconnection message resendOnError = do
     connectionstate <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionstate of
-        Connected hostname port _ _ _ -> do
-            tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
         Emulated {} -> return True
-        _ -> do 
-            Config.traceNetIO "Error when sending message: This channel is disconnected"
-            return False
+        _ -> do
+            let hostname = csHostname connectionstate
+            let port = csPort connectionstate
+            tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
 
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Message -> Int -> IO Bool
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
@@ -210,7 +213,9 @@ setRedirectRequests vchanconmvar newhost newport ownport = searchVChans (handleV
 
 
                             MVar.putMVar vchanconmvar vchanconnections
-                        Disconnected partConID ownConID confirmed -> Config.traceNetIO "Cannot set RedirectRequest for a disconnected channel"
+                        Disconnected hostname partner partConID ownConID confirmed -> do 
+                            MVar.putMVar (ncConnectionState nc) oldconnectionstate
+                            Config.traceNetIO "Cannot set RedirectRequest for a disconnected channel"
                     )
                 Config.traceNetIO $ "Set RedirectRequest for " ++ ncPartnerUserID nc ++ " to " ++ newhost ++ ":" ++ newport
                 return True
@@ -321,11 +326,9 @@ sendDisconnect ac mvar = do
             -- NB.serialize writeVals >>= Config.traceNetIO . show
             -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
             case connectionState of
-                Connected {} -> do
+                Connected host port _ _ _ -> do
                     ret <- NB.isAllAcknowledged writeVals
-                    unless ret $ do 
-                        serial <- NB.serialize writeVals
-                        Config.traceNetIO $ show serial
-                    return ret
+                    if ret then catch (sendNetworkMessage ac con (Messages.Disconnect $ ncOwnUserID con) $ -1) (\x -> printConErr host port x >> return True) else return False
+                    -- return False
                 _ -> return True
                     
