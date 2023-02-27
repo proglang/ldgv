@@ -12,9 +12,9 @@ data DebugLevel = DebugNone | DebugNetwork | DebugAll
   deriving (Eq, Ord, Show)
 
 debugLevel :: DebugLevel
---debugLevel = DebugAll
-debugLevel = DebugNetwork
---debugLevel = DebugNone
+-- debugLevel = DebugAll
+-- debugLevel = DebugNetwork
+debugLevel = DebugNone
 
 trace :: String -> a -> a
 trace s a | debugLevel > DebugNetwork = D.trace s a

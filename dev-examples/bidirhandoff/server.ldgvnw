@@ -1,5 +1,6 @@
 -- Simple example of Label-Dependent Session Types
 -- Interprets addition of two numbers
+-- Expected return 1
 
 type SendInt : ! ~ssn = !Int. ?Int. !Int. ?Int. Unit
 type SendIntClient : ! ~ssn = !Int. ?Int. Unit

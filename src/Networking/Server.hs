@@ -84,9 +84,17 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 if conConfirmed then NC.sendResponse hdl Messages.Okay else NC.sendResponse hdl Messages.Error
                             Disconnect userid -> do
+                                NC.sendResponse hdl Messages.Okay
                                 NCon.disconnectFromPartner ncToPartner
                                 SSem.signal $ ncHandlingIncomingMessage ncToPartner
-                                NC.sendResponse hdl Messages.Okay
+                                -- Config.traceNetIO "Trying to send AcknowledgeDisconnect"
+                                -- NClient.sendNetworkMessage activeCons ncToPartner (Messages.AcknowledgeDisconnect $ ncOwnUserID ncToPartner) 0
+                                -- Config.traceNetIO "Sent AcknowledgeDisconnect"
+                                return ()
+                            {-AcknowledgeDisconnect userid -> do
+                                NCon.disconnectFromPartner ncToPartner
+                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
+                                NC.sendResponse hdl Messages.Okay-}
                             _ -> do
                                 serial <- NSerialize.serialize deserialmessages
                                 recievedNetLog message $ "Error unsupported networkmessage: "++ serial

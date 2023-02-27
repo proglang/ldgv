@@ -2,6 +2,8 @@
 -- Interprets addition of two numbers
 
 type SendInt : ! ~ssn = !Int. !Int. Unit
+type EmptyConversation : ! ~ssn = Unit
+type SendEmptyConversation : ! ~ssn = !EmptyConversation.Unit
 
 val send2 (c: SendInt) =
     let x = ((send c) 1) in
@@ -15,5 +17,6 @@ val add2 (c1: dualof SendInt) =
 
 val main : Unit
 val main =
-    let con = (connect 4343 SendInt "127.0.0.1" 4242 ) in
-    send2 con
+    let con = (connect 4444 (dualof SendEmptyConversation) "127.0.0.1" 4343 ) in
+    let <empty, c2> = recv con in
+    (empty)

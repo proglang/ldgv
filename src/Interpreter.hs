@@ -75,11 +75,10 @@ interpret decls = do
   vchanconnections <- MVar.newMVar Map.empty
   activeConnections <- NC.createActiveConnections
   result <- R.runReaderT (interpretDecl decls) ([], (sockets, vchanconnections, activeConnections))
-  C.traceNetIO "Finished interpreting"
+  putStrLn $  "Finished interpreting " ++ show result 
   NClient.sendDisconnect activeConnections vchanconnections
-  C.traceNetIO "Sent client disconnects"
+  putStrLn $  "Sent client disconnects " ++ show result
   NC.sayGoodbye activeConnections
-  C.traceNetIO "Done"
   return result
 
 interpretDecl :: [Decl] -> InterpretM Value
@@ -261,7 +260,9 @@ interpretApp _ (VSend v@(VChan cc usedmvar)) w = do
     (env, (sockets, vchanconnections, activeConnections)) <- ask
     socketsraw <- liftIO $ MVar.readMVar sockets
     let port = show $ head $ Map.keys socketsraw
+    C.traceNetIO $ "Trying to send: " ++ show w
     liftIO $  NClient.sendValue vchanconnections activeConnections cc w port (-1)
+    C.traceNetIO $ "Sent: " ++ show w
     -- Disable old VChan
     liftIO $ disableOldVChan v
 interpretApp e _ _ = throw $ ApplicationException e
