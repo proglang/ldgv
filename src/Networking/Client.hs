@@ -19,6 +19,7 @@ import qualified Networking.Serialize as NSerialize
 import Control.Monad
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
 import qualified Control.Concurrent.SSem as SSem
+import qualified Networking.NetworkConnection as NCon
 
 
 newtype ClientException = NoIntroductionException String
@@ -328,7 +329,12 @@ sendDisconnect ac mvar = do
             case connectionState of
                 Connected host port _ _ _ -> do
                     ret <- NB.isAllAcknowledged writeVals
-                    if ret then catch (sendNetworkMessage ac con (Messages.Disconnect $ ncOwnUserID con) $ -1) (\x -> printConErr host port x >> return True) else return False
+                    if ret then do 
+                        sent <- catch (sendNetworkMessage ac con (Messages.Disconnect $ ncOwnUserID con) $ -1) (\x -> printConErr host port x >> return True) 
+                        when sent $ NCon.disconnectFromPartner con  -- This should cause a small speedup
+                        return sent
+                    else 
+                        return False
                     -- return False
                 _ -> return True
                     
