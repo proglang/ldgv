@@ -8,5 +8,6 @@ for i in {1..1000}; do
     clear; echo "$i Handoff4"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/handoff4/server.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff4/handoff.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff4/client.ldgvnw & wait);
     clear; echo "$i Handoff5"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/handoff5/add.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff5/handoff.ldgvnw & wait);  
     clear; echo "$i Handoff6"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/handoff6/server.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff6/handoff.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff6/client.ldgvnw & wait);     
+    clear; echo "$i Handoff7"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/handoff7/add.ldgvnw & stack run ldgv -- interpret < dev-examples/handoff7/handoff.ldgvnw & wait);  
     clear; echo "$i Bidirhandoff"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < dev-examples/bidirhandoff/server.ldgvnw & stack run ldgv -- interpret < dev-examples/bidirhandoff/serverhandoff.ldgvnw & stack run ldgv -- interpret < dev-examples/bidirhandoff/clienthandoff.ldgvnw & stack run ldgv -- interpret < dev-examples/bidirhandoff/client.ldgvnw & wait); 
 done
