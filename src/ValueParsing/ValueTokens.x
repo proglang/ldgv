@@ -14,8 +14,6 @@ module ValueParsing.ValueTokens
   , scanner
   ) where
 
-import Kinds
-import Text.Read (readMaybe)
 }
 
 %wrapper "monad"
@@ -307,29 +305,6 @@ tok' f (pos@(AlexPn _ line column), _, _, inp) len = do
       ]
     Right tok -> pure $ T pos tok
 
-{-
-tokKind :: AlexAction T
-tokKind = tok' \k ->
-  maybe (Left $ "invalid kind " ++ k) (Right . Kind)
-    $ readMaybe
-    $ ('K':)    -- Subsitutes the initial '~' with 'K'
-    $ tail k
-
-    -}
-
--- runAlexScan :: String -> Either ParseError AlexUserState
-{-scanner str = runAlex str $ do
-  let loop i = do tok <- alexMonadScan
-                  if (tokVal tok) == EOF then return i
-			else do let i' = i+1 in i' `seq` loop i'
-  loop 0-}
-
-{-scanner str = runAlex str $ do
-  let loop i = do tok <- alexMonadScan; 
-		  if (tokVal tok) == EOF
-			then return i
-			else do loop $! (i+1)
-  loop 0-}
 
 scanner str = runAlex str $ do
   let loop i = do tok <- alexMonadScan; 

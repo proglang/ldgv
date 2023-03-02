@@ -10,7 +10,7 @@ test = testBuffer >> testNetworkBuffer
 testBuffer :: IO ()
 testBuffer = do
     newBuf <- newBuffer
-    writeBufferToList newBuf >>= assertEQ "1: Empty Buffer" []
+    writeBufferToList newBuf >>= assertEQ "1: Empty Buffer" ([] :: [Integer])
     tryTakeBuffer newBuf >>= assertEQ "2: Nothing" Nothing
     tryReadBuffer newBuf >>= assertEQ "3: Read Nothing" Nothing
     writeBuffer newBuf 42
@@ -35,7 +35,7 @@ testNetworkBuffer :: IO ()
 testNetworkBuffer = do
     nb <- newNetworkBuffer
     isAllAcknowledged nb >>= assertEQ "1: All acknowledged" True
-    write nb 42
+    write nb (42 :: Integer)
     isAllAcknowledged nb >>= assertEQ "2: Not All acknowledged" False
     serializeMinimal nb >>= assertEQ "3: Serial" ([42], 0, 1)
     write nb 1337

@@ -39,6 +39,14 @@ conversationHandler handle = do
     sem <- SSem.new 1
     conversationHandlerChangeHandle handle chan mvar sem
 
+conversationHandlerChangeHandle :: Stateless.Conversation
+                                     -> Chan (ConversationID, (String, Message))
+                                     -> MVar (Map.Map ConversationID (String, Response))
+                                     -> e
+                                     -> IO
+                                          (Stateless.Conversation, MVar Bool,
+                                           Chan (ConversationID, (String, Message)),
+                                           MVar (Map.Map ConversationID (String, Response)), e)
 conversationHandlerChangeHandle handle chan mvar sem = do
     isClosed <- MVar.newEmptyMVar
     MVar.putMVar isClosed False

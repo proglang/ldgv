@@ -2,7 +2,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 module Main (main) where
@@ -10,7 +9,6 @@ module Main (main) where
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Reader
-import Control.Concurrent
 import Data.ByteString.Builder
 import Data.Foldable
 import Data.Maybe
@@ -26,7 +24,6 @@ import Parsing
 import qualified C.Compile as C
 import qualified C.Generate as C
 import qualified Interpreter as I
-import qualified ProcessEnvironment as P
 import qualified ProcessEnvironmentTypes as P
 import qualified Syntax
 import qualified Typechecker as T

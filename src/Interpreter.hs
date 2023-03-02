@@ -1,3 +1,5 @@
+
+{-# OPTIONS_GHC -Wno-overlapping-patterns#-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
