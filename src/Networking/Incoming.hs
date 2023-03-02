@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Redundant return" #-}
-module Networking.Server where
+module Networking.Incoming where
 
 import Control.Concurrent
 import Control.Monad
@@ -14,12 +14,12 @@ import qualified Control.Concurrent.SSem as SSem
 import qualified Data.Bifunctor
 import qualified Data.Map as Map
 import qualified Data.Maybe
-import qualified Networking.Client as NClient
 import qualified Networking.Common as NC
 import qualified Networking.Messages as Messages
 import qualified Networking.NetworkBuffer as NB
 import qualified Networking.NetworkConnection as NCon
 import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import qualified Networking.Outgoing as NO
 import qualified Networking.RandomID as RandomID
 import qualified Networking.Serialize as NSerialize
 import qualified Syntax
@@ -60,7 +60,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 NC.sendResponse hdl Messages.Okay
                                 mbyval <- NB.tryGetAtNB (NCon.ncWrite ncToPartner) count
-                                Data.Maybe.maybe (return False) (\val -> NClient.sendNetworkMessage activeCons ncToPartner (Messages.NewValue (ncOwnUserID ncToPartner) count val) 0) mbyval
+                                Data.Maybe.maybe (return False) (\val -> NO.sendNetworkMessage activeCons ncToPartner (Messages.NewValue (ncOwnUserID ncToPartner) count val) 0) mbyval
                                 return ()
                             AcknowledgeValue userid count -> do
                                 NC.sendResponse hdl Messages.Okay -- This okay is needed here to fix a race-condition with disconnects being faster than the okay
@@ -73,7 +73,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 NC.sendResponse hdl Messages.Okay
 
-                                NClient.sendNetworkMessage activeCons ncToPartner (Messages.AcknowledgePartnerAddress (ncOwnUserID ncToPartner) connectionID) 0
+                                NO.sendNetworkMessage activeCons ncToPartner (Messages.AcknowledgePartnerAddress (ncOwnUserID ncToPartner) connectionID) 0
                                 return ()
                             AcknowledgePartnerAddress userid connectionID -> do
                                 conConfirmed <- NCon.confirmConnectionID ncToPartner connectionID
@@ -84,7 +84,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 NCon.disconnectFromPartner ncToPartner
                                 SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                 -- Config.traceNetIO "Trying to send AcknowledgeDisconnect"
-                                -- NClient.sendNetworkMessage activeCons ncToPartner (Messages.AcknowledgeDisconnect $ ncOwnUserID ncToPartner) 0
+                                -- NO.sendNetworkMessage activeCons ncToPartner (Messages.AcknowledgeDisconnect $ ncOwnUserID ncToPartner) 0
                                 -- Config.traceNetIO "Sent AcknowledgeDisconnect"
                                 return ()
                             {-AcknowledgeDisconnect userid -> do
@@ -164,7 +164,7 @@ contactNewPeers activeCons ownport = searchVChans (handleVChan activeCons ownpor
                     Emulated {} -> return True
                     _ -> do
                         if csConfirmedConnection connectionState then return True else do
-                            NClient.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
+                            NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
                             return False
             _ -> return True
 
@@ -229,7 +229,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                     -- msgCount <- DC.unreadMessageStart $ ncRead networkconnection
                     connectionState <- MVar.readMVar $ ncConnectionState networkconnection
                     case connectionState of
-                        Connected {} -> NClient.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) $ snd unclean) $ -1
+                        Connected {} -> NO.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) $ snd unclean) $ -1
                         Emulated {} -> do
                             vchancons <- MVar.readMVar vchanconsvar
                             let ownid = ncOwnUserID networkconnection
@@ -247,7 +247,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                         msgCount <- NB.getNextOffset $ ncRead networkconnection
                         connectionState <- MVar.readMVar $ ncConnectionState networkconnection
                         case connectionState of
-                            Connected {} -> NClient.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (ncOwnUserID networkconnection) msgCount) 0
+                            Connected {} -> NO.sendNetworkMessage activeCons networkconnection (Messages.RequestValue (ncOwnUserID networkconnection) msgCount) 0
                             _ -> return True
                         recieveValueInternal 100 vchanconsvar activeCons networkconnection ownport
                         else do

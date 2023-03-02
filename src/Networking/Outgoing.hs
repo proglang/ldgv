@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Networking.Client where
+module Networking.Outgoing where
 
 import Control.Concurrent
 import Control.Exception

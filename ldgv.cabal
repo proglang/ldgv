@@ -68,17 +68,17 @@ library
       Kinds
       Networking.Assert
       Networking.Buffer
-      Networking.Client
       Networking.Common
+      Networking.Incoming
       Networking.Messages
       Networking.NetworkBuffer
       Networking.NetworkConnection
       Networking.NetworkingMethod.Fast
       Networking.NetworkingMethod.NetworkingMethodCommon
       Networking.NetworkingMethod.Stateless
+      Networking.Outgoing
       Networking.RandomID
       Networking.Serialize
-      Networking.Server
       Networking.Tests
       Parsing
       Parsing.Grammar
