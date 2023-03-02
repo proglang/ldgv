@@ -3,10 +3,11 @@ module Networking.Tests where
 import Networking.Assert
 import Networking.Buffer
 import Networking.NetworkBuffer
-import ProcessEnvironmentTypes
 
+test :: IO ()
 test = testBuffer >> testNetworkBuffer
 
+testBuffer :: IO ()
 testBuffer = do
     newBuf <- newBuffer
     writeBufferToList newBuf >>= assertEQ "1: Empty Buffer" []
@@ -30,6 +31,7 @@ testBuffer = do
     writeBufferToList cloneBuffer >>= assertEQ "15: 1 Element in Clone" [1]
 
 
+testNetworkBuffer :: IO ()
 testNetworkBuffer = do
     nb <- newNetworkBuffer
     isAllAcknowledged nb >>= assertEQ "1: All acknowledged" True

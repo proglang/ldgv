@@ -4,16 +4,13 @@
 module Networking.Serialize where
 
 import Control.Concurrent.Chan as Chan
-import qualified Control.Concurrent.MVar as MVar
-import Syntax
-import Kinds
-import Data.Set
 import Control.Exception
-import ProcessEnvironmentTypes
+import Data.Set
+import Kinds
 import Networking.Messages
-import qualified Networking.NetworkBuffer as NB
+import ProcessEnvironmentTypes
+import Syntax
 import qualified Networking.NetworkConnection as NCon 
-import qualified Data.Maybe
 
 newtype SerializationException = UnserializableException String
     deriving Eq

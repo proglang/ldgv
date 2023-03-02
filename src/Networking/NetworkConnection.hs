@@ -2,9 +2,9 @@ module Networking.NetworkConnection where
 
 import Networking.NetworkBuffer
 import Networking.RandomID
-import qualified Data.Map as Map
 import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
+import qualified Data.Map as Map
 
 data NetworkConnection a = NetworkConnection {ncRead :: NetworkBuffer a, ncWrite :: NetworkBuffer a, ncPartnerUserID :: String, ncOwnUserID :: String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
     deriving Eq

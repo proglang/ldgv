@@ -2,25 +2,24 @@
 
 module Networking.Client where
 
-import qualified Config
-import ProcessEnvironmentTypes
-import Networking.Messages
-import qualified Control.Concurrent.MVar as MVar
-import qualified Networking.NetworkBuffer as NB
-import qualified Networking.Messages as Messages
-import qualified Networking.RandomID as RandomID
-import qualified Data.Map as Map
 import Control.Concurrent
 import Control.Exception
-import qualified Syntax
-import qualified Networking.Common as NC
-import Networking.NetworkConnection
-import qualified Networking.Serialize as NSerialize
 import Control.Monad
-import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import Networking.Messages
+import Networking.NetworkConnection
+import ProcessEnvironmentTypes
+import qualified Config
+import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
+import qualified Data.Map as Map
+import qualified Networking.Common as NC
+import qualified Networking.Messages as Messages
+import qualified Networking.NetworkBuffer as NB
 import qualified Networking.NetworkConnection as NCon
-
+import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import qualified Networking.RandomID as RandomID
+import qualified Networking.Serialize as NSerialize
+import qualified Syntax
 
 newtype ClientException = NoIntroductionException String
     deriving Eq

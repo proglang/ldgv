@@ -2,15 +2,15 @@
 module ValueParsing.ValueGrammar (parseValues, parseMessages, parseResponses, parseConversation) where
 
 import Control.Monad
+import Kinds
+import Networking.Messages
+import ProcessEnvironmentTypes
+import Syntax
+import ValueParsing.ValueTokens (T(..))
 import qualified Data.List as List
 import qualified Data.Set as Set
-
-import Kinds
-import Syntax
-import ProcessEnvironmentTypes
-import ValueParsing.ValueTokens (T(..))
 import qualified ValueParsing.ValueTokens as T
-import Networking.Messages
+
 }
 
 %monad { T.Alex }

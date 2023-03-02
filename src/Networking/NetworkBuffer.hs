@@ -2,13 +2,13 @@
 
 module Networking.NetworkBuffer where
 
-import Networking.Buffer
 import Control.Concurrent.MVar
 import Control.Exception
-import Data.Functor
-import qualified Data.Maybe
 import Control.Monad
+import Data.Functor
+import Networking.Buffer
 import qualified Control.Concurrent.SSem as SSem
+import qualified Data.Maybe
 
 data NetworkBuffer a = NetworkBuffer {buffer :: Buffer a, bufferOffset :: MVar Int, bufferAllMessagesLength :: MVar Int, working :: SSem.SSem}
     deriving Eq

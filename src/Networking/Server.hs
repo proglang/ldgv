@@ -2,31 +2,27 @@
 {-# HLINT ignore "Redundant return" #-}
 module Networking.Server where
 
-import qualified Control.Concurrent.MVar as MVar
-import qualified Data.Map as Map
-import qualified Data.Maybe
-import Network.Socket
 import Control.Concurrent
-
-import Networking.Messages
-import qualified Networking.Common as NC
-import qualified Networking.Serialize as NSerialize
-import ProcessEnvironmentTypes
-import qualified Syntax
-
-import qualified Networking.RandomID as RandomID
-import qualified Networking.Messages as Messages
-import qualified Networking.Client as NClient
-
-import Networking.NetworkConnection
-import qualified Config
-import qualified Networking.NetworkConnection as NCon
 import Control.Monad
-
-import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import Network.Socket
+import Networking.Messages
+import Networking.NetworkConnection
+import ProcessEnvironmentTypes
+import qualified Config
+import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
 import qualified Data.Bifunctor
+import qualified Data.Map as Map
+import qualified Data.Maybe
+import qualified Networking.Client as NClient
+import qualified Networking.Common as NC
+import qualified Networking.Messages as Messages
 import qualified Networking.NetworkBuffer as NB
+import qualified Networking.NetworkConnection as NCon
+import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import qualified Networking.RandomID as RandomID
+import qualified Networking.Serialize as NSerialize
+import qualified Syntax
 
 handleClient :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> NC.ConversationOrHandle -> String -> String -> Message -> IO ()
 handleClient activeCons mvar clientlist clientsocket hdl ownport message deserialmessages = do

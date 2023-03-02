@@ -1,24 +1,23 @@
 module Networking.NetworkingMethod.Fast where
 
-import Networking.NetworkingMethod.NetworkingMethodCommon
-import Network.Socket
-import GHC.IO.Handle
-import qualified Control.Concurrent.MVar as MVar
-import qualified Control.Concurrent.Chan as Chan
-import qualified Data.Map as Map
 import Control.Concurrent
-import Control.Monad
 import Control.Exception
-
+import Control.Monad
+import GHC.IO.Handle
+import Network.Socket
 import Networking.Messages
 import Networking.NetworkConnection
+import Networking.NetworkingMethod.NetworkingMethodCommon
 import Networking.RandomID
+import ProcessEnvironmentTypes
+import qualified Config
+import qualified Control.Concurrent.Chan as Chan
+import qualified Control.Concurrent.MVar as MVar
+import qualified Control.Concurrent.SSem as SSem
+import qualified Data.Map as Map
+import qualified Networking.NetworkingMethod.Stateless as Stateless
 import qualified Syntax
 import qualified ValueParsing.ValueGrammar as VG
-import qualified Config
-import qualified Networking.NetworkingMethod.Stateless as Stateless
-import ProcessEnvironmentTypes
-import qualified Control.Concurrent.SSem as SSem
 
 type ResponseMapMVar = MVar.MVar (Map.Map String (String, Response))
 
