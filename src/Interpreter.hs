@@ -75,9 +75,7 @@ interpret decls = do
   vchanconnections <- MVar.newMVar Map.empty
   activeConnections <- NC.createActiveConnections
   result <- R.runReaderT (interpretDecl decls) ([], (sockets, vchanconnections, activeConnections))
-  putStrLn $  "Finished interpreting " ++ show result 
   NClient.sendDisconnect activeConnections vchanconnections
-  putStrLn $  "Sent client disconnects " ++ show result
   NC.sayGoodbye activeConnections
   return result
 

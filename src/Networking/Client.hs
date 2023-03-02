@@ -232,7 +232,6 @@ serializeVChan = modifyVChans handleVChan
                 return $ VChanSerial (r, ro, rl) (w, wo, wl) pid oid (h, p, partConID)
             _ -> return input
 
-{-
 sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
 sendDisconnect ac mvar = do
     networkConnectionMap <- MVar.readMVar mvar
@@ -251,81 +250,6 @@ sendDisconnect ac mvar = do
         sendDisconnectNetworkConnection ac con = do
             let writeVals = ncWrite con
             connectionState <- MVar.readMVar $ ncConnectionState con
-            -- unreadVals <- DC.unreadMessageStart writeVals
-            -- lengthVals <- DC.countMessages writeVals
-            -- Config.traceNetIO "Checking if everything is acknowledged"
-            -- NB.serialize writeVals >>= Config.traceNetIO . show
-            -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
-            case connectionState of
-                -- Connected host port _ _ _ -> if unreadVals >= lengthVals then do
-                Connected host port _ _ _ -> do
-                    count <- NB.getNextOffset (ncRead con)
-                    if count == 0 then return True else catch (sendNetworkMessage ac con (Messages.AcknowledgeValue (ncOwnUserID con) $ count-1) 0) $ printConErr host port
-                    -- ret <- NB.isAllAcknowledged writeVals
-                    -- writeValsSer <- NB.serialize writeVals
-                    -- Config.traceNetIO $ show writeValsSer ++ "\n    " ++ if ret then "All acknowledged" else "Not completely acknowledged"
-                    -- return ret
-                    NB.isAllAcknowledged writeVals
-                _ -> return True
--}
-
-{-
-sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
-sendDisconnect ac mvar = do
-    networkConnectionMap <- MVar.readMVar mvar
-    let allNetworkConnections = Map.elems networkConnectionMap
-    goodbyes <- doForall ac allNetworkConnections
-    unless goodbyes $ do
-        threadDelay 100000
-        sendDisconnect ac mvar
-    where
-        doForall ac (x:xs) = do
-            xres <- sendDisconnectNetworkConnection ac x
-            rest <- doForall ac xs
-            return $ xres && rest
-        doForall ac [] = return True
-        sendDisconnectNetworkConnection :: NMC.ActiveConnections -> NetworkConnection Value -> IO Bool
-        sendDisconnectNetworkConnection ac con = do
-            let writeVals = ncWrite con
-            connectionState <- MVar.readMVar $ ncConnectionState con
-            -- unreadVals <- DC.unreadMessageStart writeVals
-            -- lengthVals <- DC.countMessages writeVals
-            -- Config.traceNetIO "Checking if everything is acknowledged"
-            -- NB.serialize writeVals >>= Config.traceNetIO . show
-            -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
-            allAcknowledged <- NB.isAllAcknowledged writeVals
-            case connectionState of
-                -- Connected host port _ _ _ -> if unreadVals >= lengthVals then do
-                Connected host port _ _ _ -> if allAcknowledged then do
-
-                    catch (sendNetworkMessage ac con (Messages.Disconnect $ ncOwnUserID con) 0) $ printConErr host port
-                    return True else return False
-                _ -> return True
--}
-
-sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
-sendDisconnect ac mvar = do
-    networkConnectionMap <- MVar.readMVar mvar
-    let allNetworkConnections = Map.elems networkConnectionMap
-    goodbyes <- doForall ac allNetworkConnections
-    unless goodbyes $ do
-        threadDelay 100000
-        sendDisconnect ac mvar
-    where
-        doForall ac (x:xs) = do
-            xres <- sendDisconnectNetworkConnection ac x
-            rest <- doForall ac xs
-            return $ xres && rest
-        doForall ac [] = return True
-        sendDisconnectNetworkConnection :: NMC.ActiveConnections -> NetworkConnection Value -> IO Bool
-        sendDisconnectNetworkConnection ac con = do
-            let writeVals = ncWrite con
-            connectionState <- MVar.readMVar $ ncConnectionState con
-            -- unreadVals <- DC.unreadMessageStart writeVals
-            -- lengthVals <- DC.countMessages writeVals
-            -- Config.traceNetIO "Checking if everything is acknowledged"
-            -- NB.serialize writeVals >>= Config.traceNetIO . show
-            -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
             case connectionState of
                 Connected host port _ _ _ -> do
                     ret <- NB.isAllAcknowledged writeVals
