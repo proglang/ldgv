@@ -83,14 +83,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                 NC.sendResponse hdl Messages.Okay
                                 NCon.disconnectFromPartner ncToPartner
                                 SSem.signal $ ncHandlingIncomingMessage ncToPartner
-                                -- Config.traceNetIO "Trying to send AcknowledgeDisconnect"
-                                -- NO.sendNetworkMessage activeCons ncToPartner (Messages.AcknowledgeDisconnect $ ncOwnUserID ncToPartner) 0
-                                -- Config.traceNetIO "Sent AcknowledgeDisconnect"
                                 return ()
-                            {-AcknowledgeDisconnect userid -> do
-                                NCon.disconnectFromPartner ncToPartner
-                                SSem.signal $ ncHandlingIncomingMessage ncToPartner
-                                NC.sendResponse hdl Messages.Okay-}
                             _ -> do
                                 serial <- NSerialize.serialize deserialmessages
                                 recievedNetLog message $ "Error unsupported networkmessage: "++ serial
@@ -109,7 +102,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
         Nothing -> do
             recievedNetLog message "Recieved message from unknown connection"
             case deserialmessages of
-                IntroduceClient userid clientport synname syntype -> do
+                Introduce userid clientport synname syntype -> do
                     serverid <- RandomID.newRandomID
                     newpeer <- newNetworkConnection userid serverid clientHostaddress clientport userid serverid
                     NC.sendResponse hdl (Messages.OkayIntroduce serverid)

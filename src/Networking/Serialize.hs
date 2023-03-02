@@ -38,11 +38,11 @@ instance Serializable Response where
     Okay -> return "NOkay"
     OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
     Wait -> return "NWait"
-    Error -> return "Error"
+    Error -> return "NError"
 
 instance Serializable Message where
   serialize = \case
-      IntroduceClient p port tn t -> serializeLabeledEntryMulti "NIntroduceClient" p $ sNext port $ sNext tn $ sLast t
+      Introduce p port tn t -> serializeLabeledEntryMulti "NIntroduce" p $ sNext port $ sNext tn $ sLast t
       NewValue p c v -> serializeLabeledEntryMulti "NNewValue" p $ sNext c $ sLast v
       RequestValue p c -> serializeLabeledEntryMulti "NRequestValue" p $ sLast c
       AcknowledgeValue p c -> serializeLabeledEntryMulti "NAcknowledgeValue" p $ sLast c
@@ -50,16 +50,6 @@ instance Serializable Message where
       AcknowledgePartnerAddress p conID -> serializeLabeledEntryMulti "NAcknowledgePartnerAddress" p $ sLast conID
       Disconnect p -> serializeLabeledEntry "NDisconnect" p
       AcknowledgeDisconnect p -> serializeLabeledEntry "NAcknowledgeDisconnect" p
-
-{-
-instance Serializable (NCon.NetworkConnection Value) where
-  serialize con = do 
-    constate <- MVar.readMVar $ NCon.ncConnectionState con
-    -- (readList, readUnread, readUnAck) <- NB.serializeMinimal $ NCon.ncRead con
-    -- (writeList, writeUnread, writeUnAck) <- NB.serializeMinimal $ NCon.ncWrite con
-
-    serializeLabeledEntryMulti "SNetworkConnection" (NCon.ncRead con) $ sNext (NCon.ncWrite con) $ sNext (NCon.ncPartnerUserID con) $ sNext (NCon.ncOwnUserID con) $ sLast constate
--}
 
 instance Serializable NCon.ConnectionState where
   serialize = \case
@@ -81,7 +71,6 @@ instance Serializable Value where
       VFuncCast v ft1 ft2 -> serializeLabeledEntryMulti "VFuncCast" v $ sNext ft1 $ sLast ft2
       VRec env f x e0 e1 -> serializeLabeledEntryMulti "VRec" env $ sNext f $ sNext x $ sNext e0 $ sLast e1
       VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
-      -- VChan nc _-> serializeLabeledEntry "VChan" nc
       VChan {} -> throw $ UnserializableException "VChan"
       VChanSerial r w p o c -> serializeLabeledEntryMulti "VChanSerial" r $ sNext w $ sNext p $ sNext o $ sLast c
 

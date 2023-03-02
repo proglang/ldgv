@@ -120,12 +120,12 @@ tokens :-
   "SStringExpArray"                     { tok $ const SStringExpArray }
   "SStringTypeArray"                    { tok $ const SStringTypeArray }
   "SStringArray"                        { tok $ const SStringArray }
-  "SValuesArray"                          { tok $ const SValuesArray }
+  "SValuesArray"                        { tok $ const SValuesArray }
   "SNetworkConnection"                  { tok $ const SNetworkConnection}
   "SDirectionalConnection"              { tok $ const SDirectionalConnection}
   "SConnected"                          { tok $ const SConnected}
 
-  "NIntroduceClient"                    { tok $ const NIntroduceClient }
+  "NIntroduce"                          { tok $ const NIntroduce }
   "NNewValue"                           { tok $ const NNewValue }
   "NRequestValue"                       { tok $ const NRequestValue }
   "NAcknowledgeValue"                   { tok $ const NAcknowledgeValue }
@@ -254,7 +254,7 @@ data Token
   | SDirectionalConnection
   | SConnected
 
-  | NIntroduceClient
+  | NIntroduce
   | NNewValue
   | NRequestValue
   | NAcknowledgeValue

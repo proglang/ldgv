@@ -115,7 +115,7 @@ import qualified ValueParsing.ValueTokens as T
     sdirectionalconnection {T _ T.SDirectionalConnection}
     sconnected          {T _ T.SConnected}
 
-    nintroduceclient    { T _ T.NIntroduceClient }
+    nintroduce    { T _ T.NIntroduce }
     nnewvalue     { T _ T.NNewValue }
     nrequestvalue { T _ T.NRequestValue }
     nacknowledgevalue {T _ T.NAcknowledgeValue }
@@ -282,7 +282,7 @@ GType : gunit {GUnit}
       | gdouble {GDouble}
       | gstring {GString}
 
-Message : nintroduceclient '(' String ')' '(' String ')' '(' Type ')' '(' Type ')' {IntroduceClient $3 $6 $9 $12}
+Message : nintroduce '(' String ')' '(' String ')' '(' Type ')' '(' Type ')' {Introduce $3 $6 $9 $12}
          | nnewvalue '(' String ')' '(' int ')' '(' Value ')' {NewValue $3 $6 $9}
          | nrequestvalue '(' String ')' '(' int ')' {RequestValue $3 $6}
          | nacknowledgevalue '(' String ')' '(' int ')' {AcknowledgeValue $3 $6}

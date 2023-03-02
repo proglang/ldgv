@@ -151,13 +151,13 @@ initialConnect activeCons mvar hostname port ownport syntype= do
     case mbycon of
         Just con -> do
             ownuserid <- RandomID.newRandomID
-            NC.sendMessage con (Messages.IntroduceClient ownuserid ownport (fst syntype) $ snd syntype)
+            NC.sendMessage con (Messages.Introduce ownuserid ownport (fst syntype) $ snd syntype)
             mbyintroductionanswer <- NC.recieveResponse con 10000 (-1)
             NC.endConversation con 10000 10
             case mbyintroductionanswer of
                 Just introduction -> case introduction of
                     OkayIntroduce introductionanswer -> do
-                        msgserial <- NSerialize.serialize $ Messages.IntroduceClient ownuserid ownport (fst syntype) $ snd syntype
+                        msgserial <- NSerialize.serialize $ Messages.Introduce ownuserid ownport (fst syntype) $ snd syntype
                         Config.traceNetIO $ "Sending message as: " ++ ownuserid ++ " to: " ++  introductionanswer
                         Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
                         Config.traceNetIO $ "    Message: " ++ msgserial
