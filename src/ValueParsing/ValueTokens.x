@@ -306,15 +306,11 @@ tok' f (pos@(AlexPn _ line column), _, _, inp) len = do
     Right tok -> pure $ T pos tok
 
 
-scanner str = runAlex str $ do
-  let loop i = do tok <- alexMonadScan; 
-		  if (tokVal tok) == EOF
-			then return i
-			else do loop $! (i++[(tokVal tok)])
-  loop []
-
+scanner str = runAlex str $ loop []
+  where
+    loop i = do 
+      tok <- alexMonadScan
+      if (tokVal tok) == EOF then return i else loop $! (i++[(tokVal tok)])
 
 ignoreArgument a b = a 
 }
-
--- https://gist.github.com/m1dnight/126d6b500175c2c286e3804584e5c4ce
