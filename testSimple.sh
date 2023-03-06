@@ -1,2 +1,0 @@
-clear; echo "Simple"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < networking-examples/simple/server.ldgvnw & stack run ldgv -- interpret < networking-examples/simple/client.ldgvnw & wait);
-exit;

@@ -1,2 +1,0 @@
-clear; echo "Bidirectional"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < networking-examples/bidirectional/server.ldgvnw & stack run ldgv -- interpret < networking-examples/bidirectional/client.ldgvnw & wait);
-exit;
