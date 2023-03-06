@@ -209,7 +209,7 @@ replaceVChanSerial activeCons mvar input = modifyVChans (handleSerial activeCons
 
 recieveValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
 recieveValue vchanconsvar activeCons networkconnection ownport = do
-    recieveValueInternal 100 vchanconsvar activeCons networkconnection ownport
+    recieveValueInternal 0 vchanconsvar activeCons networkconnection ownport
     where
         recieveValueInternal :: Int -> VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> String -> IO Value
         recieveValueInternal count vchanconsvar activeCons networkconnection ownport = do
