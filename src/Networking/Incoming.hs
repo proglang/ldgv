@@ -186,14 +186,14 @@ contactNewPeers vchansmvar activeCons ownport ownNC = searchVChans (handleVChan 
                                             if sendSuccess then return False else do 
                                                 threadDelay 100000
                                                 putStrLn "Trying to lookup future messages"
-                                                futureRecieveContainsPartner ownNC partnerid
+                                                futureRecieveFromAllContainsPartner vchansmvar ownNC partnerid
                                 Nothing -> do 
                                     -- Their partner isnt registered in this instance
                                     sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
                                     if sendSuccess then return False else do
                                         threadDelay 100000
                                         putStrLn "Trying to lookup future messages"
-                                        futureRecieveContainsPartner ownNC partnerid
+                                        futureRecieveFromAllContainsPartner vchansmvar ownNC partnerid
                                     -- return False
             _ -> return True
 
@@ -292,6 +292,21 @@ valueContainsPartner partner = searchVChans (handleSerial partner) False (||)
                 putStrLn $ "Looking for: " ++ partner ++ " p: " ++ p ++ " o: " ++ o
                 return (partner == o)
             _ -> return False
+
+futureRecieveFromAllContainsPartner :: VChanConnections -> NetworkConnection Value -> String -> IO Bool
+futureRecieveFromAllContainsPartner vchansvar nc partner = do
+    own <- futureRecieveContainsPartner nc partner
+    if own then return True else do
+        consmap <- MVar.readMVar vchansvar
+        let cons = Map.elems consmap
+        fRFACPInternal cons partner
+    where
+        fRFACPInternal :: [NetworkConnection Value] -> String -> IO Bool
+        fRFACPInternal [] partner = return False
+        fRFACPInternal (x:xs) partner = do
+            containsPartner <- futureRecieveContainsPartner x partner
+            if containsPartner then return True else fRFACPInternal xs partner
+
 
 futureRecieveContainsPartner :: NetworkConnection Value -> String -> IO Bool
 futureRecieveContainsPartner = fRCPInternal 0 
