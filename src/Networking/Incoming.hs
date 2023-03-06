@@ -117,6 +117,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                     clientlistraw <- MVar.takeMVar clientlist
                     MVar.putMVar clientlist $ clientlistraw ++ [(userid, (synname, syntype))]
                     -- We must not write clients into the clientlist before adding them to the networkconnectionmap
+                
                 _ -> do
                     serial <- NSerialize.serialize deserialmessages
                     recievedNetLog message $ "Error unsupported networkmessage: "++ serial
@@ -139,26 +140,61 @@ setPartnerHostAddress address = modifyVChansStatic (handleSerial address)
                 VChanSerial r w p o (if hostname == "" then address else hostname, port, partnerID)
             _ -> input -- return input
 
-waitUntilContactedNewPeers :: NMC.ActiveConnections -> Value -> String -> IO ()
-waitUntilContactedNewPeers activeCons input ownport = do
-    contactedPeers <- contactNewPeers activeCons ownport input
+waitUntilContactedNewPeers :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> Value -> String -> IO ()
+waitUntilContactedNewPeers vchansmvar activeCons ownNC input ownport = do
+    contactedPeers <- contactNewPeers vchansmvar activeCons ownport ownNC input
     unless contactedPeers $ do
         threadDelay 50000
-        waitUntilContactedNewPeers activeCons input ownport
+        waitUntilContactedNewPeers vchansmvar activeCons ownNC input ownport
 
-contactNewPeers :: NMC.ActiveConnections -> String -> Value  -> IO Bool
-contactNewPeers activeCons ownport = searchVChans (handleVChan activeCons ownport) True (&&)
+contactNewPeers :: VChanConnections -> NMC.ActiveConnections -> String -> NetworkConnection Value ->  Value -> IO Bool
+contactNewPeers vchansmvar activeCons ownport ownNC = searchVChans (handleVChan activeCons ownport ownNC) True (&&)
     where
-        handleVChan :: NMC.ActiveConnections -> String -> Value  -> IO Bool
-        handleVChan activeCons ownport input = case input of
+        handleVChan :: NMC.ActiveConnections -> String -> NetworkConnection Value -> Value -> IO Bool
+        handleVChan activeCons ownport ownNC input = case input of
             VChan nc bool -> do
                 connectionState <- MVar.readMVar $ ncConnectionState nc
                 case connectionState of
                     Emulated {} -> return True
                     _ -> do
                         if csConfirmedConnection connectionState then return True else do
-                            NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) 0
-                            return False
+                            -- Check whether their partner is also registered and connected on this instance, if so convert the connection into a emulated one
+                            vchanconnections <- MVar.readMVar vchansmvar
+                            let userid = ncOwnUserID nc
+                            let partnerid = ncPartnerUserID nc
+                            let mbypartner = Map.lookup userid vchanconnections  
+                            case mbypartner of
+                                Just partner -> do
+                                    -- Their partner is registered in this instance. Now we have to figure out whether this is till current and we can start emulating the connection
+                                    SSem.wait (ncHandlingIncomingMessage partner) 
+                                    connectionstate <- MVar.takeMVar $ ncConnectionState partner
+                                    case connectionState of
+                                        Connected {} -> do
+                                            -- Reemulate them
+                                            partConID <- RandomID.newRandomID
+                                            ownConID <- RandomID.newRandomID
+                                            MVar.putMVar (ncConnectionState partner) $ Emulated ownConID partConID True
+                                            _ <- MVar.takeMVar $ ncConnectionState nc
+                                            MVar.putMVar (ncConnectionState nc) $ Emulated partConID ownConID True
+                                            SSem.signal (ncHandlingIncomingMessage partner)
+                                            return True
+                                        _ -> do
+                                            -- Nothing to do here, we no longer own the partner
+                                            MVar.putMVar (ncConnectionState partner) connectionState
+                                            SSem.signal (ncHandlingIncomingMessage partner)
+                                            sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
+                                            if sendSuccess then return False else do 
+                                                threadDelay 100000
+                                                putStrLn "Trying to lookup future messages"
+                                                futureRecieveContainsPartner ownNC partnerid
+                                Nothing -> do 
+                                    -- Their partner isnt registered in this instance
+                                    sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
+                                    if sendSuccess then return False else do
+                                        threadDelay 100000
+                                        putStrLn "Trying to lookup future messages"
+                                        futureRecieveContainsPartner ownNC partnerid
+                                    -- return False
             _ -> return True
 
 hostaddressTypeToString :: HostAddress -> String
@@ -218,7 +254,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
             case mbyUnclean of
                 Just unclean -> do
                     val <- replaceVChanSerial activeCons vchanconsvar $ fst unclean
-                    waitUntilContactedNewPeers activeCons val ownport
+                    waitUntilContactedNewPeers vchanconsvar activeCons networkconnection val ownport
                     -- msgCount <- DC.unreadMessageStart $ ncRead networkconnection
                     connectionState <- MVar.readMVar $ ncConnectionState networkconnection
                     case connectionState of
@@ -246,3 +282,28 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                         else do
                             threadDelay 5000
                             recieveValueInternal (count-1) vchanconsvar activeCons networkconnection ownport
+
+valueContainsPartner :: String -> Value -> IO Bool
+valueContainsPartner partner = searchVChans (handleSerial partner) False (||)
+    where
+        handleSerial :: String -> Value -> IO Bool
+        handleSerial partner value = case value of
+            VChanSerial r w p o c -> do 
+                putStrLn $ "Looking for: " ++ partner ++ " p: " ++ p ++ " o: " ++ o
+                return (partner == o)
+            _ -> return False
+
+futureRecieveContainsPartner :: NetworkConnection Value -> String -> IO Bool
+futureRecieveContainsPartner = fRCPInternal 0 
+    where
+        fRCPInternal count nc partner = do
+            putStrLn $ "Trying to read at: " ++ show count
+            mbyVal <- NB.tryGetAtRelativeNB (ncRead nc) count
+            case mbyVal of
+              Nothing -> do 
+                putStrLn $ "Index " ++ show count ++ " is empty"
+                return False
+              Just value -> do
+                putStrLn $ "Looking up index " ++ show count
+                containsPartner <- valueContainsPartner partner value
+                if containsPartner then return True else fRCPInternal (count+1) nc partner

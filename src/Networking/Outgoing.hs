@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
 
 module Networking.Outgoing where
 
@@ -85,6 +86,11 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
             let port = csPort connectionstate
             tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
 
+-- ResendOnError gives the number of times a value might be resent when a error occures
+-- There are three special cases
+-- (-1) will send indefinitely until it succedes
+-- (-2) will not wait and only act on redirect messages (wait messages and failed connections wont result in reattempting sending the message)
+-- For numbers n smaller than -2 it will wait for abs(n)-2 times
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Message -> Int -> IO Bool
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
     serializedMessage <- NSerialize.serialize message
@@ -110,20 +116,23 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             Okay -> do 
                 sendingNetLog serializedMessage "Message okay" 
                 return True
-            Redirect host port -> do
-                sendingNetLog serializedMessage "Communication partner changed address, resending"
-                tryToSendNetworkMessage activeCons networkconnection host port message resendOnError
-            Wait -> do
-                sendingNetLog serializedMessage "Communication out of sync lets wait!"
-                threadDelay 1000000
-                tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
+            Redirect host port -> do 
+                    sendingNetLog serializedMessage "Communication partner changed address, resending"
+                    tryToSendNetworkMessage activeCons networkconnection host port message if resendOnError < -2 then resendOnError +1 else resendOnError
+            Wait -> if resendOnError /= (-2) then do
+                    sendingNetLog serializedMessage "Communication out of sync lets wait!"
+                    threadDelay 1000000
+                    tryToSendNetworkMessage activeCons networkconnection hostname port message if resendOnError < -2 then resendOnError +1 else resendOnError
+                else do 
+                    sendingNetLog serializedMessage "Communication out of sync lets wait!, sending failed"
+                    return False
             _ -> do 
                 sendingNetLog serializedMessage "Unknown communication error"
                 return False
 
         Nothing -> do
             sendingNetLog serializedMessage "Error when recieving response"
-            if resendOnError /= 0 then do
+            if resendOnError /= 0 && resendOnError <= (-2) then do
                 connectionState <- MVar.readMVar $ ncConnectionState networkconnection
                 case connectionState of
                     Connected updatedhost updatedport _ _ _ -> do 
@@ -205,7 +214,7 @@ setRedirectRequests vchanconmvar newhost newport ownport = searchVChans (handleV
                             case mbypartner of
                                 Just partner -> do
                                     MVar.putMVar (ncConnectionState nc) $ RedirectRequest "" ownport newhost newport partConID ownConID confirmed -- Setting this to 127.0.0.1 is a temporary hack
-                                    oldconectionstatePartner <- MVar.takeMVar $ ncConnectionState partner
+                                    oldconnectionstatePartner <- MVar.takeMVar $ ncConnectionState partner
                                     MVar.putMVar (ncConnectionState partner) $ Connected newhost newport partConID ownConID confirmed
                                 Nothing -> do 
                                     MVar.putMVar (ncConnectionState nc) oldconnectionstate

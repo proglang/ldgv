@@ -51,6 +51,10 @@ tryGetAtNB nb count = SSem.withSem (working nb) $ do
     offset <- readMVar $ bufferOffset nb
     tryGetAt (buffer nb) (count-offset)
 
+tryGetAtRelativeNB :: NetworkBuffer a -> Int -> IO (Maybe a)
+tryGetAtRelativeNB nb count = SSem.withSem (working nb) $ do  
+    tryGetAt (buffer nb) count
+
 tryTake :: NetworkBuffer a -> IO (Maybe (a, Int))
 tryTake nb = SSem.withSem (working nb) $ modifyMVar (bufferOffset nb) (\offset -> do
     mbyTakeValue <- tryTakeBuffer (buffer nb)
