@@ -21,6 +21,7 @@ module C.CPS
   , Freevars(..)
   ) where
 
+import Control.Exception
 import Control.Monad.Cont
 import Control.Monad.Reader
 import Data.Foldable
@@ -30,6 +31,14 @@ import Kinds (Multiplicity)
 import Syntax hiding (Exp(..))
 import qualified Data.Set as Set
 import qualified Syntax as S
+
+newtype CException = ExpNotImplementedException S.Exp
+
+instance Show CException where
+  show = \case
+    (ExpNotImplementedException e) -> "ExpNotImplementedException: Expression " ++ show e ++ " is not yet compilable to C"
+
+instance Exception CException
 
 data Val
   = Lit Literal
@@ -121,7 +130,7 @@ fromExp :: S.Exp -> (Val -> Reader Vars Exp) -> Reader Vars Exp
 fromExp e = runContT (fromExpC e)
 
 fromExpC :: S.Exp -> ContT Exp (Reader Vars) Val
-fromExpC = \case
+fromExpC expr = case expr of
   S.Lit l -> pure (Lit l)
   S.Var v -> do
     vBound <- isBound v
@@ -167,6 +176,8 @@ fromExpC = \case
   S.Recv e -> do
     v <- fromExpC e
     captured $ pure . Recv v . Just
+  
+  _ -> throw $ ExpNotImplementedException expr
 
 getPair :: (forall a. (a, a) -> a) -> S.Exp -> ContT Exp (Reader Vars) Val
 getPair f e = do
@@ -178,7 +189,7 @@ getPair f e = do
     LetPair xfst xsnd v <$> bound2 xfst xsnd (k x)
 
 fromExp' :: S.Exp -> Reader Vars Exp
-fromExp' = \case
+fromExp' expr = case expr of
   S.Var v -> do
     vBound <- isBound v
     if vBound
@@ -208,6 +219,8 @@ fromExp' = \case
   e@S.Fork{} -> trivial e
   e@S.New{}  -> trivial e
   e@S.Send{} -> trivial e
+  
+  _ -> throw $ ExpNotImplementedException expr
   where
     trivial e = fromExp e (pure . Return)
 

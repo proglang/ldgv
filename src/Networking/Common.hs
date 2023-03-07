@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+
 module Networking.Common where
 
 -- import qualified Networking.NetworkingMethod.Stateless as NetMethod

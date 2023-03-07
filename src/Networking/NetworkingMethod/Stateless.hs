@@ -1,24 +1,22 @@
 module Networking.NetworkingMethod.Stateless where
 
-import Networking.NetworkingMethod.NetworkingMethodCommon
-
-import Network.Socket
-import GHC.IO.Handle
-import System.IO
-import qualified Control.Concurrent.MVar as MVar
-import qualified Data.Map as Map
 import Control.Concurrent
-import Control.Monad
 import Control.Exception
-
+import Control.Monad
+import GHC.IO.Handle
+import Network.Socket
 import Networking.Messages
 import Networking.NetworkConnection
+import Networking.NetworkingMethod.NetworkingMethodCommon
 import ProcessEnvironmentTypes
-import qualified Networking.Serialize as NSerialize
-import qualified ValueParsing.ValueTokens as VT
-import qualified ValueParsing.ValueGrammar as VG
+import System.IO
 import qualified Config
+import qualified Control.Concurrent.MVar as MVar
+import qualified Data.Map as Map
+import qualified Networking.Serialize as NSerialize
 import qualified Syntax
+import qualified ValueParsing.ValueGrammar as VG
+import qualified ValueParsing.ValueTokens as VT
 
 type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> MVar.MVar [(String, (Syntax.Type, Syntax.Type))] -> (Socket, SockAddr) -> Conversation -> String -> String -> Message -> IO ()
 

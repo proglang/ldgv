@@ -12,7 +12,7 @@ type ConversationID = String
 type ConnectionID = String
 
 data Message
-    = IntroduceClient UserID Port Type Type
+    = Introduce UserID Port Type Type
     | NewValue UserID Int Value
     | RequestValue UserID Int
     | AcknowledgeValue UserID Int
@@ -37,7 +37,7 @@ data ConversationSession
 
 getUserID :: Message -> String
 getUserID = \case
-    IntroduceClient p _ _ _ -> p
+    Introduce p _ _ _ -> p
     NewValue p _ _ -> p
     RequestValue p _ -> p
     AcknowledgeValue p _ -> p

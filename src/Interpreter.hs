@@ -1,3 +1,5 @@
+
+{-# OPTIONS_GHC -Wno-overlapping-patterns#-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -23,8 +25,8 @@ import Control.Exception
 import Kinds (Multiplicity(..))
 
 import qualified Networking.Common as NC
-import qualified Networking.Client as NClient
-import qualified Networking.Server as NS
+import qualified Networking.Outgoing as NO
+import qualified Networking.Incoming as NI
 
 
 import Control.Concurrent
@@ -75,9 +77,7 @@ interpret decls = do
   vchanconnections <- MVar.newMVar Map.empty
   activeConnections <- NC.createActiveConnections
   result <- R.runReaderT (interpretDecl decls) ([], (sockets, vchanconnections, activeConnections))
-  putStrLn $  "Finished interpreting " ++ show result 
-  NClient.sendDisconnect activeConnections vchanconnections
-  putStrLn $  "Sent client disconnects " ++ show result
+  NO.sendDisconnect activeConnections vchanconnections
   NC.sayGoodbye activeConnections
   return result
 
@@ -174,7 +174,7 @@ eval = \case
         (env, (sockets, vchanconnections, activeConnections)) <- ask
         socketsraw <- liftIO $ MVar.readMVar sockets
         let port = show $ head $ Map.keys socketsraw
-        val <- liftIO $ NS.recieveValue vchanconnections activeConnections ci port
+        val <- liftIO $ NI.recieveValue vchanconnections activeConnections ci port
         liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
         -- Disable the old channel and get a new one
@@ -186,12 +186,12 @@ eval = \case
     case val of
       VInt port -> do
         (env, (sockets, vchanconnections, activeConnections)) <- ask
-        (clientlist, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets vchanconnections
+        (clientlist, ownport) <- liftIO $ NC.acceptConversations activeConnections NI.handleClient port sockets vchanconnections
         t <- case tname of 
           TName _ s -> maybe (throw $ LookupException s) (\(VType t) -> return t) (lookup s env)
           _ -> return tname
 
-        newuser <- liftIO $ NS.findFittingClient clientlist (tname, t)
+        newuser <- liftIO $ NI.findFittingClient clientlist (tname, t)
         networkconnectionmap <- liftIO $ MVar.readMVar vchanconnections
         case Map.lookup newuser networkconnectionmap of
           Nothing -> throw $ CommunicationPartnerNotFoundException newuser
@@ -206,7 +206,7 @@ eval = \case
     case val of
       VInt port -> do
         (env, (sockets, vchanconnections, activeConnections)) <- ask
-        (chan, ownport) <- liftIO $ NC.acceptConversations activeConnections NS.handleClient port sockets vchanconnections
+        (chan, ownport) <- liftIO $ NC.acceptConversations activeConnections NI.handleClient port sockets vchanconnections
         addressVal <- interpret' e1
         case addressVal of
           VString address -> do
@@ -217,7 +217,7 @@ eval = \case
                   TName _ s -> maybe (throw $ LookupException s) (\(VType t) -> return t) (lookup s env)
                   _ -> return tname
 
-                liftIO $ NClient.initialConnect activeConnections vchanconnections address (show port) ownport (tname, t)
+                liftIO $ NO.initialConnect activeConnections vchanconnections address (show port) ownport (tname, t)
               _ -> throw $ NotAnExpectedValueException "VInt" portVal
           _ -> throw $ NotAnExpectedValueException "VString" addressVal
       _ -> throw $ NotAnExpectedValueException "VInt" val
@@ -261,7 +261,7 @@ interpretApp _ (VSend v@(VChan cc usedmvar)) w = do
     socketsraw <- liftIO $ MVar.readMVar sockets
     let port = show $ head $ Map.keys socketsraw
     C.traceNetIO $ "Trying to send: " ++ show w
-    liftIO $  NClient.sendValue vchanconnections activeConnections cc w port (-1)
+    liftIO $  NO.sendValue vchanconnections activeConnections cc w port (-2)
     C.traceNetIO $ "Sent: " ++ show w
     -- Disable old VChan
     liftIO $ disableOldVChan v

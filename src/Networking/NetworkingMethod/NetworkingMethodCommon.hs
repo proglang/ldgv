@@ -1,12 +1,12 @@
 module Networking.NetworkingMethod.NetworkingMethodCommon where
 
 import GHC.IO.Handle
+import Network.Socket
+import Networking.Messages
 import qualified Control.Concurrent.Chan as Chan
 import qualified Control.Concurrent.MVar as MVar
-import qualified Data.Map as Map
-import Networking.Messages
 import qualified Control.Concurrent.SSem as SSem
-import Network.Socket
+import qualified Data.Map as Map
 
 -- type ActiveConnections = ActiveConnectionsStateless
 

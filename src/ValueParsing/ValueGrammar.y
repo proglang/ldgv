@@ -2,15 +2,15 @@
 module ValueParsing.ValueGrammar (parseValues, parseMessages, parseResponses, parseConversation) where
 
 import Control.Monad
+import Kinds
+import Networking.Messages
+import ProcessEnvironmentTypes
+import Syntax
+import ValueParsing.ValueTokens (T(..))
 import qualified Data.List as List
 import qualified Data.Set as Set
-
-import Kinds
-import Syntax
-import ProcessEnvironmentTypes
-import ValueParsing.ValueTokens (T(..))
 import qualified ValueParsing.ValueTokens as T
-import Networking.Messages
+
 }
 
 %monad { T.Alex }
@@ -115,7 +115,7 @@ import Networking.Messages
     sdirectionalconnection {T _ T.SDirectionalConnection}
     sconnected          {T _ T.SConnected}
 
-    nintroduceclient    { T _ T.NIntroduceClient }
+    nintroduce    { T _ T.NIntroduce }
     nnewvalue     { T _ T.NNewValue }
     nrequestvalue { T _ T.NRequestValue }
     nacknowledgevalue {T _ T.NAcknowledgeValue }
@@ -282,7 +282,7 @@ GType : gunit {GUnit}
       | gdouble {GDouble}
       | gstring {GString}
 
-Message : nintroduceclient '(' String ')' '(' String ')' '(' Type ')' '(' Type ')' {IntroduceClient $3 $6 $9 $12}
+Message : nintroduce '(' String ')' '(' String ')' '(' Type ')' '(' Type ')' {Introduce $3 $6 $9 $12}
          | nnewvalue '(' String ')' '(' int ')' '(' Value ')' {NewValue $3 $6 $9}
          | nrequestvalue '(' String ')' '(' int ')' {RequestValue $3 $6}
          | nacknowledgevalue '(' String ')' '(' int ')' {AcknowledgeValue $3 $6}

@@ -1,26 +1,26 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
 
-module Networking.Client where
+module Networking.Outgoing where
 
-import qualified Config
-import ProcessEnvironmentTypes
-import Networking.Messages
-import qualified Control.Concurrent.MVar as MVar
-import qualified Networking.NetworkBuffer as NB
-import qualified Networking.Messages as Messages
-import qualified Networking.RandomID as RandomID
-import qualified Data.Map as Map
 import Control.Concurrent
 import Control.Exception
-import qualified Syntax
-import qualified Networking.Common as NC
-import Networking.NetworkConnection
-import qualified Networking.Serialize as NSerialize
 import Control.Monad
-import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import Networking.Messages
+import Networking.NetworkConnection
+import ProcessEnvironmentTypes
+import qualified Config
+import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
+import qualified Data.Map as Map
+import qualified Networking.Common as NC
+import qualified Networking.Messages as Messages
+import qualified Networking.NetworkBuffer as NB
 import qualified Networking.NetworkConnection as NCon
-
+import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
+import qualified Networking.RandomID as RandomID
+import qualified Networking.Serialize as NSerialize
+import qualified Syntax
 
 newtype ClientException = NoIntroductionException String
     deriving Eq
@@ -86,6 +86,11 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
             let port = csPort connectionstate
             tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
 
+-- ResendOnError gives the number of times a value might be resent when a error occures
+-- There are three special cases
+-- (-1) will send indefinitely until it succedes
+-- (-2) will not wait and only act on redirect messages (wait messages and failed connections wont result in reattempting sending the message)
+-- For numbers n smaller than -2 it will wait for abs(n)-2 times
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Message -> Int -> IO Bool
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
     serializedMessage <- NSerialize.serialize message
@@ -111,20 +116,23 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             Okay -> do 
                 sendingNetLog serializedMessage "Message okay" 
                 return True
-            Redirect host port -> do
-                sendingNetLog serializedMessage "Communication partner changed address, resending"
-                tryToSendNetworkMessage activeCons networkconnection host port message resendOnError
-            Wait -> do
-                sendingNetLog serializedMessage "Communication out of sync lets wait!"
-                threadDelay 1000000
-                tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError
+            Redirect host port -> do 
+                    sendingNetLog serializedMessage "Communication partner changed address, resending"
+                    tryToSendNetworkMessage activeCons networkconnection host port message if resendOnError < -2 then resendOnError +1 else resendOnError
+            Wait -> if resendOnError /= (-2) then do
+                    sendingNetLog serializedMessage "Communication out of sync lets wait!"
+                    threadDelay 1000000
+                    tryToSendNetworkMessage activeCons networkconnection hostname port message if resendOnError < -2 then resendOnError +1 else resendOnError
+                else do 
+                    sendingNetLog serializedMessage "Communication out of sync lets wait!, sending failed"
+                    return False
             _ -> do 
                 sendingNetLog serializedMessage "Unknown communication error"
                 return False
 
         Nothing -> do
             sendingNetLog serializedMessage "Error when recieving response"
-            if resendOnError /= 0 then do
+            if resendOnError /= 0 && resendOnError < (-2) then do
                 connectionState <- MVar.readMVar $ ncConnectionState networkconnection
                 case connectionState of
                     Connected updatedhost updatedport _ _ _ -> do 
@@ -152,13 +160,13 @@ initialConnect activeCons mvar hostname port ownport syntype= do
     case mbycon of
         Just con -> do
             ownuserid <- RandomID.newRandomID
-            NC.sendMessage con (Messages.IntroduceClient ownuserid ownport (fst syntype) $ snd syntype)
+            NC.sendMessage con (Messages.Introduce ownuserid ownport (fst syntype) $ snd syntype)
             mbyintroductionanswer <- NC.recieveResponse con 10000 (-1)
             NC.endConversation con 10000 10
             case mbyintroductionanswer of
                 Just introduction -> case introduction of
                     OkayIntroduce introductionanswer -> do
-                        msgserial <- NSerialize.serialize $ Messages.IntroduceClient ownuserid ownport (fst syntype) $ snd syntype
+                        msgserial <- NSerialize.serialize $ Messages.Introduce ownuserid ownport (fst syntype) $ snd syntype
                         Config.traceNetIO $ "Sending message as: " ++ ownuserid ++ " to: " ++  introductionanswer
                         Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
                         Config.traceNetIO $ "    Message: " ++ msgserial
@@ -206,7 +214,7 @@ setRedirectRequests vchanconmvar newhost newport ownport = searchVChans (handleV
                             case mbypartner of
                                 Just partner -> do
                                     MVar.putMVar (ncConnectionState nc) $ RedirectRequest "" ownport newhost newport partConID ownConID confirmed -- Setting this to 127.0.0.1 is a temporary hack
-                                    oldconectionstatePartner <- MVar.takeMVar $ ncConnectionState partner
+                                    oldconnectionstatePartner <- MVar.takeMVar $ ncConnectionState partner
                                     MVar.putMVar (ncConnectionState partner) $ Connected newhost newport partConID ownConID confirmed
                                 Nothing -> do 
                                     MVar.putMVar (ncConnectionState nc) oldconnectionstate
@@ -232,7 +240,6 @@ serializeVChan = modifyVChans handleVChan
                 return $ VChanSerial (r, ro, rl) (w, wo, wl) pid oid (h, p, partConID)
             _ -> return input
 
-{-
 sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
 sendDisconnect ac mvar = do
     networkConnectionMap <- MVar.readMVar mvar
@@ -251,81 +258,6 @@ sendDisconnect ac mvar = do
         sendDisconnectNetworkConnection ac con = do
             let writeVals = ncWrite con
             connectionState <- MVar.readMVar $ ncConnectionState con
-            -- unreadVals <- DC.unreadMessageStart writeVals
-            -- lengthVals <- DC.countMessages writeVals
-            -- Config.traceNetIO "Checking if everything is acknowledged"
-            -- NB.serialize writeVals >>= Config.traceNetIO . show
-            -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
-            case connectionState of
-                -- Connected host port _ _ _ -> if unreadVals >= lengthVals then do
-                Connected host port _ _ _ -> do
-                    count <- NB.getNextOffset (ncRead con)
-                    if count == 0 then return True else catch (sendNetworkMessage ac con (Messages.AcknowledgeValue (ncOwnUserID con) $ count-1) 0) $ printConErr host port
-                    -- ret <- NB.isAllAcknowledged writeVals
-                    -- writeValsSer <- NB.serialize writeVals
-                    -- Config.traceNetIO $ show writeValsSer ++ "\n    " ++ if ret then "All acknowledged" else "Not completely acknowledged"
-                    -- return ret
-                    NB.isAllAcknowledged writeVals
-                _ -> return True
--}
-
-{-
-sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
-sendDisconnect ac mvar = do
-    networkConnectionMap <- MVar.readMVar mvar
-    let allNetworkConnections = Map.elems networkConnectionMap
-    goodbyes <- doForall ac allNetworkConnections
-    unless goodbyes $ do
-        threadDelay 100000
-        sendDisconnect ac mvar
-    where
-        doForall ac (x:xs) = do
-            xres <- sendDisconnectNetworkConnection ac x
-            rest <- doForall ac xs
-            return $ xres && rest
-        doForall ac [] = return True
-        sendDisconnectNetworkConnection :: NMC.ActiveConnections -> NetworkConnection Value -> IO Bool
-        sendDisconnectNetworkConnection ac con = do
-            let writeVals = ncWrite con
-            connectionState <- MVar.readMVar $ ncConnectionState con
-            -- unreadVals <- DC.unreadMessageStart writeVals
-            -- lengthVals <- DC.countMessages writeVals
-            -- Config.traceNetIO "Checking if everything is acknowledged"
-            -- NB.serialize writeVals >>= Config.traceNetIO . show
-            -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
-            allAcknowledged <- NB.isAllAcknowledged writeVals
-            case connectionState of
-                -- Connected host port _ _ _ -> if unreadVals >= lengthVals then do
-                Connected host port _ _ _ -> if allAcknowledged then do
-
-                    catch (sendNetworkMessage ac con (Messages.Disconnect $ ncOwnUserID con) 0) $ printConErr host port
-                    return True else return False
-                _ -> return True
--}
-
-sendDisconnect :: NMC.ActiveConnections -> MVar.MVar (Map.Map String (NetworkConnection Value)) -> IO ()
-sendDisconnect ac mvar = do
-    networkConnectionMap <- MVar.readMVar mvar
-    let allNetworkConnections = Map.elems networkConnectionMap
-    goodbyes <- doForall ac allNetworkConnections
-    unless goodbyes $ do
-        threadDelay 100000
-        sendDisconnect ac mvar
-    where
-        doForall ac (x:xs) = do
-            xres <- sendDisconnectNetworkConnection ac x
-            rest <- doForall ac xs
-            return $ xres && rest
-        doForall ac [] = return True
-        sendDisconnectNetworkConnection :: NMC.ActiveConnections -> NetworkConnection Value -> IO Bool
-        sendDisconnectNetworkConnection ac con = do
-            let writeVals = ncWrite con
-            connectionState <- MVar.readMVar $ ncConnectionState con
-            -- unreadVals <- DC.unreadMessageStart writeVals
-            -- lengthVals <- DC.countMessages writeVals
-            -- Config.traceNetIO "Checking if everything is acknowledged"
-            -- NB.serialize writeVals >>= Config.traceNetIO . show
-            -- NB.isAllAcknowledged writeVals >>= Config.traceNetIO . show
             case connectionState of
                 Connected host port _ _ _ -> do
                     ret <- NB.isAllAcknowledged writeVals

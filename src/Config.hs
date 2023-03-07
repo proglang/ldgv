@@ -13,8 +13,8 @@ data DebugLevel = DebugNone | DebugNetwork | DebugAll
 
 debugLevel :: DebugLevel
 -- debugLevel = DebugAll
--- debugLevel = DebugNetwork
-debugLevel = DebugNone
+debugLevel = DebugNetwork
+-- debugLevel = DebugNone
 
 trace :: String -> a -> a
 trace s a | debugLevel > DebugNetwork = D.trace s a

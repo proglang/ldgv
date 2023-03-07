@@ -2,11 +2,11 @@ module Networking.NetworkConnection where
 
 import Networking.NetworkBuffer
 import Networking.RandomID
-import qualified Data.Map as Map
 import qualified Control.Concurrent.MVar as MVar
 import qualified Control.Concurrent.SSem as SSem
+import qualified Data.Map as Map
 
-data NetworkConnection a = NetworkConnection {ncRead :: NetworkBuffer a, ncWrite :: NetworkBuffer a, ncPartnerUserID :: String, ncOwnUserID :: String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem}
+data NetworkConnection a = NetworkConnection {ncRead :: NetworkBuffer a, ncWrite :: NetworkBuffer a, ncPartnerUserID :: String, ncOwnUserID :: String, ncConnectionState :: MVar.MVar ConnectionState, ncHandlingIncomingMessage :: SSem.SSem, ncReadyToBeUsed :: MVar.MVar Bool}
     deriving Eq
 
 data ConnectionState = Connected {csHostname :: String, csPort :: String, csPartnerConnectionID :: String, csOwnConnectionID :: String, csConfirmedConnection :: Bool}
@@ -22,7 +22,8 @@ newNetworkConnection partnerID ownID hostname port partnerConnectionID ownConnec
     write <- newNetworkBuffer 
     connectionstate <- MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID True
     incomingMsg <- SSem.new 1
-    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
+    readyForUse <- MVar.newMVar True
+    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg readyForUse
 
 
 createNetworkConnection :: ([a], Int, Int) -> ([a], Int, Int) -> String -> String -> (String, String, String) -> IO (NetworkConnection a)
@@ -35,8 +36,18 @@ createNetworkConnection (readList, readOffset, readLength) (writeList, writeOffs
         else 
             MVar.newMVar $ Connected hostname port partnerConnectionID ownConnectionID False
     incomingMsg <- SSem.new 1
-    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg
+    readyForUse <- MVar.newMVar True
+    return $ NetworkConnection read write partnerID ownID connectionstate incomingMsg readyForUse
 
+setReadyForUse :: NetworkConnection a -> Bool -> IO ()
+setReadyForUse nc ready = do 
+    old <- MVar.takeMVar (ncReadyToBeUsed nc)
+    MVar.putMVar (ncReadyToBeUsed nc) ready
+    -- putStrLn $ "setReadyForUse for: " ++ ncOwnUserID nc ++ " was: " ++ show old ++ " now is: " ++ show ready
+
+
+isReadyForUse :: NetworkConnection a -> IO Bool
+isReadyForUse nc = MVar.readMVar $ ncReadyToBeUsed nc
 
 newEmulatedConnection :: MVar.MVar (Map.Map String (NetworkConnection a)) -> IO (NetworkConnection a, NetworkConnection a)
 newEmulatedConnection mvar = do
@@ -53,8 +64,10 @@ newEmulatedConnection mvar = do
     userid2 <- newRandomID
     incomingMsg <- SSem.new 1
     incomingMsg2 <- SSem.new 1
-    let nc1 = NetworkConnection read write userid2 userid connectionstate incomingMsg
-    let nc2 = NetworkConnection read2 write2 userid userid2 connectionstate2 incomingMsg2
+    readyForUse1 <- MVar.newMVar True
+    readyForUse2 <- MVar.newMVar True 
+    let nc1 = NetworkConnection read write userid2 userid connectionstate incomingMsg readyForUse1
+    let nc2 = NetworkConnection read2 write2 userid userid2 connectionstate2 incomingMsg2 readyForUse2
     let ncmap1 = Map.insert userid2 nc1 ncmap
     let ncmap2 = Map.insert userid nc2 ncmap1
     MVar.putMVar mvar ncmap2

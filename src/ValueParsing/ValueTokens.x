@@ -14,8 +14,6 @@ module ValueParsing.ValueTokens
   , scanner
   ) where
 
-import Kinds
-import Text.Read (readMaybe)
 }
 
 %wrapper "monad"
@@ -122,12 +120,12 @@ tokens :-
   "SStringExpArray"                     { tok $ const SStringExpArray }
   "SStringTypeArray"                    { tok $ const SStringTypeArray }
   "SStringArray"                        { tok $ const SStringArray }
-  "SValuesArray"                          { tok $ const SValuesArray }
+  "SValuesArray"                        { tok $ const SValuesArray }
   "SNetworkConnection"                  { tok $ const SNetworkConnection}
   "SDirectionalConnection"              { tok $ const SDirectionalConnection}
   "SConnected"                          { tok $ const SConnected}
 
-  "NIntroduceClient"                    { tok $ const NIntroduceClient }
+  "NIntroduce"                          { tok $ const NIntroduce }
   "NNewValue"                           { tok $ const NNewValue }
   "NRequestValue"                       { tok $ const NRequestValue }
   "NAcknowledgeValue"                   { tok $ const NAcknowledgeValue }
@@ -256,7 +254,7 @@ data Token
   | SDirectionalConnection
   | SConnected
 
-  | NIntroduceClient
+  | NIntroduce
   | NNewValue
   | NRequestValue
   | NAcknowledgeValue
@@ -307,39 +305,12 @@ tok' f (pos@(AlexPn _ line column), _, _, inp) len = do
       ]
     Right tok -> pure $ T pos tok
 
-{-
-tokKind :: AlexAction T
-tokKind = tok' \k ->
-  maybe (Left $ "invalid kind " ++ k) (Right . Kind)
-    $ readMaybe
-    $ ('K':)    -- Subsitutes the initial '~' with 'K'
-    $ tail k
 
-    -}
-
--- runAlexScan :: String -> Either ParseError AlexUserState
-{-scanner str = runAlex str $ do
-  let loop i = do tok <- alexMonadScan
-                  if (tokVal tok) == EOF then return i
-			else do let i' = i+1 in i' `seq` loop i'
-  loop 0-}
-
-{-scanner str = runAlex str $ do
-  let loop i = do tok <- alexMonadScan; 
-		  if (tokVal tok) == EOF
-			then return i
-			else do loop $! (i+1)
-  loop 0-}
-
-scanner str = runAlex str $ do
-  let loop i = do tok <- alexMonadScan; 
-		  if (tokVal tok) == EOF
-			then return i
-			else do loop $! (i++[(tokVal tok)])
-  loop []
-
+scanner str = runAlex str $ loop []
+  where
+    loop i = do 
+      tok <- alexMonadScan
+      if (tokVal tok) == EOF then return i else loop $! (i++[(tokVal tok)])
 
 ignoreArgument a b = a 
 }
-
--- https://gist.github.com/m1dnight/126d6b500175c2c286e3804584e5c4ce
