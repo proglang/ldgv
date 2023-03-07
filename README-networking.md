@@ -1,6 +1,6 @@
 # How to try LDGVNW for yourself
 
-Using LDGVNW is a little more difficult than simply starting a single program. In addition to the requirements of LDGV you also need a network connected via IPv4, should this network span more than one device the IP-addresses within the LDGVNW programs need to be altered in addition to that. The current version of LDGVNW was tested on Fedora 36 and MacOS 13.2 and should work on every recent Linux or MacOS machine, it is unknown whether LDGVNW works on Windows machines.
+Using LDGVNW is a little more difficult than simply starting a single program. In addition to the requirements of LDGV you also need a network connected via IPv4, should this network span more than one device the IP-addresses within the LDGVNW programs need to be altered in addition to that. The current version of LDGVNW was tested on Fedora 37 and MacOS 13.2 and should work on every recent Linux or MacOS machine, it is unknown whether LDGVNW works on Windows machines.
 
 To run a LDGVNW example, found in the networking-examples folder, each program in the example folder need to be run at once. So if you would like to start the "handoff" example you would run following commands in different terminals or on different machines:
 
