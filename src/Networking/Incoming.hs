@@ -323,6 +323,7 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                     waitUntilContactedNewPeers vchanconsvar activeCons networkconnection val ownport
                     -- msgCount <- DC.unreadMessageStart $ ncRead networkconnection
                     connectionState <- MVar.readMVar $ ncConnectionState networkconnection
+                    {-
                     case connectionState of
                         Connected {} -> NO.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) $ snd unclean) $ -1
                         Emulated {} -> do
@@ -336,6 +337,8 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                                     return True
                                 _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection" >> return True
                         _ -> return True
+                    -}
+                    waitTillAcknowledged vchanconsvar activeCons networkconnection $ snd unclean
 
                     return val
                 Nothing -> if count == 0 then do
@@ -348,6 +351,32 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                         else do
                             threadDelay 5000
                             recieveValueInternal (count-1) vchanconsvar activeCons networkconnection ownport
+
+waitTillAcknowledged :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> Int -> IO ()
+waitTillAcknowledged vcv ac nc vaToAck = do 
+    success <- tryToAcknowledgeValue vcv ac nc vaToAck
+    unless success $ waitTillAcknowledged vcv ac nc vaToAck
+
+-- We need to seperate this in case the state of the connection changes to emulated
+tryToAcknowledgeValue :: VChanConnections -> NMC.ActiveConnections -> NetworkConnection Value -> Int -> IO Bool
+tryToAcknowledgeValue vchanconsvar activeCons networkconnection valueToAcknowledge = do
+    connectionState <- MVar.readMVar $ ncConnectionState networkconnection
+    case connectionState of
+        Connected {} -> NO.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) valueToAcknowledge) $ -2
+        Emulated {} -> do
+            vchancons <- MVar.readMVar vchanconsvar
+            let ownid = ncOwnUserID networkconnection
+            let mbypartner = Map.lookup ownid vchancons
+            case mbypartner of
+                Just partner -> do
+                    -- NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowlegment: " ++ show x
+                    NB.updateAcknowledgements (ncWrite partner) valueToAcknowledge
+                    return True
+                _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection" >> return False
+        _ -> return True
+
+
+
 
 valueContainsPartner :: String -> Value -> IO Bool
 valueContainsPartner partner = searchVChans (handleSerial partner) False (||)
