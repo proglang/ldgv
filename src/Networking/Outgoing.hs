@@ -132,7 +132,7 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
 
         Nothing -> do
             sendingNetLog serializedMessage "Error when recieving response"
-            if resendOnError /= 0 && resendOnError <= (-2) then do
+            if resendOnError /= 0 && resendOnError < (-2) then do
                 connectionState <- MVar.readMVar $ ncConnectionState networkconnection
                 case connectionState of
                     Connected updatedhost updatedport _ _ _ -> do 
