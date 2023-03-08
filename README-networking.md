@@ -14,7 +14,7 @@ To test all the different test-cases in an easier way, they can be automatically
 The testNW\* scripts contain all the tests, except for the recursion test.
 
 
-# An Introduction to **LDGVNW**s Networking Architecture
+# An Introduction to **LDGVNW**
 
 **LDGVNW** adds two new commands to **LDGV** to allow for networking capabilities:
 
