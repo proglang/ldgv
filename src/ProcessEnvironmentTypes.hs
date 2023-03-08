@@ -42,6 +42,8 @@ data Value
   | VDouble Double
   | VString String
   | VChan (NCon.NetworkConnection Value) (MVar.MVar Bool)
+  -- VChanSerials are only used to send VChans to other peers when networking
+  -- They are never used in normal program flow and should never be directly encountered in modules like the Interpreter
   | VChanSerial ([Value], Int, Int) ([Value], Int, Int) String String (String, String, String)
   | VSend Value
   | VPair Value Value -- pair of ids that map to two values

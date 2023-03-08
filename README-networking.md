@@ -2,7 +2,7 @@
 
 Using **LDGVNW** is a little more difficult than simply starting a single program. In addition to the requirements of **LDGV**, you also need a network connected via IPv4. Should this network span more than one device, the IP-addresses within the **LDGVNW** programs need to be altered to reflect this architecture. The current version of **LDGVNW** was tested on Fedora 37 and macOS 13.2 and should work on every recent Linux or macOS machine, it is unknown whether **LDGVNW** works on Windows machines.
 
-To run a **LDGVNW** example program, found in the networking-examples folder, each program in the example folder needs to be run. To start the "handoff" example, you would run the following commands in different terminals or on different machines:
+To run a **LDGVNW** example, found in the networking-examples folder, each program in the example folder needs to be run. To start the "handoff" example, you would run the following commands in different terminals or on different machines:
 
 - stack run ldgv -- interpret networking-examples/handoff/client.ldgvnw
 - stack run ldgv -- interpret networking-examples/handoff/server.ldgvnw
@@ -16,7 +16,7 @@ The testNW\* scripts contain all the tests, except for the recursion test.
 
 # An Introduction to **LDGVNW**s Networking Architecture
 
-**LDGVNW** adds networking capabilities to **LDGV**. To enable this, **LDGVNW** adds 2 new commands:
+**LDGVNW** adds two new commands to **LDGV** to allow for networking capabilities:
 
 - **accept \<Own Port> \<Own Type>**
 - **connect \<Own Port> \<Own Type> \<Partner address> \<Partner Port>**
@@ -24,7 +24,7 @@ The testNW\* scripts contain all the tests, except for the recursion test.
 The **accept** command requires an integer as a port for others to connect and a type that will be required of a connecting connection.
 Once a communication partner connects with a desired type, the **accept** command will return a **VChan**.
 The **connect** command also requires an integer port and a desired type, but also needs to specify a string for the address of the connection partner as well as an integer for the port of the connection partner.
-Just like with the **accept** command, the **connect** command will return a **VChan** once a connection has been established. 
+Just like with the **accept** command, the **connect** command will return a **VChan**, once a connection has been established. 
 Important to note is that, with the current implementation, only IPv4 addresses are supported.
 IPv6 and Unix domain sockets could be supported in the future with a relatively low effort.
 
@@ -52,10 +52,10 @@ With possible responses:
 Typing for the attributes:
 
 - **UserID** is a unique string, used to identify the logical communication partner
-- **ConnectionID** is a unique string, used to identify the current physical connection to the logical communication partner
+- **ConnectionID** is a unique string, used to identify the current physical connection to a logical communication partner
 - **Port** is a string containing the number of a port
-- **Address** is a string containing the IPv4 or URL of a communication partner
-- **Value**is a data-type in **LDGV**.  The **VChans** are replaced with **VChanSerials**
+- **Address** is a string containing the IPv4 address or URL of a communication partner
+- **Value** is a data-type in **LDGV**.  The **VChans** present in this **Value** are replaced with **VChanSerials**
 - **Value Index** is an integer containing the index of a **Value**
 - **Type Name** is a  **TName Type** of the desired **Type**
 - **Type Structure** of the desired **Type**
@@ -90,9 +90,27 @@ As soon as the address is established, **C** is considered successfully received
 ### Shutting down after completing all the instructions
 After **A** finishes the interpretation of their program, **A** waits until all messages it sent were acknowledged by their communication partners. After that, **A** sends a **Disconnect** message to all its peers. The **Disconnect** message is needed to avoid rewriting a large portion of the interpreter to annotate each expression with their associated output **Types**. Should the **Disconnect** message not exist, it would be theoretically possible to send a **Unit-Type** of an exhausted **Channel** to another communication partner. The recipient would now be unknowing whether their new communication partner were still online.
 
+### Converting between **VChan**s and **VChanSerial**s
+
+Since **VChan**s can't be serialized directly, they need to be converted into **VChanSerial**s first. VChans have the following (simplified) architecture:
+
+**VChan \<NetworkConnection> \<Used>**
+
+the contained NetworkConnection has this architecture:
+
+**NetworkConnection \<ReadBuffer> \<WriteBuffer> \<PartnerID> \<OwnID> \<ConnectionState>**
+
+The relevant part, for the conversion to VChanSerials, is found in the NetworkConnection.  The ReadBuffer contains **Value**s that are not yet handled, while the WriteBuffer contains **Value**s that are not yet acknowledged by the communication partner. The implementation of these Buffers is based on the implementation of the Chan types of Haskell, this is also noted and acknowledged in the Buffer module. The PartnerID and OwnID are strings to identify the logical communication partner, these do not change when sent to another communication partner. Lastly, the ConnectionState contains information about whether the connection is an external connection, an internal connection, among other things.
+
+The VChanSerial has the following architecture:
+
+**VChanSerial \<ReadList> \<ReadOffset> \<ReadLength> \<WriteList> \<WriteOffset> \<WriteLength> \<PartnerID> \<OwnID> \<Address> \<Port> \<ConnectionID>**
+
+The ReadList contains the current elements of the ReadBuffer, the ReadOffset contains the logical index of the first element of the ReadBuffer and the ReadLength is the number of all logical elements in the buffer. As an example, let's say 5 Values were received, but the first 3 already were handled, so the ReadList would contain 2 elements, the ReadOffset would be 3 and the ReadLength would be 5. The WriteList, WriteOffset and WriteLength behave analogously. The PartnerID and OwnID are directly taken from the NetworkConnection and the Address, Port and ConnectionID (from the partner) are taken from the ConnectionState.
+
 ### A communication example
 
-In the README-networking-communication-example.md is an example explaining the communication protocol on a concrete example
+In the README-networking-communication-example.md is an example explaining the communication protocol on a concrete example.
 
 ## Serializing and Sending Messages
 The logical messages are serialized first, then are sent either using a fast protocol which reuses existing connections or a stateless protocol, which was primary used during development as a fallback when the fast protocol wasn't working yet.
