@@ -323,21 +323,6 @@ recieveValue vchanconsvar activeCons networkconnection ownport = do
                     waitUntilContactedNewPeers vchanconsvar activeCons networkconnection val ownport
                     -- msgCount <- DC.unreadMessageStart $ ncRead networkconnection
                     connectionState <- MVar.readMVar $ ncConnectionState networkconnection
-                    {-
-                    case connectionState of
-                        Connected {} -> NO.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) $ snd unclean) $ -1
-                        Emulated {} -> do
-                            vchancons <- MVar.readMVar vchanconsvar
-                            let ownid = ncOwnUserID networkconnection
-                            let mbypartner = Map.lookup ownid vchancons
-                            case mbypartner of
-                                Just partner -> do
-                                    -- NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowlegment: " ++ show x
-                                    NB.updateAcknowledgements (ncWrite partner) $ snd unclean
-                                    return True
-                                _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection" >> return True
-                        _ -> return True
-                    -}
                     waitTillAcknowledged vchanconsvar activeCons networkconnection $ snd unclean
 
                     return val
@@ -362,7 +347,10 @@ tryToAcknowledgeValue :: VChanConnections -> NMC.ActiveConnections -> NetworkCon
 tryToAcknowledgeValue vchanconsvar activeCons networkconnection valueToAcknowledge = do
     connectionState <- MVar.readMVar $ ncConnectionState networkconnection
     case connectionState of
-        Connected {} -> NO.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) valueToAcknowledge) $ -2
+        Connected {} -> do 
+            success <- NO.sendNetworkMessage activeCons networkconnection (Messages.AcknowledgeValue (ncOwnUserID networkconnection) valueToAcknowledge) $ -2
+            unless success $ threadDelay 100000 -- If sending is not successful give the other party some time to recover
+            return success
         Emulated {} -> do
             vchancons <- MVar.readMVar vchanconsvar
             let ownid = ncOwnUserID networkconnection
@@ -374,46 +362,3 @@ tryToAcknowledgeValue vchanconsvar activeCons networkconnection valueToAcknowled
                     return True
                 _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection" >> return False
         _ -> return True
-
-
-
-
-valueContainsPartner :: String -> Value -> IO Bool
-valueContainsPartner partner = searchVChans (handleSerial partner) False (||)
-    where
-        handleSerial :: String -> Value -> IO Bool
-        handleSerial partner value = case value of
-            VChanSerial r w p o c -> do 
-                putStrLn $ "Looking for: " ++ partner ++ " p: " ++ p ++ " o: " ++ o
-                return (partner == o)
-            _ -> return False
-
-futureRecieveFromAllContainsPartner :: VChanConnections -> NetworkConnection Value -> String -> IO Bool
-futureRecieveFromAllContainsPartner vchansvar nc partner = do
-    own <- futureRecieveContainsPartner nc partner
-    if own then return True else do
-        consmap <- MVar.readMVar vchansvar
-        let cons = Map.elems consmap
-        fRFACPInternal cons partner
-    where
-        fRFACPInternal :: [NetworkConnection Value] -> String -> IO Bool
-        fRFACPInternal [] partner = return False
-        fRFACPInternal (x:xs) partner = do
-            containsPartner <- futureRecieveContainsPartner x partner
-            if containsPartner then return True else fRFACPInternal xs partner
-
-
-futureRecieveContainsPartner :: NetworkConnection Value -> String -> IO Bool
-futureRecieveContainsPartner = fRCPInternal 0 
-    where
-        fRCPInternal count nc partner = do
-            putStrLn $ "Trying to read at: " ++ show count
-            mbyVal <- NB.tryGetAtRelativeNB (ncRead nc) count
-            case mbyVal of
-              Nothing -> do 
-                putStrLn $ "Index " ++ show count ++ " is empty"
-                return False
-              Just value -> do
-                putStrLn $ "Looking up index " ++ show count
-                containsPartner <- valueContainsPartner partner value
-                if containsPartner then return True else fRCPInternal (count+1) nc partner
