@@ -27,3 +27,4 @@ stack.yaml.lock
 result
 exclude
 result*
+.vscode

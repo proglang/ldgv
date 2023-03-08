@@ -1,22 +1,22 @@
-# How to try LDGVNW for yourself
+# How to try **LDGVNW** for yourself
 
-Using LDGVNW is a little more difficult than simply starting a single program. In addition to the requirements of LDGV you also need a network connected via IPv4, should this network span more than one device the IP-addresses within the LDGVNW programs need to be altered in addition to that. The current version of LDGVNW was tested on Fedora 37 and MacOS 13.2 and should work on every recent Linux or MacOS machine, it is unknown whether LDGVNW works on Windows machines.
+Using **LDGVNW** is a little more difficult than simply starting a single program. In addition to the requirements of **LDGV** you also need a network connected via IPv4, should this network span more than one device the IP-addresses within the **LDGVNW** programs need to be altered in addition to that. The current version of **LDGVNW** was tested on Fedora 37 and MacOS 13.2 and should work on every recent Linux or MacOS machine, it is unknown whether **LDGVNW** works on Windows machines.
 
-To run a LDGVNW example, found in the networking-examples folder, each program in the example folder need to be run at once. So if you would like to start the "handoff" example you would run following commands in different terminals or on different machines:
+To run a **LDGVNW** example, found in the networking-examples folder, each program in the example folder need to be run at once. So if you would like to start the "handoff" example you would run following commands in different terminals or on different machines:
 
 - stack run ldgv -- interpret networking-examples/handoff/client.ldgvnw
 - stack run ldgv -- interpret networking-examples/handoff/server.ldgvnw
-- stack run ldgv -- interpret networking-examples/handoff/handoff.ldgbnw
+- stack run ldgv -- interpret networking-examples/handoff/handoff.ldgvnw
 
 The order in which these commands are executed does not matter.
 
-To test all the different testcases in a easier way, they can be automatically run, with the scrips provided in the networking-tests folder. Simply running one of these scripts will run the whole testcase at once.
+To test all the different test-cases in a easier way, they can be automatically run, with the scrips provided in the networking-tests folder. Simply running one of these scripts will run the whole test-case at once.
 The testNW* scripts contain all the tests, except for the recursion test.
 
 
-# An Introduction to LDGVNWs Networking Architecture
+# An Introduction to **LDGVNW**s Networking Architecture
 
-LDGVNW adds networking capabilities to LDGV. To enable this, LDGVNW adds 2 new commands:
+**LDGVNW** adds networking capabilities to **LDGV**. To enable this, **LDGVNW** adds 2 new commands:
 
 - **accept \<Own Port> \<Own Type>**
 - **connect \<Own Port> \<Own Type> \<Partner address> \<Partner Port>**
@@ -28,7 +28,7 @@ Important to note is that, with the current implementation, only IPv4 addresses 
 ## The Logical Communication Architecture
 
 ### Messages and Responses
-In LDGVNW there are 7 possible **Messages** and 4 possible **Responses**.
+In **LDGVNW** there are 7 possible **Messages** and 4 possible **Responses**.
 The messages are:
 
 - **Introduce \<UserID> \<Own Port> \<Type Name> \<Type Structure>**
@@ -63,13 +63,13 @@ The **UserID** is a unique identifier, so a message can be associated with the c
 As soon as **B** opens up their port with the **accept** command. **A** can **connect**, by sending a **Introduce** message to **B**. This message contains the unique ID of **A**, **A**s port as well as the name and structure of the desired communication **Type**. **B** then answers with a **OkayIntroduce** response, sharing their own unique ID with **A**. Following that **A** and **B** can **send** and **recv** values analog to **Channels** created with the **new** command.
 
 ### Sending messages over a Connection
-When communication partner **A** executes a send instruction to **send** Value **V** to **B**, **A** first analyses **V**. Should **V** be or contain a **Channel** **C**, receiving messages for **C** will be redirected to the address of **B** and the state of **C** will be converted to a serializable form **CS**. After that **V** will be serialized to **VS**, which will be written to **A**s write-buffer and sent to **B** via a **NewValue** message. Upon recieving **VS** as **B** with the **recv** instruction, **VS** will be deserialized to **VD**. Should **VD** contain a serialized form of a **Channel** this **Channel** will be convered to a regular **Channel** **CD** and the communication partner of **CD** will be informed of the communication partner change. After this **B** sends an acknowledgment (**AcknowledgeValue** message) back to **A**, which finalizes the sending of **V**, by **A** removing **V** out of its write-buffer.
+When communication partner **A** executes a send instruction to **send** Value **V** to **B**, **A** first analyses **V**. Should **V** be or contain a **Channel** **C**, receiving messages for **C** will be redirected to the address of **B** and the state of **C** will be converted to a serializable form **CS**. After that **V** will be serialized to **VS**, which will be written to **A**s write-buffer and sent to **B** via a **NewValue** message. Upon receiving **VS** as **B** with the **recv** instruction, **VS** will be deserialized to **VD**. Should **VD** contain a serialized form of a **Channel** this **Channel** will be converted to a regular **Channel** **CD** and the communication partner of **CD** will be informed of the communication partner change. After this **B** sends an acknowledgment (**AcknowledgeValue** message) back to **A**, which finalizes the sending of **V**, by **A** removing **V** out of its write-buffer.
 
 ### Responding to Messages
 With the exception of the **Introduce** message, every message should be answered with a **Okay** response. Exceptions to that are **Redirect** responses, which are used when a message is sent to an outdated address or **Wait** responses which are sent when a message cannot be handled at the current moment. This can happen when the communication partner is already handling a message in a critical section, or a communication partner is currently in the progress of sending the **Channel** which the message is sent to.
 
 ### Informing communication partners of a communication partner change
-If a **Channel** **C** got sent over a network connection to **A**, the new communication partner **B** needs to be notified of this change. To archive this **A** sends a **NewParterAddress** message to **B**. This message contains the server port of **A** and the new ConnectionID **AC** for **A**. **B** then replies with a **AcknowledgeParterAddress** message, repeating **AC**. As soon as the address is established **C** is considered being successfully received by **A**.
+If a **Channel** **C** got sent over a network connection to **A**, the new communication partner **B** needs to be notified of this change. To archive this **A** sends a **NewPartnerAddress** message to **B**. This message contains the server port of **A** and the new ConnectionID **AC** for **A**. **B** then replies with a **AcknowledgePartnerAddress** message, repeating **AC**. As soon as the address is established **C** is considered being successfully received by **A**.
 
 
 ### Shutting down after completing all the instructions
@@ -77,23 +77,26 @@ After **A** finishes the interpretation of their program, **A** waits until all 
 
 ### A communication example
 
+In the README-networking-example-communication.md is an example explaining the communication protocol on a concrete example
+
 ## Serializing and Sending Messages
 The logical messages are serialized first, then are sent either using a fast protocol which reuses existing connections or a stateless protocol, which was primary used during development as a fallback when the fest protocol wasn't working, yet.
 
 ### Serialization
-Messages and Responses in LDGVNW are serialized into ASCII-Strings and follow usually the form of the name of the Message, Value, etc. followed by their arguments in brackets. For instance the message **NewValue \<abcd1234> \<2> \<VInt 42>** would be translated to **NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))**
+Messages and Responses in **LDGVNW** are serialized into ASCII-Strings and follow usually the form of the name of the Message, Value, etc. followed by their arguments in brackets. For instance the message **NewValue \<abcd1234> \<2> \<VInt 42>** would be translated to **NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))**
 
 ### Stateless Protocol
 The stateless protocol allows to directly send serialized logical messages, by establishing a new connection, sending the serialized message, waiting for a response and disconnecting afterward. By always creating new connections it can be assured that every Message gets their correct response, but establishing a new TCP connection every time a message is sent also causes a huge performance penalty.
 
 ### Fast Protocol
-The fast protocol saves a once created TCP connection and reuses it as long as it stays open. Since LDGVNW uses multiple threads to send Messages this can lead to Messages and Responses to be mismatched. To avoid this each Message and Response is wrapped in a ConversationSession.
+The fast protocol saves a once created TCP connection and reuses it as long as it stays open. Since **LDGVNW** uses multiple threads to send Messages this can lead to Messages and Responses to be mismatched. To avoid this each Message and Response is wrapped in a ConversationSession.
 
 - **ConversationMessage \<ConversationID> \<Message>**
 - **ConversationResponse \<ConversationID> \<Response>**
 - **ConversationCloseAll**
 
-The ConversationID is a random string, selected by the sender of the message and copied by the respondent. **ConversationCloseAll**} is used when one party wants to close all connections to a peer, signaling to their peer that they would need to establish a new connection if they would like to talk to this port again.
+The ConversationID is a random string, selected by the sender of the message and copied by the respondent. **ConversationCloseAll** is used when one party wants to close all connections to a peer, signaling to their peer that they would need to establish a new connection if they would like to talk to this port again.
 
 ## Compatibility between Internal and External Channels
 
+Internal channels (channels in the same program, created with **new**) and external channels (channels between two programs, created with **connect** and **accept**) are handled for the most part the same way in **LDGVNW**. Every channel has a **NetworkConnection** object, which saves both incoming and outgoing messages, it also has a **ConnectionState** object, which dictates whether a **NetworkConnection** is internal or external. Should a internal connection be send to a peer, both the internal connection gets converted into an external connection. Should both sides of a external connection end up in the same program, the connection will be converted to an internal connection.
