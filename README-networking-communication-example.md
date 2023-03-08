@@ -1,7 +1,8 @@
-# A Communication Example of the Networking in **LDGVNW**
+# A Communication Example of Networking in **LDGVNW**
 
-## The following log shows an exemplary conversation of 4 conversation partners, running the "bidirhandoff" test.
+The following log shows an conversation of 4 conversation partners, running the "bidirhandoff" test.
 
+```
 Explanation: Client connects for the first time to the server
 Client(4343)->Server(4242)
 Message: NIntroduce (String:"qV8Xo421") (String:"4343") (TName (Bool:False) (String:"SendInt")) (TSend (String:"#!") (TInt) (TRecv (String:"#?") (TInt) (TSend (String:"#!") (TInt) (TRecv (String:"#?") (TInt) (TUnit)))))
@@ -117,3 +118,4 @@ Response: NOkay
 ServerHandoff(4240)->ClientHandoff(4340)
 Message: NDisconnect (String:"Y1lPJ1sM")
 Response: NOkay
+```
