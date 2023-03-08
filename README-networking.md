@@ -77,7 +77,7 @@ After **A** finishes the interpretation of their program, **A** waits until all 
 
 ### A communication example
 
-In the README-networking-example-communication.md is an example explaining the communication protocol on a concrete example
+In the README-networking-communication-example.md is an example explaining the communication protocol on a concrete example
 
 ## Serializing and Sending Messages
 The logical messages are serialized first, then are sent either using a fast protocol which reuses existing connections or a stateless protocol, which was primary used during development as a fallback when the fest protocol wasn't working, yet.
