@@ -53,9 +53,8 @@ waitWhileEOF conv@(handle, _) = do
         onException :: IOException -> IO Bool
         onException _ = return True
 
-
-startConversation :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Conversation)
-startConversation _ hostname port waitTime tries = do
+startConversationInternal :: Bool -> ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Conversation)
+startConversationInternal shouldShowDebug _ hostname port waitTime tries = do
     let hints = defaultHints {
                 addrFamily = AF_INET
               , addrFlags = []
@@ -63,7 +62,7 @@ startConversation _ hostname port waitTime tries = do
             }
     convMVar <- MVar.newEmptyMVar
     threadid <- forkIO $ catch (do
-        Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
+        when shouldShowDebug $ Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
         addrInfo <- getAddrInfo (Just hints) (Just hostname) $ Just port
         clientsocket <- openSocketNC $ head addrInfo
         connect clientsocket $ addrAddress $ head addrInfo
@@ -73,16 +72,23 @@ startConversation _ hostname port waitTime tries = do
         ) $ printConErr hostname port
     getFromNetworkThread Nothing threadid convMVar waitTime tries
 
+startConversation :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Conversation)
+startConversation = startConversationInternal True
 
 printConErr :: String -> String -> IOException -> IO ()
 printConErr hostname port err = Config.traceIO $ "startConversation: Communication Partner " ++ hostname ++ ":" ++ port ++ "not found!"
 
 waitForConversation :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Conversation)
 waitForConversation ac hostname port waitTime tries = do
-    mbyConv <- startConversation ac hostname port waitTime tries
-    case mbyConv of
-        Just conv -> return mbyConv
-        Nothing -> waitForConversation ac hostname port waitTime tries
+    Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
+    wFCInternal ac hostname port waitTime tries
+    where
+        wFCInternal :: ActiveConnectionsStateless -> String -> String -> Int -> Int -> IO (Maybe Conversation)
+        wFCInternal ac hostname port waitTime tries = do
+            mbyConv <- startConversationInternal False ac hostname port waitTime tries
+            case mbyConv of
+                Just conv -> return mbyConv
+                Nothing -> wFCInternal ac hostname port waitTime tries
 
 
 acceptConversations :: ActiveConnectionsStateless -> ConnectionHandler -> Int -> MVar.MVar (Map.Map Int ServerSocket) ->  VChanConnections -> IO ServerSocket

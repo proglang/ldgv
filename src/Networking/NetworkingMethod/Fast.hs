@@ -94,7 +94,10 @@ recieveNewMessage connection@(handle, isClosed, chan, mvar, sem) = do
     return (Conversation cid handle mvar sem, serial, deserial)
 
 startConversation :: ActiveConnectionsFast -> String -> String -> Int -> Int -> IO (Maybe Conversation)
-startConversation acmvar hostname port waitTime tries = do
+startConversation = startConversationInternal True
+
+startConversationInternal :: Bool -> ActiveConnectionsFast -> String -> String -> Int -> Int -> IO (Maybe Conversation)
+startConversationInternal shouldShowDebug acmvar hostname port waitTime tries = do
     conversationid <- newRandomID
     connectionMap <- MVar.takeMVar acmvar
     case Map.lookup (hostname, port) connectionMap of
@@ -102,7 +105,7 @@ startConversation acmvar hostname port waitTime tries = do
             handleClosed <- MVar.readMVar isClosed
             if handleClosed then do
                 statelessActiveCons <- Stateless.createActiveConnections
-                mbyNewHandle <- Stateless.startConversation statelessActiveCons hostname port waitTime tries
+                mbyNewHandle <- Stateless.startConversationInternal shouldShowDebug statelessActiveCons hostname port waitTime tries
                 case mbyNewHandle of
                     Just handle -> do
                         newconnection@(handle, isClosed, chan, mvar, sem) <- conversationHandlerChangeHandle handle chan mvar sem
@@ -116,7 +119,7 @@ startConversation acmvar hostname port waitTime tries = do
                 return $ Just (Conversation conversationid handle mvar sem)
         Nothing -> do
             statelessActiveCons <- Stateless.createActiveConnections
-            mbyNewHandle <- Stateless.startConversation statelessActiveCons hostname port waitTime tries
+            mbyNewHandle <- Stateless.startConversationInternal shouldShowDebug statelessActiveCons hostname port waitTime tries
             case mbyNewHandle of
                 Just handle -> do
                     newconnection@(handle, isClosed, chan, mvar, sem) <- conversationHandler handle
@@ -128,10 +131,15 @@ startConversation acmvar hostname port waitTime tries = do
 
 waitForConversation :: ActiveConnectionsFast -> String -> String -> Int -> Int -> IO (Maybe Conversation)
 waitForConversation ac hostname port waitTime tries = do
-    mbyHandle <- startConversation ac hostname port waitTime tries
-    case mbyHandle of
-        Just handle -> return mbyHandle
-        Nothing -> waitForConversation ac hostname port waitTime tries
+    Config.traceNetIO $ "Trying to connect to: " ++ hostname ++":"++port
+    wFCInternal ac hostname port waitTime tries
+    where
+        wFCInternal :: ActiveConnectionsFast -> String -> String -> Int -> Int -> IO (Maybe Conversation)
+        wFCInternal ac hostname port waitTime tries = do
+            mbyConv <- startConversationInternal False ac hostname port waitTime tries
+            case mbyConv of
+                Just conv -> return mbyConv
+                Nothing -> wFCInternal ac hostname port waitTime tries
 
 createActiveConnections :: IO ActiveConnectionsFast
 createActiveConnections = do
