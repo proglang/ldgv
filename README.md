@@ -80,6 +80,10 @@ properly curried, the top level symbol must have a type signature matching
 `LDST_fp0_t` and the name must match the name transformations pointed out
 above. (NB: this allows to subvert the type system, in all good and bad ways.)
 
+## LDGVNW
+
+LDGVNW is a extension to LDGV, more can be read [here](README-networking.md).
+
 ## Testing
 
 You can run the full test suite by:

@@ -112,6 +112,13 @@ To convert a VChanSerial to a VChan an empty VChan is simply filled with the dat
 
 It is important to note that VChans only should be serialized after their ConnectionState has been set to **Redirect**. This freezes the VChan, as it can no longer receive new messages. This way it can be assured, that at the time of receipt, both the original VChan and the one generated from the VChanSerial contain the identical data.
 
+## Why Values are Acknowledged
+
+LDGVNW has separate messages for sending a Value (NewValue) and acknowledging a Value (AcknowledgeValue). Simply knowing that the other party has received a Value, isn't enough when Channels are involved.
+Let's say there is a Channel **C**, between **A** and **B**. **A** sends their end of **C** to **D** and at the same time **B** sends their end of **C** to **E**. Since the sending of the Channel ends, happened simultaneously, **D** still thinks they are talking to **B** and **E** thinks they are talking to **A**. Should **A** and **B** now go offline, before either **D** or **E**, can contact them to find out where they redirected their connections to, **D** and **E** will not be able to connect. Since acknowledgements are only sent after a sent Channel has been reconnected, it can be assured that **D** and **E** are connected, before **A** and **B** can go offline.
+
+It would be also possible to use a Response to the NewValue message, to signal that the Value got acknowledged, but I decided to split this process into two messages, since the acknowledging can take long time, compared to other messages.
+
 ## A communication example
 
 In the [communication example](README-networking-communication-example.md) gives a concrete example for the communication protocol.
