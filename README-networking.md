@@ -114,7 +114,7 @@ It is important to note that VChans only should be serialized after their Connec
 
 ## A communication example
 
-In the [communication example](#README-networking-communication-example.md) gives a concrete example for the communication protocol.
+In the [communication example](README-networking-communication-example.md) gives a concrete example for the communication protocol.
 
 # Serializing and Sending Messages
 The logical messages are serialized first, then are sent either using a fast protocol which reuses existing connections or a stateless protocol, which was primary used during development as a fallback when the fast protocol wasn't working yet.
