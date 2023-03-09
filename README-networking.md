@@ -4,9 +4,9 @@ Using **LDGVNW** is a little more difficult than simply starting a single progra
 
 To run a **LDGVNW** example, found in the networking-examples folder, each program in the example folder needs to be run. To start the "handoff" example, you would run the following commands in different terminals or on different machines:
 
-- stack run ldgv -- interpret networking-examples/handoff/client.ldgvnw
-- stack run ldgv -- interpret networking-examples/handoff/server.ldgvnw
-- stack run ldgv -- interpret networking-examples/handoff/handoff.ldgvnw
+- `stack run ldgv -- interpret networking-examples/handoff/client.ldgvnw`
+- `stack run ldgv -- interpret networking-examples/handoff/server.ldgvnw`
+- `stack run ldgv -- interpret networking-examples/handoff/handoff.ldgvnw`
 
 The order in which these commands are executed is not relevant.
 
@@ -18,8 +18,8 @@ The testNW\* scripts contain all the tests, except for the recursion test.
 
 **LDGVNW** adds two new commands to **LDGV** to allow for networking capabilities:
 
-- **accept \<Own Port> \<Own Type>**
-- **connect \<Own Port> \<Own Type> \<Partner address> \<Partner Port>**
+- `accept <Own Port> <Own Type>`
+- `connect <Own Port> <Own Type> <Partner address> <Partner Port>`
 
 The **accept** command requires an integer as a port for others to connect and a type that will be required of a connecting connection.
 Once a communication partner connects with a desired type, the **accept** command will return a **VChan**.
@@ -34,20 +34,20 @@ IPv6 and Unix domain sockets could be supported in the future with a relatively 
 In **LDGVNW**, there are 7 possible **Messages** and 4 possible **Responses**.
 The messages are:
 
-- **Introduce \<UserID> \<Own Port> \<Type Name> \<Type Structure>**
-- **NewValue \<UserID> \<Value Index> \<Value>**
-- **RequestValue \<UserID> \<Value Index>**
-- **AcknowledgeValue \<UserID> \<Value Index>**
-- **NewPartnerAddress \<UserID> \<New Port> \<ConnectionID>**
-- **AcknowledgePartnerAddress \<UserID> \<ConnectionID>**
-- **Disconnect \<UserID>**
+- `Introduce <UserID> <Own Port> <Type Name> <Type Structure>`
+- `NewValue <UserID> <Value Index> <Value>`
+- `RequestValue <UserID> <Value Index>`
+- `AcknowledgeValue <UserID> <Value Index>`
+- `NewPartnerAddress <UserID> <New Port> <ConnectionID>`
+- `AcknowledgePartnerAddress <UserID> <ConnectionID>`
+- `Disconnect <UserID>`
 
 With possible responses:
 
-- **Redirect \<New Address> \<New Port>**
-- **Okay**
-- **OkayIntroduce \<UserID>**
-- **Wait**
+- `Redirect <New Address> <New Port>`
+- `Okay`
+- `OkayIntroduce <UserID>`
+- `Wait`
 
 Typing for the attributes:
 
@@ -94,17 +94,17 @@ After **A** finishes the interpretation of their program, **A** waits until all 
 
 Since **VChan**s can't be serialized directly, they need to be converted into **VChanSerial**s first. VChans have the following (simplified) architecture:
 
-**VChan \<NetworkConnection> \<Used>**
+`VChan <NetworkConnection> <Used>`
 
 the contained NetworkConnection has this architecture:
 
-**NetworkConnection \<ReadBuffer> \<WriteBuffer> \<PartnerID> \<OwnID> \<ConnectionState>**
+`NetworkConnection <ReadBuffer> <WriteBuffer> <PartnerID> <OwnID> <ConnectionState>`
 
 The relevant part, for the conversion to VChanSerials, is found in the NetworkConnection.  The ReadBuffer contains **Value**s that are not yet handled, while the WriteBuffer contains **Value**s that are not yet acknowledged by the communication partner. The implementation of these Buffers is based on the implementation of the Chan types of Haskell, this is also noted and acknowledged in the Buffer module. The PartnerID and OwnID are strings to identify the logical communication partner, these do not change when sent to another communication partner. Lastly, the ConnectionState contains information about whether the connection is an external connection, an internal connection, among other things.
 
 The VChanSerial has the following architecture:
 
-**VChanSerial \<ReadList> \<ReadOffset> \<ReadLength> \<WriteList> \<WriteOffset> \<WriteLength> \<PartnerID> \<OwnID> \<Address> \<Port> \<ConnectionID>**
+`VChanSerial <ReadList> <ReadOffset> <ReadLength> <WriteList> <WriteOffset> <WriteLength> <PartnerID> <OwnID> <Address> <Port> <ConnectionID>`
 
 The ReadList contains the current elements of the ReadBuffer, the ReadOffset contains the logical index of the first element of the ReadBuffer, and the ReadLength is the number of all logical elements in the buffer. As an example, let's say 5 Values were received, but the first 3 already were handled, so the ReadList would contain 2 elements, the ReadOffset would be 3 and the ReadLength would be 5. The WriteList, WriteOffset and WriteLength behave analogously. The PartnerID and OwnID are directly taken from the NetworkConnection and the Address, Port and ConnectionID (from the partner) are taken from the ConnectionState.
 
@@ -114,13 +114,13 @@ It is important to note that VChans only should be serialized after their Connec
 
 ## A communication example
 
-In the README-networking-communication-example.md is an example explaining the communication protocol on a concrete example.
+In the [communication example](#README-networking-communication-example.md) gives a concrete example for the communication protocol.
 
 # Serializing and Sending Messages
 The logical messages are serialized first, then are sent either using a fast protocol which reuses existing connections or a stateless protocol, which was primary used during development as a fallback when the fast protocol wasn't working yet.
 
 ## Serialization
-Messages and Responses in **LDGVNW** are serialized into ASCII-Strings and follow the form of the name of the Message, Value, etc. followed by their arguments in brackets. For instance, the message **NewValue \<abcd1234> \<2> \<VInt 42>** would be translated to **NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))**
+Messages and Responses in **LDGVNW** are serialized into ASCII-Strings and follow the form of the name of the Message, Value, etc. followed by their arguments in brackets. For instance, the message `NewValue <abcd1234> <2> <VInt 42>` would be translated to `NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))`
 
 To deserialize these messages, the alex and happy libraries are used.
 
@@ -130,9 +130,9 @@ The stateless protocol allows sending serialized logical messages directly, by e
 ## Fast Protocol
 The fast protocol saves a once created TCP connection and reuses it as long as it stays open. Since **LDGVNW** uses multiple threads to send messages, this can lead to messages and responses being mismatched. To avoid this, each Message and Response is wrapped in a ConversationSession.
 
-- **ConversationMessage \<ConversationID> \<Message>**
-- **ConversationResponse \<ConversationID> \<Response>**
-- **ConversationCloseAll**
+- `ConversationMessage <ConversationID> <Message>`
+- `ConversationResponse <ConversationID> <Response>`
+- `ConversationCloseAll`
 
 The ConversationID is a random string, selected by the sender of the message and copied by the respondent. **ConversationCloseAll** is used when one party wants to close all connections to a peer, signaling to their peer that they would need to establish a new connection if they would like to talk to this port again.
 Each connection gets their own thread where new incoming messages and responses are collected. Messages also get automatically handled, while responses can be picked up by the sending function, to determine its further behavior.
