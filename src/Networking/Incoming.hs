@@ -320,8 +320,8 @@ tryToAcknowledgeValue vchanconsvar activeCons networkconnection valueToAcknowled
             let mbypartner = Map.lookup ownid vchancons
             case mbypartner of
                 Just partner -> do
-                    -- NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowlegment: " ++ show x
+                    -- NB.serialize (ncWrite partner) >>= \x -> Config.traceNetIO $ "Emulated "++ show unclean ++ " before acknowledgment: " ++ show x
                     NB.updateAcknowledgements (ncWrite partner) valueToAcknowledge
                     return True
-                _ -> Config.traceNetIO "Something went wrong when acknowleding value of emulated connection" >> return False
+                _ -> Config.traceNetIO "Something went wrong when acknowledging value of emulated connection" >> return False
         _ -> return True
