@@ -173,7 +173,6 @@ contactNewPeers vchansmvar activeCons ownport ownNC = searchVChans (handleVChan 
                             -- Check whether their partner is also registered and connected on this instance, if so convert the connection into a emulated one
                             vchanconnections <- MVar.readMVar vchansmvar
                             let userid = ncOwnUserID nc
-                            let partnerid = ncPartnerUserID nc
                             let mbypartner = Map.lookup userid vchanconnections  
                             case mbypartner of
                                 Just partner -> do
@@ -188,35 +187,22 @@ contactNewPeers vchansmvar activeCons ownport ownNC = searchVChans (handleVChan 
                                             MVar.putMVar (ncConnectionState partner) $ Emulated ownConID partConID True
                                             _ <- MVar.takeMVar $ ncConnectionState nc
                                             MVar.putMVar (ncConnectionState nc) $ Emulated partConID ownConID True
-                                            {-setReadyForUse partner True
-                                            Config.traceNetIO $ "Set: " ++ ncOwnUserID partner ++ " ready for use"
-                                            setReadyForUse nc True
-                                            Config.traceNetIO $ "Set: " ++ ncOwnUserID nc ++ " ready for use"-}
                                             SSem.signal (ncHandlingIncomingMessage partner)
                                             return True
                                         _ -> do
                                             -- Nothing to do here, we no longer own the partner
                                             MVar.putMVar (ncConnectionState partner) connectionState
                                             SSem.signal (ncHandlingIncomingMessage partner)
-                                            -- setReadyForUse nc True
-                                            -- Config.traceNetIO $ "Set: " ++ ncOwnUserID nc ++ " ready for use"
                                             sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
                                             if sendSuccess then return False else do 
                                                 threadDelay 100000
                                                 return False 
-                                                -- putStrLn "Trying to lookup future messages"
-                                                -- futureRecieveFromAllContainsPartner vchansmvar ownNC partnerid
                                 Nothing -> do 
                                     -- Their partner isnt registered in this instance
-                                    -- setReadyForUse nc True
-                                    -- Config.traceNetIO $ "Set: " ++ ncOwnUserID nc ++ " ready for use"
                                     sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
                                     if sendSuccess then return False else do
                                         threadDelay 100000
                                         return False
-                                        -- putStrLn "Trying to lookup future messages"
-                                        -- futureRecieveFromAllContainsPartner vchansmvar ownNC partnerid
-                                    -- return False
             _ -> return True
 
 hostaddressTypeToString :: HostAddress -> String
@@ -267,22 +253,6 @@ insertVChansIntoVChanCons vchansmvar readyForUse = searchVChans (handleSerial vc
                 return ()
             _ -> return ()
 
-{-
-replaceVChanSerial :: NMC.ActiveConnections -> VChanConnections -> Value -> IO Value
-replaceVChanSerial activeCons mvar input = modifyVChans (handleSerial activeCons mvar) input
-    where
-        handleSerial :: NMC.ActiveConnections -> VChanConnections -> Value -> IO Value
-        handleSerial activeCons mvar input = case input of
-            VChanSerial r w p o c -> do
-                networkconnection <- createNetworkConnection r w p o c
-                ncmap <- MVar.takeMVar mvar
-                MVar.putMVar mvar $ Map.insert p networkconnection ncmap
-                used<- MVar.newEmptyMVar
-                MVar.putMVar used False
-                return $ VChan networkconnection used
-            _ -> return input
--}
-
 replaceVChanSerial :: NMC.ActiveConnections -> VChanConnections -> Value -> IO Value
 replaceVChanSerial activeCons mvar input = modifyVChans (handleSerial activeCons mvar) input
     where
@@ -292,13 +262,6 @@ replaceVChanSerial activeCons mvar input = modifyVChans (handleSerial activeCons
                 ncmap <- MVar.readMVar mvar
                 case Map.lookup p ncmap of
                     Nothing -> do
-                        {-networkconnection <- createNetworkConnection r w p o c
-                        ncmap <- MVar.takeMVar mvar
-                        MVar.putMVar mvar $ Map.insert p networkconnection ncmap
-                        used<- MVar.newMVar False
-                        return $ VChan networkconnection used-}
-                        -- This can lead to the value being overwritten
-
                         -- We simply need to wait for the other thread to finish
                         threadDelay 1000
                         handleSerial activeCons mvar input
