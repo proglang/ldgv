@@ -36,7 +36,7 @@ receiveMessageInternal conv@(handle, _) grammar fallbackResponse messageHandler 
     message <- hGetLine handle
     case VT.runAlex message grammar of
         Left err -> do
-            Config.traceNetIO $ "Error during recieving a networkmessage: "++err++" Malformed message: " ++ message
+            Config.traceNetIO $ "Error during receiving a networkmessage: "++err++" Malformed message: " ++ message
             fallbackResponse message
         Right deserialmessage -> do
             messageHandler message deserialmessage

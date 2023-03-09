@@ -30,7 +30,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
     clientHostaddress <- case snd clientsocket of
         SockAddrInet _ hostname -> return $ hostaddressTypeToString hostname
         _ -> do
-            receivedNetLog message "Error during recieving a networkmessage: only ipv4 is currently supported!"
+            receivedNetLog message "Error during receiving a networkmessage: only ipv4 is currently supported!"
             return ""
 
     netcons <- MVar.readMVar mvar
