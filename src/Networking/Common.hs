@@ -23,7 +23,7 @@ createActiveConnections = NetMethod.createActiveConnections
 
 acceptConversations activeCons connectionhandler port socketsmvar = NetMethod.acceptConversations activeCons connectionhandler port socketsmvar
 
-recieveResponse con waitTime tries = NetMethod.recieveResponse con waitTime tries
+receiveResponse con waitTime tries = NetMethod.receiveResponse con waitTime tries
 
 endConversation con waitTime tries = NetMethod.endConversation con waitTime tries
 

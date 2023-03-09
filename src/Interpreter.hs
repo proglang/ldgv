@@ -174,7 +174,7 @@ eval = \case
         (env, (sockets, vchanconnections, activeConnections)) <- ask
         socketsraw <- liftIO $ MVar.readMVar sockets
         let port = show $ head $ Map.keys socketsraw
-        val <- liftIO $ NI.recieveValue vchanconnections activeConnections ci port
+        val <- liftIO $ NI.receiveValue vchanconnections activeConnections ci port
         liftIO $ C.traceIO $ "Read " ++ show val ++ " from Chan, over expression " ++ show e
 
         -- Disable the old channel and get a new one

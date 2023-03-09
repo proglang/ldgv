@@ -51,14 +51,14 @@ conversationHandlerChangeHandle handle chan mvar sem = do
     isClosed <- MVar.newEmptyMVar
     MVar.putMVar isClosed False
     forkIO $ whileNotMVar isClosed (do
-        Stateless.recieveMessageInternal handle VG.parseConversation (\_ -> return ()) (\mes des -> do
+        Stateless.receiveMessageInternal handle VG.parseConversation (\_ -> return ()) (\mes des -> do
             case des of
                 ConversationMessage cid message -> Chan.writeChan chan (cid, (mes, message))
                 ConversationResponse cid response -> do
                     mymap <- MVar.takeMVar mvar
                     MVar.putMVar mvar $ Map.insert cid (mes, response) mymap
                 ConversationCloseAll -> do
-                    Config.traceNetIO $ "Recieved Message: " ++ mes
+                    Config.traceNetIO $ "Received Message: " ++ mes
                     MVar.takeMVar isClosed
                     MVar.putMVar isClosed True
                     forkIO $ catch (hClose $ fst handle) onException
@@ -77,8 +77,8 @@ conversationHandlerChangeHandle handle chan mvar sem = do
         onException :: IOException -> IO ()
         onException _ = return ()
 
-recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Response)
-recieveResponse conv waitTime tries = do
+receiveResponse :: Conversation -> Int -> Int -> IO (Maybe Response)
+receiveResponse conv waitTime tries = do
     responsesMap <- MVar.readMVar $ convRespMap conv
     case Map.lookup (convID conv) responsesMap of
         Just (messages, deserial) -> do
@@ -86,10 +86,10 @@ recieveResponse conv waitTime tries = do
         Nothing -> do
             if tries /= 0  then do 
                 threadDelay waitTime
-                recieveResponse conv waitTime $ max (tries-1) (-1) else return Nothing
+                receiveResponse conv waitTime $ max (tries-1) (-1) else return Nothing
 
-recieveNewMessage :: Connection -> IO (Conversation, String, Message)
-recieveNewMessage connection@(handle, isClosed, chan, mvar, sem) = do
+receiveNewMessage :: Connection -> IO (Conversation, String, Message)
+receiveNewMessage connection@(handle, isClosed, chan, mvar, sem) = do
     (cid, (serial, deserial)) <- Chan.readChan chan
     return (Conversation cid handle mvar sem, serial, deserial)
 

@@ -30,8 +30,8 @@ sendMessage conv@(handle, _) value = do
 sendResponse :: NSerialize.Serializable a => Conversation -> a -> IO ()
 sendResponse = sendMessage
 
-recieveMessageInternal :: Conversation -> VT.Alex t -> (String -> IO b) -> (String -> t -> IO b) -> IO b
-recieveMessageInternal conv@(handle, _) grammar fallbackResponse messageHandler = do
+receiveMessageInternal :: Conversation -> VT.Alex t -> (String -> IO b) -> (String -> t -> IO b) -> IO b
+receiveMessageInternal conv@(handle, _) grammar fallbackResponse messageHandler = do
     waitWhileEOF conv
     message <- hGetLine handle
     case VT.runAlex message grammar of
@@ -134,7 +134,7 @@ acceptConversations ac connectionhandler port socketsmvar vchanconnections = do
         acceptClient activeCons connectionhandler mvar clientlist clientsocket ownport = do
             hdl <- getHandleFromSocket $ fst clientsocket
             let conv = (hdl, clientsocket)
-            recieveMessageInternal conv VG.parseMessages (\_ -> return ()) $ connectionhandler activeCons mvar clientlist clientsocket conv ownport
+            receiveMessageInternal conv VG.parseMessages (\_ -> return ()) $ connectionhandler activeCons mvar clientlist clientsocket conv ownport
             hClose hdl
 
 getFromNetworkThread :: Maybe Conversation -> ThreadId -> MVar.MVar a -> Int -> Int -> IO (Maybe a)
@@ -153,15 +153,15 @@ getFromNetworkThreadWithModification conv func threadid mvar waitTime currentTry
                     killThread threadid
                     return Nothing
 
-recieveResponse :: Conversation -> Int -> Int -> IO (Maybe Response)
-recieveResponse conv waitTime tries = do
+receiveResponse :: Conversation -> Int -> Int -> IO (Maybe Response)
+receiveResponse conv waitTime tries = do
     retVal <- MVar.newEmptyMVar
-    threadid <- forkIO $ recieveMessageInternal conv VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
+    threadid <- forkIO $ receiveMessageInternal conv VG.parseResponses (\_ -> MVar.putMVar retVal Nothing) (\_ des -> MVar.putMVar retVal $ Just des)
     getFromNetworkThreadWithModification (Just conv) id threadid retVal waitTime tries
 
-recieveNewMessage :: Conversation -> IO (Conversation, String, Message)
-recieveNewMessage conv = do
-    recieveMessageInternal conv VG.parseMessages (\_ -> recieveNewMessage conv) $ \s des -> return (conv, s, des)
+receiveNewMessage :: Conversation -> IO (Conversation, String, Message)
+receiveNewMessage conv = do
+    receiveMessageInternal conv VG.parseMessages (\_ -> receiveNewMessage conv) $ \s des -> return (conv, s, des)
 
 
 endConversation :: Conversation -> Int -> Int -> IO ()

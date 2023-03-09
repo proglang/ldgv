@@ -102,8 +102,8 @@ tryToSendNetworkMessage activeCons networkconnection hostname port message resen
             sendingNetLog serializedMessage "Aquired connection"
             NC.sendMessage con message
             sendingNetLog serializedMessage "Sent message"
-            potentialResponse <- NC.recieveResponse con 10000 50
-            sendingNetLog serializedMessage "Recieved response"
+            potentialResponse <- NC.receiveResponse con 10000 50
+            sendingNetLog serializedMessage "Received response"
             NC.endConversation con 10000 10
             sendingNetLog serializedMessage "Ended connection"
             return potentialResponse
@@ -161,7 +161,7 @@ initialConnect activeCons mvar hostname port ownport syntype= do
         Just con -> do
             ownuserid <- RandomID.newRandomID
             NC.sendMessage con (Messages.Introduce ownuserid ownport (fst syntype) $ snd syntype)
-            mbyintroductionanswer <- NC.recieveResponse con 10000 (-1)
+            mbyintroductionanswer <- NC.receiveResponse con 10000 (-1)
             NC.endConversation con 10000 10
             case mbyintroductionanswer of
                 Just introduction -> case introduction of
