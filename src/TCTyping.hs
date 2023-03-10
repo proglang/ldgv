@@ -70,7 +70,6 @@ kiSynth te (TVar b v) = do
   kentry <- TC.kindLookup v
   let k = keKind kentry
   return (k, mult k)
-kiSynth te TServerSocket  = return (Kun, MMany)
 kiSynth te ty =
   TC.mfail ("kiSynth fails on " ++ pshow ty)
 

@@ -75,7 +75,6 @@ data Type
   | TCase Exp [(String, Type)]
   | TEqn Exp Exp Type
   | TSingle Ident       -- same value (and type) as ident
-  | TServerSocket
   deriving (Show)
 
 dualof :: Type -> Type
@@ -201,7 +200,6 @@ instance Freevars Type where
   fv (TNatLeq _) = Set.empty
   fv (TNatRec e tz y ts) = fv e <> fv tz <> Set.delete y (fv ts)
   fv (TAbs x ty1 ty2) = fv ty1 <> Set.delete x (fv ty2)
-  fv TServerSocket = Set.empty
 
 instance Freevars TypeSegment where
   fv ts = fv (segTy ts)
@@ -352,7 +350,6 @@ single x tyx ty =
       TNatRec e (single x tyx tz) y (if x==y then ts else single x tyx ts)
     TAbs y t1 t2 ->
       TAbs y (single x tyx t1) (if x==y then t2 else single x tyx t2)
-    TServerSocket -> TServerSocket
 
 
 varsupply :: Ident -> [Ident]
@@ -444,4 +441,3 @@ tsubst tn tyn ty = ts ty
         TSingle x -> ty
         TUnit -> TUnit
         TAbs _ _ _ -> ty
-        TServerSocket -> TServerSocket

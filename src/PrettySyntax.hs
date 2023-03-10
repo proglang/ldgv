@@ -60,7 +60,6 @@ instance Pretty Type where
   pretty TDyn = pretty "★"
   pretty TDouble = pretty "Double"
   pretty TString = pretty "String"
-  pretty TServerSocket  = pretty "ServerSocket"
     -- the bool indicates whether the type needs to be dualized
   pretty (TName b s) = (if b then pretty "~" else mempty) <> pretty s
   pretty (TVar b s) = (if b then pretty "~" else mempty) <> brackets (pretty s)

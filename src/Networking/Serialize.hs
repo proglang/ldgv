@@ -10,7 +10,6 @@ import Kinds
 import Networking.Messages
 import ProcessEnvironmentTypes
 import Syntax
-import qualified Networking.NetworkConnection as NCon 
 
 newtype SerializationException = UnserializableException String
     deriving Eq
@@ -23,208 +22,180 @@ instance Exception SerializationException
 
 
 class Serializable a where
-  serialize :: a -> IO String
+  serialize :: a -> String
 
+class SerializableList b where
+  toSer :: String -> b
+
+instance SerializableList String where
+  toSer = id
+
+instance (SerializableList b, Serializable a) => SerializableList (a -> b) where
+  toSer serList serElem = toSer $ serList ++ "(" ++ serialize serElem ++ ")"
+
+merge :: (SerializableList b) => b
+merge = toSer ""
+
+serializeArgs :: (SerializableList b) => b
+serializeArgs = toSer ""
 
 instance Serializable ConversationSession where
   serialize = \case
-    ConversationMessage c m -> serializeLabeledEntryMulti "NConversationMessage" c $ sLast m
-    ConversationResponse c r -> serializeLabeledEntryMulti "NConversationResponse" c $ sLast r
-    ConversationCloseAll -> return "NConversationCloseAll"
+    ConversationMessage c m ->  "NConversationMessage" ++ serializeArgs c  m
+    ConversationResponse c r ->  "NConversationResponse" ++ serializeArgs c  r
+    ConversationCloseAll ->  "NConversationCloseAll"
 
 instance Serializable Response where
   serialize = \case
-    Redirect host port -> serializeLabeledEntryMulti "NRedirect" host $ sLast port
-    Okay -> return "NOkay"
-    OkayIntroduce u -> serializeLabeledEntry "NOkayIntroduce" u
-    Wait -> return "NWait"
-    Error -> return "NError"
+    Redirect host port ->  "NRedirect" ++ serializeArgs host  port
+    Okay ->  "NOkay"
+    OkayIntroduce u ->  "NOkayIntroduce" ++ serializeArgs u
+    Wait ->  "NWait"
+    Error ->  "NError"
 
 instance Serializable Message where
   serialize = \case
-      Introduce p port tn t -> serializeLabeledEntryMulti "NIntroduce" p $ sNext port $ sNext tn $ sLast t
-      NewValue p c v -> serializeLabeledEntryMulti "NNewValue" p $ sNext c $ sLast v
-      RequestValue p c -> serializeLabeledEntryMulti "NRequestValue" p $ sLast c
-      AcknowledgeValue p c -> serializeLabeledEntryMulti "NAcknowledgeValue" p $ sLast c
-      NewPartnerAddress p port conID -> serializeLabeledEntryMulti "NNewPartnerAddress" p $ sNext port $ sLast conID
-      AcknowledgePartnerAddress p conID -> serializeLabeledEntryMulti "NAcknowledgePartnerAddress" p $ sLast conID
-      Disconnect p -> serializeLabeledEntry "NDisconnect" p
-      AcknowledgeDisconnect p -> serializeLabeledEntry "NAcknowledgeDisconnect" p
-
-instance Serializable NCon.ConnectionState where
-  serialize = \case
-    NCon.Connected hostname port partnerConnectionID _ _ -> serializeLabeledEntryMulti "SConnected" hostname $ sNext port $ sLast partnerConnectionID
-    _ -> throw $ UnserializableException "VChan can only be serialized when in Connected mode"
+      Introduce p port tn t ->  "NIntroduce" ++ serializeArgs p  port  tn  t
+      NewValue p c v ->  "NNewValue" ++ serializeArgs p  c  v
+      RequestValue p c ->  "NRequestValue" ++ serializeArgs p  c
+      AcknowledgeValue p c ->  "NAcknowledgeValue" ++ serializeArgs p  c
+      NewPartnerAddress p port conID ->  "NNewPartnerAddress" ++ serializeArgs p  port  conID
+      AcknowledgePartnerAddress p conID ->  "NAcknowledgePartnerAddress" ++ serializeArgs p  conID
+      Disconnect p ->  "NDisconnect" ++ serializeArgs p
+      AcknowledgeDisconnect p ->  "NAcknowledgeDisconnect" ++ serializeArgs p
 
 instance Serializable Value where
   serialize = \case
-      VUnit -> return "VUnit"
-      VLabel s -> serializeLabeledEntry "VLabel" s
-      VInt i -> serializeLabeledEntry "VInt" i
-      VDouble d -> serializeLabeledEntry "VDouble" d
-      VString s -> serializeLabeledEntry "VString" s
-      VSend v -> serializeLabeledEntry "VSend" v
-      VPair a b -> serializeLabeledEntryMulti "VPair" a $ sLast b
-      VType t -> serializeLabeledEntry "VType" t
-      VFunc env s exp -> serializeLabeledEntryMulti "VFunc" env $ sNext s $ sLast exp
-      VDynCast v t -> serializeLabeledEntryMulti "VDynCast" v $ sLast t
-      VFuncCast v ft1 ft2 -> serializeLabeledEntryMulti "VFuncCast" v $ sNext ft1 $ sLast ft2
-      VRec env f x e0 e1 -> serializeLabeledEntryMulti "VRec" env $ sNext f $ sNext x $ sNext e0 $ sLast e1
-      VNewNatRec env f n tid ty ez x es -> serializeLabeledEntryMulti "VNewNatRec" env $ sNext f $ sNext n $ sNext tid $ sNext ty $ sNext ez $ sNext x $ sLast es
+      VUnit ->  "VUnit"
+      VLabel s ->  "VLabel" ++ serializeArgs s
+      VInt i ->  "VInt" ++ serializeArgs i
+      VDouble d ->  "VDouble" ++ serializeArgs d
+      VString s ->  "VString" ++ serializeArgs s
+      VSend v ->  "VSend" ++ serializeArgs v
+      VPair a b ->  "VPair" ++ serializeArgs a b
+      VType t ->  "VType" ++ serializeArgs t
+      VFunc env s exp ->  "VFunc" ++ serializeArgs env  s  exp
+      VDynCast v t ->  "VDynCast" ++ serializeArgs v  t
+      VFuncCast v ft1 ft2 ->  "VFuncCast" ++ serializeArgs v  ft1  ft2
+      VRec env f x e0 e1 ->  "VRec" ++ serializeArgs env f  x  e0  e1
+      VNewNatRec env f n tid ty ez x es ->  "VNewNatRec" ++ serializeArgs env  f  n  tid  ty  ez  x  es
       VChan {} -> throw $ UnserializableException "VChan"
-      VChanSerial r w p o c -> serializeLabeledEntryMulti "VChanSerial" r $ sNext w $ sNext p $ sNext o $ sLast c
+      VChanSerial r w p o c ->  "VChanSerial" ++ serializeArgs r  w  p  o  c
 
 instance Serializable Multiplicity where
   serialize = \case
-    MMany -> return "MMany"
-    MOne -> return "MOne"
+    MMany ->  "MMany"
+    MOne ->  "MOne"
 
 instance Serializable Type where
   serialize = \case
-    TUnit -> return "TUnit"
-    TInt -> return "TInt"
-    TDouble -> return "TDouble"
-    TBot -> return "TBot"
-    TDyn -> return "TDyn"
-    TNat -> return "TNat"
-    TString -> return "TString"
-    TNatLeq i -> serializeLabeledEntry "TNatLeq" i
-    TNatRec e t1 ident t2 -> serializeLabeledEntryMulti "TNatRec" e $ sNext t1 $ sNext ident $ sLast t2
-    TVar b ident -> serializeLabeledEntryMulti "TVar" b $ sLast ident
-    TAbs ident t1 t2 -> serializeLabeledEntryMulti "TAbs" ident $ sNext t1 $ sLast t2
-    TName b ident -> serializeLabeledEntryMulti "TName" b $ sLast ident
-    TLab arr -> serializeLabeledEntry "TLab" arr
-    TFun mult ident t1 t2 -> serializeLabeledEntryMulti "TFun" mult $ sNext ident $ sNext t1 $ sLast t2
-    TPair ident t1 t2 -> serializeLabeledEntryMulti "TPair" ident $ sNext t1 $ sLast t2
-    TSend ident t1 t2 -> serializeLabeledEntryMulti "TSend" ident $ sNext t1 $ sLast t2
-    TRecv ident t1 t2 -> serializeLabeledEntryMulti "TRecv" ident $ sNext t1 $ sLast t2
-    TCase e arr -> serializeLabeledEntryMulti "TCase" e $ sLast arr
-    TEqn e1 e2 t -> serializeLabeledEntryMulti "TEqn" e1 $ sNext e2 $ sLast t
-    TSingle ident -> serializeLabeledEntry "TSingle" ident
-
-    TServerSocket -> return "TServerSocket"
+    TUnit ->  "TUnit"
+    TInt ->  "TInt"
+    TDouble ->  "TDouble"
+    TBot ->  "TBot"
+    TDyn ->  "TDyn"
+    TNat ->  "TNat"
+    TString ->  "TString"
+    TNatLeq i ->  "TNatLeq" ++ serializeArgs i
+    TNatRec e t1 ident t2 ->  "TNatRec" ++ serializeArgs e  t1  ident  t2
+    TVar b ident ->  "TVar" ++ serializeArgs b  ident
+    TAbs ident t1 t2 ->  "TAbs" ++ serializeArgs ident  t1  t2
+    TName b ident ->  "TName" ++ serializeArgs b  ident
+    TLab arr ->  "TLab" ++ serializeArgs arr
+    TFun mult ident t1 t2 ->  "TFun" ++ serializeArgs mult  ident  t1  t2
+    TPair ident t1 t2 ->  "TPair" ++ serializeArgs ident  t1  t2
+    TSend ident t1 t2 ->  "TSend" ++ serializeArgs ident  t1  t2
+    TRecv ident t1 t2 ->  "TRecv" ++ serializeArgs ident  t1  t2
+    TCase e arr ->  "TCase" ++ serializeArgs e  arr
+    TEqn e1 e2 t ->  "TEqn" ++ serializeArgs e1  e2  t
+    TSingle ident ->  "TSingle" ++ serializeArgs ident
 
 instance Serializable Exp where
   serialize = \case
-    Let ident e1 e2 -> serializeLabeledEntryMulti "ELet" ident $ sNext e1 $ sLast e2
-    Math mathop -> serializeLabeledEntry "EMath" mathop
-    Lit l -> serializeLabeledEntry "ELit" l
-    Succ e -> serializeLabeledEntry "ESucc" e
-    NatRec e1 e2 ident1 ident2 ident3 t e3 -> serializeLabeledEntryMulti "NatRec" e1 $ sNext e2 $ sNext ident1 $ sNext ident2 $ sNext ident3 $ sNext t $ sLast e3
-    NewNatRec ident1 ident2 ident3 t e1 ident4 e2 -> serializeLabeledEntryMulti "ENewNatRec" ident1 $ sNext ident2 $ sNext ident3 $ sNext t $ sNext e1 $ sNext ident4 $ sLast e2
-    Var ident -> serializeLabeledEntry "EVar" ident
-    Lam mult ident t e -> serializeLabeledEntryMulti "ELam" mult $ sNext ident $ sNext t $ sLast e
-    Rec ident1 ident2 e1 e2 -> serializeLabeledEntryMulti "ERec" ident1 $ sNext ident2 $ sNext e1 $ sLast e2
-    App e1 e2 -> serializeLabeledEntryMulti "EApp" e1 $ sLast e2
-    Pair mult ident e1 e2 -> serializeLabeledEntryMulti "EPair" mult $ sNext ident $ sNext e1 $ sLast e2
-    LetPair ident1 ident2 e1 e2 -> serializeLabeledEntryMulti "ELetPair" ident1 $ sNext ident2 $ sNext e1 $ sLast e2
-    Fst e -> serializeLabeledEntry "EFst" e
-    Snd e -> serializeLabeledEntry "ESnd" e
-    Fork e -> serializeLabeledEntry "EFork" e
-    New t -> serializeLabeledEntry "ENew" t
-    Send e -> serializeLabeledEntry "ESend" e
-    Recv e -> serializeLabeledEntry "ERecv" e
-    Case e arr -> serializeLabeledEntryMulti "ECase" e $ sLast arr
-    Cast e t1 t2 -> serializeLabeledEntryMulti "ECast" e $ sNext t1 $ sLast t2
+    Let ident e1 e2 ->  "ELet" ++ serializeArgs ident  e1  e2
+    Math mathop ->  "EMath" ++ serializeArgs mathop
+    Lit l ->  "ELit" ++ serializeArgs l
+    Succ e ->  "ESucc" ++ serializeArgs e
+    NatRec e1 e2 ident1 ident2 ident3 t e3 ->  "NatRec" ++ serializeArgs e1  e2  ident1  ident2  ident3  t  e3
+    NewNatRec ident1 ident2 ident3 t e1 ident4 e2 ->  "ENewNatRec" ++ serializeArgs ident1  ident2  ident3  t  e1  ident4  e2
+    Var ident ->  "EVar" ++ serializeArgs ident
+    Lam mult ident t e ->  "ELam" ++ serializeArgs mult  ident  t  e
+    Rec ident1 ident2 e1 e2 ->  "ERec" ++ serializeArgs ident1  ident2  e1  e2
+    App e1 e2 ->  "EApp" ++ serializeArgs e1  e2
+    Pair mult ident e1 e2 ->  "EPair" ++ serializeArgs mult  ident  e1  e2
+    LetPair ident1 ident2 e1 e2 ->  "ELetPair" ++ serializeArgs ident1  ident2  e1  e2
+    Fst e ->  "EFst" ++ serializeArgs e
+    Snd e ->  "ESnd" ++ serializeArgs e
+    Fork e ->  "EFork" ++ serializeArgs e
+    New t ->  "ENew" ++ serializeArgs t
+    Send e ->  "ESend" ++ serializeArgs e
+    Recv e ->  "ERecv" ++ serializeArgs e
+    Case e arr ->  "ECase" ++ serializeArgs e  arr
+    Cast e t1 t2 ->  "ECast" ++ serializeArgs e  t1  t2
 
-    Connect e0 t e1 e2 -> serializeLabeledEntryMulti "EConnect" e0 $ sNext t $ sNext e1 $ sLast e2
-    Accept e t -> serializeLabeledEntryMulti "EAccept" e $ sLast t
+    Connect e0 t e1 e2 ->  "EConnect" ++ serializeArgs e0  t  e1  e2
+    Accept e t ->   "EAccept" ++ serializeArgs e  t
 
 instance Serializable (MathOp Exp) where
   serialize = \case
-    Add e1 e2 -> serializeLabeledEntryMulti "MAdd" e1 $ sLast e2
-    Sub e1 e2 -> serializeLabeledEntryMulti "MSub" e1 $ sLast e2
-    Mul e1 e2 -> serializeLabeledEntryMulti "MMul" e1 $ sLast e2
-    Div e1 e2 -> serializeLabeledEntryMulti "MDiv" e1 $ sLast e2
-    Neg e -> serializeLabeledEntry "MNeg" e
+    Add e1 e2 ->  "MAdd" ++ serializeArgs e1  e2
+    Sub e1 e2 ->  "MSub" ++ serializeArgs e1  e2
+    Mul e1 e2 ->  "MMul" ++ serializeArgs e1  e2
+    Div e1 e2 ->  "MDiv" ++ serializeArgs e1  e2
+    Neg e ->  "MNeg" ++ serializeArgs e
 instance Serializable Literal where
   serialize = \case
-    LInt i -> serializeLabeledEntry "LInt" i
-    LNat i -> serializeLabeledEntry "LNat" i
-    LDouble d -> serializeLabeledEntry "LDouble" d
-    LLab s -> serializeLabeledEntry "LLab" s
-    LUnit -> return "LUnit"
-    LString s -> serializeLabeledEntry "LString" s
+    LInt i ->  "LInt" ++ serializeArgs i
+    LNat i ->  "LNat" ++ serializeArgs i
+    LDouble d ->  "LDouble" ++ serializeArgs d
+    LLab s ->  "LLab" ++ serializeArgs s
+    LUnit ->  "LUnit"
+    LString s ->  "LString" ++ serializeArgs s
 
 instance Serializable FuncType where
-  serialize (FuncType env s t1 t2) = serializeLabeledEntryMulti "SFuncType" env $ sNext s $ sNext t1 $ sLast t2
+  serialize (FuncType env s t1 t2) = "SFuncType" ++ serializeArgs env  s  t1  t2
 
 instance Serializable GType where
   serialize = \case
-    GUnit -> return "GUnit"
-    GLabel lt -> serializeLabeledEntry "GLabel" lt
-    GFunc mult -> serializeLabeledEntry "GFunc" mult
-    GPair -> return "GPair"
-    GNat -> return "GNat"
-    GNatLeq i -> serializeLabeledEntry "GNatLeq" i
-    GInt -> return "GInt"
-    GDouble -> return "GDouble"
-    GString -> return "GString"
-
-sLast :: Serializable a => a -> IO String
-sLast x = sNext x $ return ""
-
-sNext :: Serializable a => a -> IO String -> IO String
-sNext x ios = do
-  xString <- serialize x
-  iosString <- ios
-  return $ " (" ++ xString ++ ")" ++ iosString
-
-serializeLabeledEntryMulti :: Serializable a => String -> a -> IO String -> IO String
-serializeLabeledEntryMulti label x ios = do
-    xString <- serialize x
-    iosString <- ios
-    return $ label ++ " (" ++ xString ++ ")" ++ iosString
-
-serializeLabeledEntry :: Serializable a => String -> a -> IO String
-serializeLabeledEntry label x = do
-    xString <- serialize x
-    return $ label ++ " (" ++ xString ++ ")"
+    GUnit -> "GUnit"
+    GLabel lt -> "GLabel" ++ serializeArgs lt
+    GFunc mult -> "GFunc" ++ serializeArgs mult
+    GPair -> "GPair"
+    GNat -> "GNat"
+    GNatLeq i -> "GNatLeq" ++ serializeArgs i
+    GInt -> "GInt"
+    GDouble -> "GDouble" 
+    GString -> "GString"
 
 instance {-# OVERLAPPING  #-} Serializable String where
-  serialize s = return $ "String:"++ show s
+  serialize s = "String:"++ show s
 
 instance Serializable Int where
-  serialize i = return $ "Int:" ++ show i
+  serialize i = "Int:" ++ show i
 
 instance Serializable Integer where
-  serialize i = return $ "Integer:" ++ show i
+  serialize i = "Integer:" ++ show i
 
 instance Serializable Bool where
-  serialize b = return $ "Bool:" ++ show b
+  serialize b = "Bool:" ++ show b
 
 instance Serializable Double where
-  serialize d = return $ "Double:" ++ show d
+  serialize d = "Double:" ++ show d
 
 instance ((Serializable a, Serializable b) => Serializable (a, b)) where
-  serialize (s, t) = do
-    ss <- serialize s
-    ts <- serialize t
-    return $ "((" ++ ss ++ ") (" ++ ts ++ "))"
+  serialize (s, t) = "((" ++ serialize s++ ") (" ++ serialize t ++ "))"
 
 instance ((Serializable a, Serializable b, Serializable c) => Serializable (a, b, c)) where
-  serialize (s, t, u) = do
-    ss <- serialize s
-    ts <- serialize t
-    us <- serialize u
-    return $ "((" ++ ss ++ ") (" ++ ts ++ ") (" ++ us ++ "))"
+  serialize (s, t, u) = "((" ++ serialize s ++ ") (" ++ serialize t ++ ") (" ++ serialize u ++ "))"
 
 instance ((Serializable a, Serializable b, Serializable c, Serializable d) => Serializable (a, b, c, d)) where
-  serialize (s, t, u, v) = do
-    ss <- serialize s
-    ts <- serialize t
-    us <- serialize u
-    vs <- serialize v
-    return $ "((" ++ ss ++ ") (" ++ ts ++ ") (" ++ us ++ ") (" ++ vs ++ "))"
+  serialize (s, t, u, v) = "((" ++ serialize s ++ ") (" ++ serialize t ++ ") (" ++ serialize u ++ ") (" ++ serialize v ++ "))"
 
 instance {-# OVERLAPPING #-} Serializable PEnv where
   serialize arr = serializeLabeledArray "PEnv" arr
 
 instance {-# OVERLAPPING #-} Serializable PEnvEntry where
-  serialize (s, t) = do
-    ss <- serialize s
-    ts <- serialize t
-    return $ "PEnvEntry (" ++ ss ++ ") (" ++ ts ++ ")"
+  serialize (s, t) = "PEnvEntry (" ++ serialize s ++ ") (" ++ serialize t ++ ")"
 
 instance {-# OVERLAPPING #-} Serializable LabelType where
   serialize as = serializeLabeledArray "SLabelType" (elems as)
@@ -241,22 +212,10 @@ instance {-# OVERLAPPING #-} Serializable [String] where
 instance {-# OVERLAPPING #-}Serializable [Value] where
   serialize arr = serializeLabeledArray "SValuesArray" arr
 
+serializeLabeledArray :: Serializable a => String -> [a] ->  String
+serializeLabeledArray label arr = label ++ " [" ++ serializeElements arr ++ "]"
 
-
-instance Serializable (Chan.Chan Value) where
-  serialize c = do
-    ccnt <- getChanContents c
-    serialize ccnt
-
-serializeLabeledArray :: Serializable a => String -> [a] -> IO String
-serializeLabeledArray label arr = do
-  elems <- serializeElements arr
-  return $ label ++ " [" ++ elems ++ "]"
-
-serializeElements :: Serializable a => [a] -> IO String
-serializeElements [] = return ""
+serializeElements :: Serializable a => [a] ->  String
+serializeElements [] = ""
 serializeElements [x] = serialize x
-serializeElements (x:xs) = do
-  h <- serialize x
-  t <- serializeElements xs
-  return $ h ++ ", " ++ t
+serializeElements (x:xs) = serialize x ++ ", " ++ serializeElements xs

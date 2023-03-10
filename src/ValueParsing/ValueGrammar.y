@@ -340,7 +340,7 @@ SValuesElements : Value ',' SValuesElements {$1 : $3}
                 | Value {[$1]}
                 | {- empty -} {[]}
 
-LabelType : slabeltype '{' SStringElements '}' {$3}
+LabelType : slabeltype '[' SStringElements ']' {$3}
 
 SArrayIntElement : '(' '(' SValuesArray ')' '(' int ')' '(' int ')' ')' {($3, $6, $9)}
 
