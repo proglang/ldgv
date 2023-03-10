@@ -22,7 +22,6 @@ import C.Compile as C
 import C.Generate
 import Interpreter (interpret)
 import Parsing
-import ProcessEnvironment
 import ProcessEnvironmentTypes
 import Typechecker (typecheck, Options(..))
 import qualified Examples

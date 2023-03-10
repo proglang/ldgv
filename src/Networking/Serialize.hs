@@ -3,7 +3,6 @@
 
 module Networking.Serialize where
 
-import Control.Concurrent.Chan as Chan
 import Control.Exception
 import Data.Set
 import Kinds

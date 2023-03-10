@@ -3,7 +3,6 @@ module Utils where
 import Parsing
 import Syntax
 import Interpreter
-import ProcessEnvironment
 import ProcessEnvironmentTypes
 import qualified Networking.Common as NC
 import qualified Networking.Serialize as NSer

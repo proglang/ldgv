@@ -1,6 +1,5 @@
 module NetworkBufferSpec (spec) where
 
-import Networking.Buffer
 import Networking.NetworkBuffer
 import Test.Hspec
 
