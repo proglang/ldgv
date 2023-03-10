@@ -93,7 +93,7 @@ sendNetworkMessage activeCons networkconnection message resendOnError = do
 -- For numbers n smaller than -2 it will wait for abs(n)-2 times
 tryToSendNetworkMessage :: NMC.ActiveConnections -> NetworkConnection Value -> String -> String -> Message -> Int -> IO Bool
 tryToSendNetworkMessage activeCons networkconnection hostname port message resendOnError = do
-    serializedMessage <- NSerialize.serialize message
+    let serializedMessage = NSerialize.serialize message
     sendingNetLog serializedMessage $ "Sending message as: " ++ ncOwnUserID networkconnection ++ " to: " ++  ncPartnerUserID networkconnection ++ " Over: " ++ hostname ++ ":" ++ port
 
     mbycon <- NC.startConversation activeCons hostname port 10000 10
@@ -166,7 +166,7 @@ initialConnect activeCons mvar hostname port ownport syntype= do
             case mbyintroductionanswer of
                 Just introduction -> case introduction of
                     OkayIntroduce introductionanswer -> do
-                        msgserial <- NSerialize.serialize $ Messages.Introduce ownuserid ownport (fst syntype) $ snd syntype
+                        let msgserial = NSerialize.serialize $ Messages.Introduce ownuserid ownport (fst syntype) $ snd syntype
                         Config.traceNetIO $ "Sending message as: " ++ ownuserid ++ " to: " ++  introductionanswer
                         Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
                         Config.traceNetIO $ "    Message: " ++ msgserial
@@ -179,7 +179,7 @@ initialConnect activeCons mvar hostname port ownport syntype= do
                         return $ VChan newConnection used
 
                     _ -> do
-                        introductionserial <- NSerialize.serialize introduction
+                        let introductionserial = NSerialize.serialize introduction
                         Config.traceNetIO $ "Illegal answer from server: " ++ introductionserial
                         threadDelay 1000000
                         initialConnect activeCons mvar hostname port ownport syntype

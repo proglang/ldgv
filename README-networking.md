@@ -10,7 +10,7 @@ To run a LDGVNW example, found in the networking-examples folder, each program i
 
 The order in which these commands are executed is not relevant.
 
-To test all the different test-cases in an easier way, they can be automatically run, with the scrips provided in the networking-tests folder. Simply running one of these scripts will run the whole test-case at once.
+To test all the different test-cases in an easier way, they can be automatically run, with the scrips provided in the networking-tests folder. Simply running one of these scripts will execute the whole test-case at once.
 The testNW\* scripts contain all the tests, except for the recursion test.
 
 
@@ -69,7 +69,7 @@ Following that, A and B can send and recv values analog to Channels created with
 ## Sending messages over a Connection
 When communication partner A executes a send instruction to send Value V to B, A first analyses V. 
 Should V be or contain a Channel C, A will set a flag for in C to redirect new messages to the address of B. 
-After that, C will be converted to a serializable form CS. 
+After that, C will be converted to a serializable form, CS. 
 With every channel now being in a form which can be sent over the network, A now writes V to its write-buffer and sends B a NewValue message containing V. 
 Upon receiving V as B with the recv instruction, B now undoes the conversion of every Channel in V from CS to C.
 And contacts the communication partner of each Channel, to inform them that their new communication partner is now B instead of A.
@@ -115,13 +115,13 @@ It is important to note that VChans only should be serialized after their Connec
 ## Why Values are Acknowledged
 
 LDGVNW has separate messages for sending a Value (NewValue) and acknowledging a Value (AcknowledgeValue). Simply knowing that the other party has received a Value, isn't enough when Channels are involved.
-Let's say there is a Channel C, between A and B. A sends their end of C to D and at the same time B sends their end of C to E. Since the sending of the Channel ends, happened simultaneously, D still thinks they are talking to B and E thinks they are talking to A. Should A and B now go offline, before either D or E, can contact them to find out where they redirected their connections to, D and E will not be able to connect. Since acknowledgements are only sent after a sent Channel has been reconnected, it can be assured that D and E are connected, before A and B can go offline.
+Let's say there is a Channel C, between A and B. A sends their end of C to D and at the same time, B sends their end of C to E. Since the sending of the Channel ends, happened simultaneously, D still thinks they are talking to B and E thinks they are talking to A. Should A and B now go offline, before either D or E, can contact them to find out where they redirected their connections to, D and E will not be able to connect. Since acknowledgments are only sent after a sent Channel has been reconnected, it can be assured that D and E are connected, before A and B can go offline.
 
-It would be also possible to use a Response to the NewValue message, to signal that the Value got acknowledged, but I decided to split this process into two messages, since the acknowledging can take long time, compared to other messages.
+It would also be possible to use a Response to the NewValue message, to signal that the Value got acknowledged, but I decided to split this process into two messages, since the acknowledging can take long time, compared to other messages.
 
 ## A communication example
 
-In the [communication example](README-networking-communication-example.md) gives a concrete example for the communication protocol.
+In the [communication example](README-networking-communication-example.md) gives a concrete example of the communication protocol.
 
 # Serializing and Sending Messages
 The logical messages are serialized first, then are sent either using a fast protocol which reuses existing connections or a stateless protocol, which was primary used during development as a fallback when the fast protocol wasn't working yet.
@@ -148,6 +148,8 @@ Similar to the stateless protocol, most messages are sent from the main thread, 
 # Compatibility between Internal and External Channels
 
 Internal channels (channels in the same program, created with new) and external channels (channels between two programs, created with connect and accept) are handled for the most part the same way in LDGVNW. Every channel has a NetworkConnection object, which saves both incoming and outgoing messages, it also has a ConnectionState object, which dictates whether a NetworkConnection is internal or external. Should an internal connection be sent to a peer, the internal connection gets converted into an external connection. Should both sides of an external connection end up in the same program, the connection will be converted to an internal connection.
+
+
 
 
 

@@ -94,8 +94,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                                     SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                     return ()
                                 _ -> do
-                                    serial <- NSerialize.serialize deserialmessages
-                                    receivedNetLog message $ "Error unsupported networkmessage: "++ serial
+                                    receivedNetLog message $ "Error unsupported networkmessage: "++ NSerialize.serialize deserialmessages
                                     SSem.signal $ ncHandlingIncomingMessage ncToPartner
                                     NC.sendResponse hdl Messages.Okay
                             _ -> do
@@ -118,7 +117,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                     serverid <- RandomID.newRandomID
                     newpeer <- newNetworkConnection userid serverid clientHostaddress clientport userid serverid
                     NC.sendResponse hdl (Messages.OkayIntroduce serverid)
-                    repserial <- NSerialize.serialize $ Messages.OkayIntroduce serverid
+                    let repserial = NSerialize.serialize $ Messages.OkayIntroduce serverid
                     receivedNetLog message $ "    Response to "++ userid ++ ": " ++ repserial
 
                     receivedNetLog message "Patching MVar"
@@ -131,8 +130,7 @@ handleClient activeCons mvar clientlist clientsocket hdl ownport message deseria
                     -- We must not write clients into the clientlist before adding them to the networkconnectionmap
                 
                 _ -> do
-                    serial <- NSerialize.serialize deserialmessages
-                    receivedNetLog message $ "Error unsupported networkmessage: "++ serial
+                    receivedNetLog message $ "Error unsupported networkmessage: " ++ NSerialize.serialize deserialmessages
                     receivedNetLog message "This is probably a timing issue! Lets resend later"
                     NC.sendResponse hdl Messages.Wait
 

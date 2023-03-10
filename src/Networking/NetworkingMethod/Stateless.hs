@@ -23,9 +23,7 @@ type ConnectionHandler = ActiveConnectionsStateless -> MVar.MVar (Map.Map String
 type Conversation = ConversationStateless 
 
 sendMessage :: NSerialize.Serializable a => Conversation -> a -> IO ()
-sendMessage conv@(handle, _) value = do
-    serializedValue <- NSerialize.serialize value
-    hPutStrLn handle (serializedValue ++" ")
+sendMessage conv@(handle, _) value = hPutStrLn handle (NSerialize.serialize value ++" ")
 
 sendResponse :: NSerialize.Serializable a => Conversation -> a -> IO ()
 sendResponse = sendMessage

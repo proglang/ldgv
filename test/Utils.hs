@@ -3,11 +3,11 @@ module Utils where
 import Parsing
 import Syntax
 import Interpreter
-import ProcessEnvironment
 import ProcessEnvironmentTypes
--- import qualified Networking.NetworkingMethod.NetworkingMethodCommon as NMC
--- import qualified Networking.NetworkingMethod.Stateless as Stateless
 import qualified Networking.Common as NC
+import qualified Networking.Serialize as NSer
+import qualified ValueParsing.ValueGrammar as VG
+import qualified ValueParsing.ValueTokens as VT
 import Control.Monad.Reader (runReaderT)
 import Test.Hspec
 import Control.Concurrent.MVar
@@ -55,3 +55,31 @@ shouldInterpretTypeTo t expected = do
   handles <- NC.createActiveConnections
   nft <- runReaderT (evalType t) ([], (sockets, vchanconnections, handles))
   nft `shouldBe` expected
+
+serializesConsistentlyValue :: NSer.Serializable a => a -> Expectation
+serializesConsistentlyValue serializable = 
+  let serial = NSer.serialize serializable in
+  case VT.runAlex serial VG.parseValues of
+        Left err ->  err `shouldBe` serial
+        Right deserial -> NSer.serialize deserial `shouldBe` serial
+
+serializesConsistentlyMessage :: NSer.Serializable a => a -> Expectation
+serializesConsistentlyMessage serializable = 
+  let serial = NSer.serialize serializable in
+  case VT.runAlex serial VG.parseMessages of
+        Left err ->  err `shouldBe` serial
+        Right deserial -> NSer.serialize deserial `shouldBe` serial
+
+serializesConsistentlyResponse :: NSer.Serializable a => a -> Expectation
+serializesConsistentlyResponse serializable = 
+  let serial = NSer.serialize serializable in
+  case VT.runAlex serial VG.parseResponses of
+        Left err ->  err `shouldBe` serial
+        Right deserial -> NSer.serialize deserial `shouldBe` serial
+
+serializesConsistentlyConversation :: NSer.Serializable a => a -> Expectation
+serializesConsistentlyConversation serializable = 
+  let serial = NSer.serialize serializable in
+  case VT.runAlex serial VG.parseConversation of
+        Left err ->  err `shouldBe` serial
+        Right deserial -> NSer.serialize deserial `shouldBe` serial
