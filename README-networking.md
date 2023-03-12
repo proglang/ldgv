@@ -53,7 +53,7 @@ Typing for the attributes:
 - **ConnectionID** is a unique string, used to identify the current physical connection to a logical communication partner
 - **Port** is a string containing the number of a port
 - **Address** is a string containing the IPv4 address or URL of a communication partner
-- **Value** is a data-type in LDGV.  The VChans present in this Value are replaced with VChanSerials
+- **Value** is a type of data in LDGV.  The VChans present in this Value are replaced with VChanSerials
 - **Value Index** is an integer containing the index of a Value
 - **Type Name** is a  TName Type of the desired Type
 - **Type Structure** of the desired Type
@@ -66,7 +66,7 @@ Following that, A and B can send and recv values analog to Channels created with
 
 ## Sending messages over a Connection
 When communication partner A executes a send instruction to send Value V to B, A first analyses V. 
-Should V be or contain a Channel C, A will set a flag for in C to redirect new messages to the address of B. 
+Should V be or contain a Channel C, A will set a flag in C to redirect new messages to the address of B. 
 After that, C will be converted to a serializable form, CS. 
 With every channel now being in a form which can be sent over the network, A now writes V to its write-buffer and sends B a NewValue message containing V. 
 Upon receiving V as B with the recv instruction, B now undoes the conversion of every Channel in V.
@@ -75,10 +75,14 @@ After this, B sends an acknowledgment (AcknowledgeValue message) back to A, whic
 A can now remove V out of its write-buffer.
 
 ## Responding to Messages
-Except for the Introduce message, every message should be answered with an Okay response. 
-Exceptions to that are Redirect responses, which are used when a message is sent to an outdated address or Wait responses, which are sent when a message cannot be handled at the current moment.
-This can happen when the communication partner is already handling a message in a critical section, or a communication partner is currently in the progress of sending the Channel which the message is sent to.
-Lastly, there is also an Error response, which is sent, when an error occurred while handling a message. This is currently only used by the AcknowledgePartnerAddress message.
+Except for the Introduce message, every message should be ideally answered with an Okay response. 
+But in some cases the messages don't arrive at the right communication partner or at the wrong time. In these cases, other responses are used.
+- Redirect responses are sent when a message is sent to an outdated address
+- Wait responses are sent when a message cannot be handled at the current moment
+    - This can be caused by currently being in a critical section while handling another message
+    - During the sending process of a Channel
+    - When the addressed Channel isn't yet known by  the program
+- Error responses are sent when an error occurs while handling a AcknowledgePartnerAddress message
 
 ## Informing communication partners of a communication partner change
 If there is a Channel C between A and B and A sends their side of the Channel to D, B needs to be made aware of that.
@@ -89,22 +93,22 @@ As soon as the address is established, C is considered successfully received by 
 ## Shutting down after completing all the instructions
 After A finishes the interpretation of their program, A waits until all messages it sent were acknowledged by their communication partners. After that, A sends a Disconnect message to all its peers. The Disconnect message is needed to avoid rewriting a large portion of the interpreter to annotate each recv expression with their associated output Types. Should the Disconnect message not exist, it would be theoretically possible to send a Unit-Type of an exhausted Channel to another communication partner. The recipient would now be unknowing whether their new communication partner were still online.
 
-## Converting between VChans and VChanSerials
-Since VChans can't be serialized directly, they need to be converted into VChanSerials first. VChans have the following (simplified) architecture:
-
+## Making Channels serializable
+Making Channels sendable was one of the biggest focuses of LDGVNW.
+VChans are Channels that are directly useable by LDGV, but since VChans can't be serialized directly, they need to be converted into VChanSerials first. VChans have the following (simplified) architecture:
 `VChan <NetworkConnection> <Used>`
 
 The contained NetworkConnection has this architecture:
 
 `NetworkConnection <ReadBuffer> <WriteBuffer> <PartnerID> <OwnID> <ConnectionState>`
 
-The relevant part, for the conversion to VChanSerials, is found in the NetworkConnection.  The ReadBuffer contains Values that are not yet handled, while the WriteBuffer contains Values that are not yet acknowledged by the communication partner. The implementation of these Buffers is based on the implementation of the Chan types of Haskell, this is also noted and acknowledged in the Buffer module. The PartnerID and OwnID are strings to identify the logical communication partner, these do not change when sent to another communication partner. Lastly, the ConnectionState contains information about whether the connection is an external connection, an internal connection, offline or should be redirected to another communication partner.
+The relevant part, for the conversion to VChanSerials, is found in the NetworkConnection.  The ReadBuffer contains Values, that are not yet handled, while the WriteBuffer contains Values, that are not yet acknowledged by the communication partner. The implementation of these Buffers is based on the implementation of the Chan type of Haskell, this is also noted and acknowledged in the Buffer module. The PartnerID and OwnID are strings to identify the logical communication partner, these do not change when sent to another communication partner. Lastly, the ConnectionState contains information about whether the connection is an external connection, an internal connection, offline or should be redirected to another communication partner.
 
 The VChanSerial has the following architecture:
 
 `VChanSerial <ReadList> <ReadOffset> <ReadLength> <WriteList> <WriteOffset> <WriteLength> <PartnerID> <OwnID> <Address> <Port> <ConnectionID>`
 
-The ReadList contains the current elements of the ReadBuffer, the ReadOffset contains the logical index of the first element of the ReadBuffer, and the ReadLength is the number of all logical elements in the buffer. As an example, let's say 5 Values were received, but the first 3 already were handled, so the ReadList would contain 2 elements, the ReadOffset would be 3 and the ReadLength would be 5. The WriteList, WriteOffset and WriteLength behave analogously. The PartnerID and OwnID are directly taken from the NetworkConnection and the Address, Port and ConnectionID (from the partner) are taken from the ConnectionState.
+The ReadList contains the current elements of the ReadBuffer, the ReadOffset contains the logical index of the first element of the ReadBuffer, and the ReadLength is the number of all logical elements in the buffer. For example, let's say 5 Values were received, but the first 3 already were handled, so the ReadList would contain 2 elements, the ReadOffset would be 3 and the ReadLength would be 5. The WriteList, WriteOffset and WriteLength behave analogously. The PartnerID and OwnID are directly taken from the NetworkConnection and the Address, Port and ConnectionID (from the partner) are taken from the ConnectionState.
 
 To convert a VChanSerial to a VChan an empty VChan is simply filled with the data provided by the VChanSerial.
 
