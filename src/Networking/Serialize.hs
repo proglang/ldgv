@@ -30,7 +30,7 @@ instance SerializableList String where
   toSer = id
 
 instance (SerializableList b, Serializable a) => SerializableList (a -> b) where
-  toSer serList serElem = toSer $ serList ++ "(" ++ serialize serElem ++ ")"
+  toSer serList serElem = toSer $ serList ++ " (" ++ serialize serElem ++ ")"
 
 merge :: (SerializableList b) => b
 merge = toSer ""
