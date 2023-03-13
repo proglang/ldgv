@@ -1,6 +1,7 @@
 for i in {1..20000}; do
     clear; echo "$i Add"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < ../networking-examples/add/server.ldgvnw & stack run ldgv -- interpret < ../networking-examples/add/client.ldgvnw & wait);
     clear; echo "$i SendString"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < ../networking-examples/sendString/server.ldgvnw & stack run ldgv -- interpret < ../networking-examples/sendString/client.ldgvnw & wait);
+    clear; echo "$i TwoCons"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < ../networking-examples/twoCons/server.ldgvnw & stack run ldgv -- interpret < ../networking-examples/twoCons/client.ldgvnw & wait);
     clear; echo "$i Simple"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < ../networking-examples/simple/server.ldgvnw & stack run ldgv -- interpret < ../networking-examples/simple/client.ldgvnw & wait);
     clear; echo "$i Bidirectional"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < ../networking-examples/bidirectional/server.ldgvnw & stack run ldgv -- interpret < ../networking-examples/bidirectional/client.ldgvnw & wait);
     clear; echo "$i Handoff"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < ../networking-examples/handoff/server.ldgvnw & stack run ldgv -- interpret < ../networking-examples/handoff/handoff.ldgvnw & stack run ldgv -- interpret < ../networking-examples/handoff/client.ldgvnw & wait);

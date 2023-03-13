@@ -1,0 +1,29 @@
+-- Simple example of Label-Dependent Session Types
+-- Interprets addition of two numbers
+
+type SendInt : ! ~ssn = !Int. !Int. Unit
+type ComInt : ! ~ssn = !Int. ?Int. Unit
+
+val send2 (c: SendInt) =
+    let x = ((send c) 1) in
+    let y = ((send x) 42) in
+    ()
+
+val add2 (c1: dualof SendInt) =
+    let <m, c2> = recv c1 in
+    let <n, c3> = recv c2 in
+    (m + n)
+
+val com2C (c2: ComInt) =
+    let x = ((send c2) 1337) in
+    let <n, y> = recv x in
+    (n)
+
+val main : Int
+val main =
+    let con = (connect 4343 SendInt "127.0.0.1" 4242 ) in
+    let con2 = (connect 4343 ComInt "127.0.0.1" 4242 ) in
+    let s2 = fork (send2 con) in
+    com2C con2
+
+
