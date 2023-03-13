@@ -68,7 +68,7 @@ Following that, A and B can send and recv values analog to Channels created with
 When communication partner A executes a send instruction to send Value V to B, A first analyses V. 
 Should V be or contain a Channel C, A will set a flag in C to redirect new messages to the address of B. 
 After that, C will be converted to a serializable form, CS. 
-With every channel now being in a form which can be sent over the network, A now writes V to its write-buffer and sends B a NewValue message containing V. 
+With every Channel now being in a form which can be sent over the network, A now writes V to its write-buffer and sends B a NewValue message containing V. 
 Upon receiving V as B with the recv instruction, B now undoes the conversion of every Channel in V.
 B then contacts the communication partner of each Channel, to inform them that their new communication partner is now B instead of A.
 After this, B sends an acknowledgment (AcknowledgeValue message) back to A, which finalizes the sending of V.
@@ -77,12 +77,12 @@ A can now remove V out of its write-buffer.
 ## Responding to Messages
 Except for the Introduce message, every message should be ideally answered with an Okay response. 
 But in some cases the messages don't arrive at the right communication partner or at the wrong time. In these cases, other responses are used.
-- Redirect responses are sent when a message is sent to an outdated address
-- Wait responses are sent when a message cannot be handled at the current moment
+- **Redirect** responses are sent when a message is sent to an outdated address
+- **Wait** responses are sent when a message cannot be handled at the current moment
     - This can be caused by currently being in a critical section while handling another message
     - During the sending process of a Channel
-    - When the addressed Channel isn't yet known by  the program
-- Error responses are sent when an error occurs while handling a AcknowledgePartnerAddress message
+    - When the addressed Channel isn't yet known by the program
+- **Error** responses are sent when an error occurs while handling a AcknowledgePartnerAddress message
 
 ## Informing communication partners of a communication partner change
 If there is a Channel C between A and B and A sends their side of the Channel to D, B needs to be made aware of that.
@@ -121,7 +121,7 @@ Let's say there is a Channel C, between A and B. A sends their end of C to D and
 It would also be possible to use a Response to the NewValue message, to signal that the Value got acknowledged, but I decided to split this process into two messages, since the acknowledging can take long time, compared to other messages.
 
 ## A communication example
-In the [communication example](README-networking-communication-example.md) gives a concrete example of the communication protocol.
+The [communication example](README-networking-communication-example.md) gives a concrete example of the communication protocol.
 
 # Serializing and Sending Messages
 The logical messages are serialized first, then are sent either using a fast protocol, which reuses existing connections or a stateless protocol, which was primary used during development as a fallback when the fast protocol wasn't working yet.
@@ -147,6 +147,6 @@ Each TCP connection gets its own thread where new incoming messages and response
 Similar to the stateless protocol, most messages are sent from the main thread, while some messages are sent from a connection specific thread.
 
 # Compatibility between Internal and External Channels
-Internal channels (channels in the same program, created with new) and external channels (channels between two programs, created with connect and accept) are handled the same way in LDGVNW, for the most part. Every channel has a NetworkConnection object, which saves both incoming and outgoing messages, it also has a ConnectionState object, which dictates whether a NetworkConnection is internal or external. 
+Internal Channels (Channels in the same program, created with new) and external Channels (Channels between two programs, created with connect and accept) are handled the same way in LDGVNW, for the most part. Every Channel has a NetworkConnection object, which saves both incoming and outgoing messages, it also has a ConnectionState object, which dictates whether a NetworkConnection is internal or external. 
 In contrast to external Channels, which serialize and send messages, internal Channels write the data of these messages directly to their counterparts.
 Should an internal Channel be sent to a peer, the internal Channel gets converted into an external Channel. Should both sides of an external Channel end up in the same program, the connection will be converted to an internal Channel.

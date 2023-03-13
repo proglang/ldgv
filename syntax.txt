@@ -72,6 +72,11 @@ M ::= "()"
   | "case" M "of"  "{" lab ":" M { "," lab ":" M } "}"
   | "(" M ")"
 
+## LDGVNW:
+
+  | accept Int T
+  | connect Int T String Int
+
 ## later:
 
   | "select" lab

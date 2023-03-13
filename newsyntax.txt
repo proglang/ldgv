@@ -1,2 +1,0 @@
-create <port> <type> -- Creates a server socket
-connect <ip or url> <port> <type> -- Connects to a server
