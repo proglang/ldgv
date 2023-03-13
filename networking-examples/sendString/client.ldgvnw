@@ -1,0 +1,8 @@
+type SendString : ! ~ssn = !String. ?String. Unit
+
+val main : String
+val main =
+    let con = (connect 4343 SendString "127.0.0.1" 4242 ) in
+    let con2 = (send con) "Hello" in
+    let <world, con3> = recv con2 in
+    (world)
