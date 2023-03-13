@@ -94,7 +94,7 @@ As soon as the address is established, C is considered successfully received by 
 After A finishes the interpretation of their program, A waits until all messages it sent were acknowledged by their communication partners. After that, A sends a Disconnect message to all its peers. The Disconnect message is needed to avoid rewriting a large portion of the interpreter to annotate each recv expression with their associated output Types. Should the Disconnect message not exist, it would be theoretically possible to send a Unit-Type of an exhausted Channel to another communication partner. The recipient would now be unknowing whether their new communication partner were still online.
 
 ## Making Channels serializable
-Making Channels sendable was one of the biggest focuses of LDGVNW.
+One of the main focuses of LDGVNW was to send Channels over the network.
 VChans are Channels that are directly useable by LDGV, but since VChans can't be serialized directly, they need to be converted into VChanSerials first. VChans have the following (simplified) architecture:
 `VChan <NetworkConnection> <Used>`
 
@@ -143,10 +143,11 @@ The fast protocol saves a once created TCP connection and reuses it as long as i
 
 The ConversationID is a random string, selected by the sender of the message and copied by the respondent. ConversationCloseAll is used when one party wants to close all connections to a peer, signaling to their peer that they would need to establish a new connection if they would like to talk to this address and port again. 
 This is helpful if there are A and B. A has an address and port combination of AP. After A and B are done communicating, A goes offline and sends an ConversationCloseAll. Now, C can reuse AP to talk to B.
-Each TCP connection gets its own thread where new incoming messages and responses are collected. Each Channel also gets its own thread where incoming messages get handled. Responses can be picked up by the sending function, to determine its further behavior.
+Each TCP connection gets its own thread, where new incoming messages and responses are collected. Each Channel also gets its own thread, where incoming messages get handled. Responses can be picked up by the sending function, to determine its further behavior.
 Similar to the stateless protocol, most messages are sent from the main thread, while some messages are sent from a connection specific thread.
 
 # Compatibility between Internal and External Channels
-Internal Channels (Channels in the same program, created with new) and external Channels (Channels between two programs, created with connect and accept) are handled the same way in LDGVNW, for the most part. Every Channel has a NetworkConnection object, which saves both incoming and outgoing messages, it also has a ConnectionState object, which dictates whether a NetworkConnection is internal or external. 
+Internal Channels (Channels in the same program, created with new) and external Channels (Channels between two programs, created with connect and accept) are handled, for the most part, the same way in LDGVNW. Every Channel has a NetworkConnection object. The NetworkConnection object saves both incoming and outgoing messages and a ConnectionState. The ConnectionState object dictates whether a NetworkConnection is internal or external. 
 In contrast to external Channels, which serialize and send messages, internal Channels write the data of these messages directly to their counterparts.
 Should an internal Channel be sent to a peer, the internal Channel gets converted into an external Channel. Should both sides of an external Channel end up in the same program, the connection will be converted to an internal Channel.
+
