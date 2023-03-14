@@ -172,27 +172,15 @@ initialConnect activeCons mvar hostname port ownport syntype= do
                         Config.traceNetIO $ "    Over: " ++ hostname ++ ":" ++ port
                         Config.traceNetIO $ "    Message: " ++ msgserial
                         newConnection <- newNetworkConnection introductionanswer ownuserid hostname port introductionanswer ownuserid
+
                         networkconnectionmap <- MVar.takeMVar mvar
-                        -- Look whether partner is already registered locally
-                        case Map.lookup ownuserid networkconnectionmap of
-                            Just partner -> SSem.withSem (ncHandlingIncomingMessage partner) do
-                                connectionstate <- MVar.takeMVar $ ncConnectionState partner
-                                case connectionstate of
-                                    Connected {} -> do
-                                        partConID <- RandomID.newRandomID
-                                        ownConID <- RandomID.newRandomID
-                                        MVar.putMVar (ncConnectionState partner) $ Emulated ownConID partConID True
-                                        MVar.takeMVar $ ncConnectionState newConnection
-                                        MVar.putMVar (ncConnectionState newConnection) $ Emulated partConID ownConID True
-                                        let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
-                                        MVar.putMVar mvar newNetworkconnectionmap
-                                    _ -> do
-                                        MVar.putMVar (ncConnectionState partner) connectionstate
-                                        let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
-                                        MVar.putMVar mvar newNetworkconnectionmap
-                            Nothing -> do
-                                let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
-                                MVar.putMVar mvar newNetworkconnectionmap
+                        let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
+                        MVar.putMVar mvar newNetworkconnectionmap
+
+                        -- If it can be converted to local do that
+                        NCon.tryConvertToEmulatedConnection mvar newConnection
+
+
                         used <- MVar.newEmptyMVar
                         MVar.putMVar used False
                         return $ VChan newConnection used

@@ -169,6 +169,7 @@ contactNewPeers vchansmvar activeCons ownport ownNC = searchVChans (handleVChan 
                     _ -> do
                         if csConfirmedConnection connectionState then return True else do
                             -- Check whether their partner is also registered and connected on this instance, if so convert the connection into a emulated one
+                            {-
                             vchanconnections <- MVar.readMVar vchansmvar
                             let userid = ncOwnUserID nc
                             let mbypartner = Map.lookup userid vchanconnections  
@@ -201,6 +202,13 @@ contactNewPeers vchansmvar activeCons ownport ownNC = searchVChans (handleVChan 
                                     if sendSuccess then return False else do
                                         threadDelay 100000
                                         return False
+                            -}
+                            success <- NCon.tryConvertToEmulatedConnection vchansmvar nc
+                            unless success $ do
+                                sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
+                                unless sendSuccess $ threadDelay 100000
+                            return success
+
             _ -> return True
 
 hostaddressTypeToString :: HostAddress -> String

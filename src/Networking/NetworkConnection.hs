@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 module Networking.NetworkConnection where
 
 import Networking.NetworkBuffer
@@ -117,5 +118,26 @@ confirmConnectionID con ownConnectionID = do
             MVar.putMVar (ncConnectionState con) conState
             return False
 
-        
+tryConvertToEmulatedConnection  :: MVar.MVar (Map.Map String (NetworkConnection a)) -> NetworkConnection a -> IO Bool
+tryConvertToEmulatedConnection vchans con = do     
+    -- networkConnectionsMap <- MVar.takeMVar vchans
+    networkConnectionsMap <- MVar.readMVar vchans
+    case Map.lookup (ncOwnUserID con) networkConnectionsMap of
+        Just partner -> SSem.withSem (ncHandlingIncomingMessage partner) do
+            connectionState <- MVar.takeMVar $ ncConnectionState partner
+            case connectionState of
+                Connected {} -> do
+                    partConID <- newRandomID
+                    ownConID <- newRandomID
+                    MVar.putMVar (ncConnectionState partner) $ Emulated ownConID partConID True
+                    MVar.takeMVar $ ncConnectionState con
+                    MVar.putMVar (ncConnectionState con) $ Emulated partConID ownConID True
+                    -- MVar.putMVar vchans networkConnectionsMap
+                    return True
+                _ -> do 
+                    -- MVar.putMVar vchans networkConnectionsMap
+                    return False
+        _ -> do 
+            -- MVar.putMVar vchans networkConnectionsMap
+            return False
 
