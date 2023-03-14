@@ -162,6 +162,7 @@ actionParserInfo = Opts.info (actionParser <**> Opts.helper) $ mconcat
   , Opts.footer "Authors: \
       \Thomas Leyh (CCLDLC implementation), \
       \Nils Hagner (interpreter, web frontend), \
+      \L. Läufer (networking extension for LDGV), \
       \Janek Spaderna (C backend, command line frontend), \
       \Peter Thiemann (parser, typechecker)"
   ]

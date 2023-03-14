@@ -19,7 +19,7 @@ LDGVNW adds two new commands to LDGV to allow for networking capabilities:
 - `accept <Own Port> <Own Type>`
 - `connect <Own Port> <Own Type> <Partner Address> <Partner Port>`
 
-The accept command requires an integer as a port, for others to connect, and a type, that will be required of a connecting connection.
+The accept command requires an integer, as a port for others to connect, and a type, that will be required of a connecting connection.
 Once a communication partner connects with a desired type, the accept command will return a VChan, of this type.
 The connect command also requires an integer port and a desired type, but also needs to specify a string, for the address of the connection partner, and an integer, for the port of the connection partner.
 Just like with the accept command, the connect command will return a VChan, of the desired type, once a connection has been established. 
@@ -110,7 +110,7 @@ The VChanSerial has the following architecture:
 
 The ReadList contains the current elements of the ReadBuffer, the ReadOffset contains the logical index of the first element of the ReadBuffer, and the ReadLength is the number of all logical elements in the buffer. For example, let's say 5 Values were received, but the first 3 already were handled, so the ReadList would contain 2 elements, the ReadOffset would be 3 and the ReadLength would be 5. The WriteList, WriteOffset and WriteLength behave analogously. The PartnerID and OwnID are directly taken from the NetworkConnection and the Address, Port and ConnectionID (from the partner) are taken from the ConnectionState.
 
-To convert a VChanSerial to a VChan an empty VChan is simply filled with the data provided by the VChanSerial.
+To convert a VChanSerial to a VChan, an empty VChan is simply filled with the data provided by the VChanSerial.
 
 It is important to note that VChans only should be serialized after their ConnectionState has been set to Redirect. This freezes the VChan, as it can no longer receive new messages. This way it can be assured, that at the time of receipt, both the original VChan and the one generated from the VChanSerial contain identical data.
 
@@ -124,10 +124,10 @@ It would also be possible to use a Response to the NewValue message, to signal t
 The [communication example](README-networking-communication-example.md) gives a concrete demonstration of the communication protocol.
 
 # Serializing and Sending Messages
-The logical messages are serialized first, then are sent either using a fast protocol, which reuses existing connections or a stateless protocol, which was primary used during development, as a fallback when the fast protocol wasn't working yet.
+The logical messages are serialized first, then are sent either using a fast protocol, which reuses existing connections or a stateless protocol, which was primary used during development, as a fallback when the fast protocol wasn't working yet. The fast protocol is enabled by default, switching protocols requires a small change to the networking code.
 
 ## Serialization
-Messages and Responses in LDGVNW are serialized into ASCII-Strings and follow the form of the name of the Message, Value, etc. followed by their arguments in brackets. For instance, the message `NewValue <abcd1234> <2> <VInt 42>` would be translated to `NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))`
+Messages and Responses in LDGVNW are serialized into ASCII-Strings and follow the form of the name of the Message, Value, etc. followed by their arguments in parentheses. For instance, the message `NewValue <abcd1234> <2> <VInt 42>` would be translated to `NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))`
 
 To deserialize these messages, the alex and happy libraries are used.
 
@@ -147,7 +147,7 @@ The fast protocol also has a permanent thread, looking for new incoming connecti
 Similar to the stateless protocol, most messages are sent from the main thread, while some messages are sent from a connection specific thread.
 
 # Compatibility between Internal and External Channels
-Internal Channels (Channels in the same program, typically created with new) and external Channels (Channels between two programs, typically created with connect and accept) are handled, for the most part, the same way in LDGVNW. Every Channel has a NetworkConnection object. The NetworkConnection object saves both incoming and outgoing messages and a ConnectionState. The ConnectionState object dictates whether a NetworkConnection is internal or external. 
+Internal Channels (Channels in the same program, typically created with new) and external Channels (Channels between two programs, typically created with connect and accept) are handled, for the most part, the same way in LDGVNW. Every Channel has a NetworkConnection. The NetworkConnection saves both incoming and outgoing messages and a ConnectionState. The ConnectionState dictates whether a NetworkConnection is internal or external. 
 In contrast to external Channels, which serialize and send messages, internal Channels write the data of these messages directly to their counterparts.
 Should an internal Channel be sent to a peer, the internal Channel gets converted into an external Channel. Should both sides of an external Channel end up in the same program, the connection will be converted to an internal Channel.
 
