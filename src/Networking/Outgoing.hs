@@ -44,6 +44,7 @@ sendValue vchanconsmvar activeCons networkconnection val ownport resendOnError =
             let mbypartner = Map.lookup ownid vchancons
             case mbypartner of
                 Just partner -> do 
+                    Config.traceNetIO $ "Emulated Send for: " ++ NSerialize.serialize valCleaned
                     NB.write (ncRead partner) valCleaned
                     return True
                 _ -> do 
@@ -172,8 +173,26 @@ initialConnect activeCons mvar hostname port ownport syntype= do
                         Config.traceNetIO $ "    Message: " ++ msgserial
                         newConnection <- newNetworkConnection introductionanswer ownuserid hostname port introductionanswer ownuserid
                         networkconnectionmap <- MVar.takeMVar mvar
-                        let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
-                        MVar.putMVar mvar newNetworkconnectionmap
+                        -- Look whether partner is already registered locally
+                        case Map.lookup ownuserid networkconnectionmap of
+                            Just partner -> SSem.withSem (ncHandlingIncomingMessage partner) do
+                                connectionstate <- MVar.takeMVar $ ncConnectionState partner
+                                case connectionstate of
+                                    Connected {} -> do
+                                        partConID <- RandomID.newRandomID
+                                        ownConID <- RandomID.newRandomID
+                                        MVar.putMVar (ncConnectionState partner) $ Emulated ownConID partConID True
+                                        MVar.takeMVar $ ncConnectionState newConnection
+                                        MVar.putMVar (ncConnectionState newConnection) $ Emulated partConID ownConID True
+                                        let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
+                                        MVar.putMVar mvar newNetworkconnectionmap
+                                    _ -> do
+                                        MVar.putMVar (ncConnectionState partner) connectionstate
+                                        let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
+                                        MVar.putMVar mvar newNetworkconnectionmap
+                            Nothing -> do
+                                let newNetworkconnectionmap = Map.insert introductionanswer newConnection networkconnectionmap
+                                MVar.putMVar mvar newNetworkconnectionmap
                         used <- MVar.newEmptyMVar
                         MVar.putMVar used False
                         return $ VChan newConnection used
