@@ -19,9 +19,9 @@ LDGVNW adds two new commands to LDGV to allow for networking capabilities:
 - `accept <Own Port> <Own Type>`
 - `connect <Own Port> <Own Type> <Partner Address> <Partner Port>`
 
-The accept command requires an integer as a port for others to connect and a type that will be required of a connecting connection.
-Once a communication partner connects with a desired type, the accept command will return a VChan, of the desired type.
-The connect command also requires an integer port and a desired type, but also needs to specify a string for the address of the connection partner as well as an integer for the port of the connection partner.
+The accept command requires an integer as a port, for others to connect, and a type, that will be required of a connecting connection.
+Once a communication partner connects with a desired type, the accept command will return a VChan, of this type.
+The connect command also requires an integer port and a desired type, but also needs to specify a string, for the address of the connection partner, and an integer, for the port of the connection partner.
 Just like with the accept command, the connect command will return a VChan, of the desired type, once a connection has been established. 
 Important to note is that, with the current implementation, only IPv4 addresses are supported.
 IPv6 and Unix domain sockets could be supported in the future with a relatively low effort.
@@ -50,13 +50,13 @@ With possible responses:
 Typing for the attributes:
 
 - **UserID** is a unique string, used to identify the logical communication partner
-- **ConnectionID** is a unique string, used to identify the current physical connection to a logical communication partner
-- **Port** is a string containing the number of a port
-- **Address** is a string containing the IPv4 address or URL of a communication partner
+- **ConnectionID** is a unique string, used to identify the current physical connection, to a logical communication partner
+- **Port** is a string, containing the port number
+- **Address** is a string, containing the IPv4 address or URL of a communication partner
 - **Value** is a type of data in LDGV.  The VChans present in this Value are replaced with VChanSerials
-- **Value Index** is an integer containing the index of a Value
-- **Type Name** is a  TName Type of the desired Type
-- **Type Structure** of the desired Type
+- **Value Index** is an integer, containing the index of a Value
+- **Type Name** is a  TName Type, of the desired Type
+- **Type Structure** is a Type, containing the resolved Type of the Type Name
 
 ## Establishing a new Connection
 As soon as B opens up their port with the accept command. A can connect, by sending an Introduce message to B.
@@ -65,11 +65,11 @@ B then answers with a OkayIntroduce response, sharing their own unique ID with A
 Following that, A and B can send and recv values analog to Channels created with the new command.
 
 ## Sending messages over a Connection
-When communication partner A executes a send instruction to send Value V to B, A first analyses V. 
+When communication partner A executes a send command to send Value V to B, A first analyses V. 
 Should V be or contain a Channel C, A will set a flag in C to redirect new messages to the address of B. 
 After that, C will be converted to a serializable form, CS. 
-With every Channel now being in a form which can be sent over the network, A now writes V to its write-buffer and sends B a NewValue message containing V. 
-Upon receiving V as B with the recv instruction, B now undoes the conversion of every Channel in V.
+With every Channel now being in a form, which can be sent over the network, A writes V to its write-buffer and sends B a NewValue message containing V. 
+Upon receiving V as B with the recv command, B undoes the conversion of every Channel in V.
 B then contacts the communication partner of each Channel, to inform them, that their new communication partner is now B, instead of A.
 After this, B sends an acknowledgment (AcknowledgeValue message) back to A, which finalizes the sending of V.
 A can now remove V out of its write-buffer.
@@ -77,21 +77,21 @@ A can now remove V out of its write-buffer.
 ## Responding to Messages
 Except for the Introduce message, every message should be ideally answered with an Okay response. 
 But in some cases the messages don't arrive at the right communication partner or at the wrong time. In these cases, other responses are used.
-- **Redirect** responses are sent when a message is sent to an outdated address
-- **Wait** responses are sent when a message cannot be handled at the current moment
+- **Redirect** responses are sent, when a message is sent to an outdated address
+- **Wait** responses are sent, when a message cannot be handled at the current moment
     - This can be caused by currently being in a critical section while handling another message
     - During the sending process of a Channel
     - When the addressed Channel isn't yet known by the program
 - **Error** responses are sent when an error occurs while handling a AcknowledgePartnerAddress message
 
-## Informing communication partners of a communication partner change
+## Informing Communication Partners of a Communication Partner Change
 If there is a Channel C between A and B and A sends their side of the Channel to D, B needs to be made aware of that.
 To archive this, D sends a NewPartnerAddress message to B. This message contains the server port of D and a new ConnectionID DC for D. 
 B then replies with a AcknowledgePartnerAddress message, repeating DC. 
 As soon as the address is established, C is considered successfully received by D.
 
-## Shutting down after completing all the instructions
-After A finishes the interpretation of their program, A waits until all messages it sent were acknowledged by their communication partners. After that, A sends a Disconnect message to all their peers. The Disconnect message is needed to avoid rewriting a large portion of the interpreter to annotate each recv expression with their associated output Types. Should the Disconnect message not exist, it would be theoretically possible to send a Unit-Type of an exhausted Channel to another communication partner. The recipient would now be unknowing whether their new communication partner were still online.
+## Shutting Down after Completing all Instructions
+After A finishes the interpretation of their program, A waits until all messages they sent were acknowledged by their communication partners. After that, A sends a Disconnect message to all their peers. The Disconnect message is needed, since the recv command doesn't know the received Type during interpretation. Should the Disconnect message not exist, it would be theoretically possible to send a Unit-Type of an exhausted Channel to another communication partner. The recipient would now be unknowing whether their new communication partner is still online.
 
 ## Making Channels serializable
 One of the main focuses of LDGVNW is to send Channels over the network.
@@ -116,15 +116,15 @@ It is important to note that VChans only should be serialized after their Connec
 
 ## Why Values are Acknowledged
 LDGVNW has separate messages for sending a Value (NewValue) and acknowledging a Value (AcknowledgeValue). Simply knowing that the other party has received a Value, isn't enough when Channels are involved.
-Let's say there is a Channel C, between A and B. A sends their end of C to D and at the same time, B sends their end of C to E. Since the sending of the Channel ends, happened simultaneously, D still thinks they are talking to B and E thinks they are talking to A. Should A and B now go offline, before either D or E, can contact them to find out where they redirected their connections to, D and E will not be able to connect. Since acknowledgments are only sent after a sent Channel has been reconnected, it can be assured that D and E are connected, before A and B can go offline.
+Let's say there is a Channel C, between A and B. A sends their side of C to D and at the same time, B sends their side of C to E. Since the sending of the Channel sides, happened simultaneously, D still thinks they are talking to B and E thinks they are talking to A. Should A and B now go offline, before either D or E, can contact them, to find out where they redirected their connections to, D and E will not be able to connect. Since acknowledgments are only sent after a sent Channel has been reconnected, it can be assured that D and E are connected, before A and B can go offline.
 
 It would also be possible to use a Response to the NewValue message, to signal that the Value got acknowledged, but I decided to split this process into two messages, since the acknowledging can take long time, compared to other messages.
 
 ## A communication example
-The [communication example](README-networking-communication-example.md) gives a concrete example of the communication protocol.
+The [communication example](README-networking-communication-example.md) gives a concrete demonstration of the communication protocol.
 
 # Serializing and Sending Messages
-The logical messages are serialized first, then are sent either using a fast protocol, which reuses existing connections or a stateless protocol, which was primary used during development as a fallback when the fast protocol wasn't working yet.
+The logical messages are serialized first, then are sent either using a fast protocol, which reuses existing connections or a stateless protocol, which was primary used during development, as a fallback when the fast protocol wasn't working yet.
 
 ## Serialization
 Messages and Responses in LDGVNW are serialized into ASCII-Strings and follow the form of the name of the Message, Value, etc. followed by their arguments in brackets. For instance, the message `NewValue <abcd1234> <2> <VInt 42>` would be translated to `NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))`
@@ -142,7 +142,7 @@ The fast protocol saves a once created TCP connection and reuses it as long as i
 - `ConversationCloseAll`
 
 The ConversationID is a random string, selected by the sender of the message and copied by the respondent. ConversationCloseAll is used when one party wants to close all connections to a peer, signaling to their peer that they would need to establish a new connection, if they would like to talk to this address and port again. 
-This is helpful if there are A and B. A has an address and port combination of AP. After A and B are done communicating, A goes offline and sends an ConversationCloseAll. Now, C can reuse AP to talk to B.
+This is helpful if there are A and B. A has an address and port combination of AP. After A and B are done communicating, A goes offline and sends a ConversationCloseAll. Now, C can reuse AP to talk to B.
 The fast protocol also has a permanent thread, looking for new incoming connections. Each new TCP connection gets its own permanent thread, where new incoming messages and responses are collected. Each Channel also gets its own thread, where incoming messages get handled. Responses can be picked up by the sending function, to determine its further behavior.
 Similar to the stateless protocol, most messages are sent from the main thread, while some messages are sent from a connection specific thread.
 
@@ -150,5 +150,6 @@ Similar to the stateless protocol, most messages are sent from the main thread, 
 Internal Channels (Channels in the same program, typically created with new) and external Channels (Channels between two programs, typically created with connect and accept) are handled, for the most part, the same way in LDGVNW. Every Channel has a NetworkConnection object. The NetworkConnection object saves both incoming and outgoing messages and a ConnectionState. The ConnectionState object dictates whether a NetworkConnection is internal or external. 
 In contrast to external Channels, which serialize and send messages, internal Channels write the data of these messages directly to their counterparts.
 Should an internal Channel be sent to a peer, the internal Channel gets converted into an external Channel. Should both sides of an external Channel end up in the same program, the connection will be converted to an internal Channel.
+
 
 

@@ -169,40 +169,6 @@ contactNewPeers vchansmvar activeCons ownport ownNC = searchVChans (handleVChan 
                     _ -> do
                         if csConfirmedConnection connectionState then return True else do
                             -- Check whether their partner is also registered and connected on this instance, if so convert the connection into a emulated one
-                            {-
-                            vchanconnections <- MVar.readMVar vchansmvar
-                            let userid = ncOwnUserID nc
-                            let mbypartner = Map.lookup userid vchanconnections  
-                            case mbypartner of
-                                Just partner -> do
-                                    -- Their partner is registered in this instance. Now we have to figure out whether this is till current and we can start emulating the connection
-                                    SSem.wait (ncHandlingIncomingMessage partner) 
-                                    connectionstate <- MVar.takeMVar $ ncConnectionState partner
-                                    case connectionState of
-                                        Connected {} -> do
-                                            -- Reemulate them
-                                            partConID <- RandomID.newRandomID
-                                            ownConID <- RandomID.newRandomID
-                                            MVar.putMVar (ncConnectionState partner) $ Emulated ownConID partConID True
-                                            _ <- MVar.takeMVar $ ncConnectionState nc
-                                            MVar.putMVar (ncConnectionState nc) $ Emulated partConID ownConID True
-                                            SSem.signal (ncHandlingIncomingMessage partner)
-                                            return True
-                                        _ -> do
-                                            -- Nothing to do here, we no longer own the partner
-                                            MVar.putMVar (ncConnectionState partner) connectionState
-                                            SSem.signal (ncHandlingIncomingMessage partner)
-                                            sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
-                                            if sendSuccess then return False else do 
-                                                threadDelay 100000
-                                                return False 
-                                Nothing -> do 
-                                    -- Their partner isnt registered in this instance
-                                    sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
-                                    if sendSuccess then return False else do
-                                        threadDelay 100000
-                                        return False
-                            -}
                             success <- NCon.tryConvertToEmulatedConnection vchansmvar nc
                             unless success $ do
                                 sendSuccess <- NO.sendNetworkMessage activeCons nc (Messages.NewPartnerAddress (ncOwnUserID nc) ownport $ csOwnConnectionID connectionState) $ -2
