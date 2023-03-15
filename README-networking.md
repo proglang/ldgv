@@ -24,7 +24,7 @@ Once a communication partner connects with a desired type, the accept command wi
 The connect command also requires an integer port and a desired type, but also needs to specify a string, for the address of the connection partner, and an integer, for the port of the connection partner.
 Just like with the accept command, the connect command will return a VChan, of the desired type, once a connection has been established. 
 Important to note is that, with the current implementation, only IPv4 addresses are supported.
-IPv6 and Unix domain sockets could be supported in the future with a relatively low effort.
+IPv6 and Unix domain sockets could be supported in the future, with relatively low effort.
 
 # The Logical Communication Architecture
 ## Messages and Responses
@@ -127,12 +127,12 @@ The [communication example](README-networking-communication-example.md) gives a 
 The logical messages are serialized first, then are sent either using a fast protocol, which reuses existing connections or a stateless protocol, which was primary used during development, as a fallback when the fast protocol wasn't working yet. The fast protocol is enabled by default, switching protocols requires a small change to the networking code.
 
 ## Serialization
-Messages and Responses in LDGVNW are serialized into ASCII-Strings and follow the form of the name of the Message, Value, etc. followed by their arguments in parentheses. For instance, the message `NewValue <abcd1234> <2> <VInt 42>` would be translated to `NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))`
+Messages and Responses in LDGVNW are serialized into ASCII-Strings and follow the form of the name of the Message, Value, etc. followed by their arguments in parentheses. For instance, the message `NewValue <abcd1234> <2> <VInt 42>` would be translated to `NNewValue (String:"abcd1234") (Int:2) (VInt (Int:42))`. The N in front of NewValue, signals that it belongs to the networking messages, the V in front of Int makes differentiating between Value Ints and other Ints easier.
 
 To deserialize these messages, the alex and happy libraries are used.
 
 ## Stateless Protocol
-The stateless protocol allows sending serialized logical messages directly. A new connection is established, followed by, sending the serialized message, waiting for a response and disconnecting afterward. Always creating new connections assures that every message gets its correct response, but establishing a new TCP connection every time a message is sent, also causes a performance penalty. The stateless protocol has a thread permanently looking for new messages. This thread creates a new temporary thread to handle each incoming message. Messages are primarily sent from the main thread, in which also the interpretation occurs, except for some messages like the acknowledging of a new partner address, which is sent from the temporary thread.
+The stateless protocol allows sending serialized logical messages directly. A new connection is established, followed by, sending the serialized message, waiting for a response and disconnecting afterward. Always creating new connections assures that every message gets its correct response, but establishing a new TCP connection every time a message is sent, also causes a performance penalty. The stateless protocol has a thread permanently looking for new messages. This thread creates a new temporary thread to handle each incoming message. Messages are primarily sent from the main thread, in which also the interpretation occurs, except for some messages, like the acknowledging of a new partner address, which is sent from the temporary thread.
 
 ## Fast Protocol
 The fast protocol saves a once created TCP connection and reuses it as long as it stays open. Since LDGVNW uses multiple threads to send messages, this can lead to messages and responses being mismatched. To avoid this, each Message and Response is wrapped in a ConversationSession.
@@ -150,6 +150,7 @@ Similar to the stateless protocol, most messages are sent from the main thread, 
 Internal Channels (Channels in the same program, typically created with new) and external Channels (Channels between two programs, typically created with connect and accept) are handled, for the most part, the same way in LDGVNW. Every Channel has a NetworkConnection. The NetworkConnection saves both incoming and outgoing messages and a ConnectionState. The ConnectionState dictates whether a NetworkConnection is internal or external. 
 In contrast to external Channels, which serialize and send messages, internal Channels write the data of these messages directly to their counterparts.
 Should an internal Channel be sent to a peer, the internal Channel gets converted into an external Channel. Should both sides of an external Channel end up in the same program, the connection will be converted to an internal Channel.
+
 
 
 
