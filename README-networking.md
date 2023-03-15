@@ -120,6 +120,9 @@ Let's say there is a Channel C, between A and B. A sends their side of C to D an
 
 It would also be possible to use a Response to the NewValue message, to signal that the Value got acknowledged, but I decided to split this process into two messages, since the acknowledging can take long time, compared to other messages.
 
+## Requesting a Value
+Sending of most messages is only attempted once, this includes NewValue messages. A Value can be requested, by the recv command, using a RequestValue message.
+
 ## A communication example
 The [communication example](README-networking-communication-example.md) gives a concrete demonstration of the communication protocol.
 
