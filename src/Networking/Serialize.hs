@@ -181,13 +181,13 @@ instance Serializable Bool where
 instance Serializable Double where
   serialize d = "Double:" ++ show d
 
-instance ((Serializable a, Serializable b) => Serializable (a, b)) where
+instance (Serializable a, Serializable b) => Serializable (a, b) where
   serialize (s, t) = "((" ++ serialize s++ ") (" ++ serialize t ++ "))"
 
-instance ((Serializable a, Serializable b, Serializable c) => Serializable (a, b, c)) where
+instance (Serializable a, Serializable b, Serializable c) => Serializable (a, b, c) where
   serialize (s, t, u) = "((" ++ serialize s ++ ") (" ++ serialize t ++ ") (" ++ serialize u ++ "))"
 
-instance ((Serializable a, Serializable b, Serializable c, Serializable d) => Serializable (a, b, c, d)) where
+instance (Serializable a, Serializable b, Serializable c, Serializable d) => Serializable (a, b, c, d) where
   serialize (s, t, u, v) = "((" ++ serialize s ++ ") (" ++ serialize t ++ ") (" ++ serialize u ++ ") (" ++ serialize v ++ "))"
 
 instance {-# OVERLAPPING #-} Serializable PEnv where
