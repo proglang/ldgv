@@ -160,9 +160,9 @@ actionParserInfo :: Opts.ParserInfo (Action ())
 actionParserInfo = Opts.info (actionParser <**> Opts.helper) $ mconcat
   [ Opts.progDesc "An implementation of Label Dependent Session Types (LDST)."
   , Opts.footer "Authors: \
+      \Leon Läufer (networking capability for Channels), \
       \Thomas Leyh (CCLDLC implementation), \
       \Nils Hagner (interpreter, web frontend), \
-      \L. Läufer (networking extension for LDGV), \
       \Janek Spaderna (C backend, command line frontend), \
       \Peter Thiemann (parser, typechecker)"
   ]

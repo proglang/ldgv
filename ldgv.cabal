@@ -9,12 +9,13 @@ version:        0.0.1
 synopsis:       Frontend, interpreter and C backend for LDGV/LDST
 homepage:       https://github.com/proglang/ldgv#readme
 bug-reports:    https://github.com/proglang/ldgv/issues
-author:         Thomas Leyh (CCLDLC implementation),
+author:         Leon Läufer (networking capability for Channels),
+                Thomas Leyh (CCLDLC implementation),
                 Nils Hagner (web frontend, interpreter),
                 Janek Spaderna (command line fronted, C backend),
                 Peter Thiemann (parser, typechecker)
 maintainer:     thiemann@informatik.uni-freiburg.de
-copyright:      2019-2021 Chair of Programming Languages, Uni Freiburg
+copyright:      2019-2023 Chair of Programming Languages, Uni Freiburg
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
