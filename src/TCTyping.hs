@@ -241,6 +241,41 @@ tySynth te e =
   New ty -> do
     kiCheck (demoteTE te) ty Kssn
     return (TPair "" ty (dualof ty), te)
+  -- I've got no real clue of what I am doing here hope it kind of works
+  Connect e1 ty e2 e3 -> do
+    kiCheck (demoteTE te) ty Kssn
+    -- check whether e1 is Int
+    (top, te1) <- tySynth te e1
+    topu <- unfold te1 top
+    case topu of
+      TInt -> return ()
+      TNat -> return ()
+      _ -> TC.mfail ("Int expected, but got " ++ pshow top ++ " (" ++ pshow topu ++ ")")
+    -- check whether e2 is String
+    (tps, te2) <- tySynth te e2
+    tpsu <- unfold te2 tps
+    case tpsu of
+      TString -> return ()
+      _ -> TC.mfail ("String expected, but got " ++ pshow tps ++ " (" ++ pshow tpsu ++ ")")
+    -- check whether e3 is Int
+    (tpp, te3) <- tySynth te e3
+    tppu <- unfold te3 tpp
+    case tppu of
+      TInt -> return ()
+      TNat -> return ()
+      _ -> TC.mfail ("Int expected, but got " ++ pshow tpp ++ " (" ++ pshow tppu ++ ")")
+
+    return (ty, te)
+  Accept e1 ty -> do
+    kiCheck (demoteTE te) ty Kssn
+    -- check whether e1 is Int
+    (top, te1) <- tySynth te e1
+    topu <- unfold te1 top
+    case topu of
+      TInt -> return ()
+      TNat -> return ()
+      _ -> TC.mfail ("Int expected, but got " ++ pshow top ++ " (" ++ pshow topu ++ ")")
+    return (ty, te)
   Send e1 -> do
     (ts, te1) <- tySynth te e1
     tsu <- unfold te1 ts

@@ -6,7 +6,7 @@ module PrettySyntax (Pretty(), pretty, pshow) where
 
 import Kinds
 import Syntax
-import ProcessEnvironment
+import ProcessEnvironmentTypes
 
 import Data.Text.Prettyprint.Doc
 import qualified Data.Set as Set
@@ -123,6 +123,8 @@ instance Pretty Exp where
   pretty (New t) = pretty "new" <+> pretty t
   pretty (Send e) = pretty "send" <+> pretty e
   pretty (Recv e) = pretty "recv" <+> pretty e
+  pretty (Connect s t a i) = pretty "connect" <+> pretty s <+> pretty t <+> pretty a <+> pretty i
+  pretty (Accept s t) = pretty "accept" <+> pretty s <+> pretty t
   pretty (Case e ses) =
     pcase e ses
   pretty (Cast e t1 t2) =
@@ -164,7 +166,8 @@ instance Pretty Value where
     VInt i -> pretty $ show i
     VDouble d -> pretty $ show d
     VString s -> pretty $ show s
-    VChan _ _ -> pretty "VChan"
+    VChan {} -> pretty "VChan"
+    VChanSerial {} -> pretty "VChanSerial"
     VSend v -> pretty "VSend"
     VPair a b -> pretty "&lt;" <+> pretty a <+> pretty ", " <+> pretty b <+> pretty "&gt;"
     VType t -> pretty t

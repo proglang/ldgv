@@ -32,6 +32,9 @@ data Exp = Let Ident Exp Exp
          | Recv Exp
          | Case Exp [(String, Exp)]
          | Cast Exp Type Type
+         -- New types
+         | Connect Exp Type Exp Exp  -- Connect URL Port Type
+         | Accept Exp Type -- Accept Socket Type
   deriving (Show,Eq)
 
 data MathOp e
@@ -165,6 +168,8 @@ instance Freevars Exp where
   fv (New ty) = fv ty
   fv (Send e1) = fv e1
   fv (Recv e1) = fv e1
+  fv (Connect e0 ty e1 e2) = fv e0 <> fv ty <>fv e1 <> fv e2
+  fv (Accept e1 ty) = fv e1 <> fv ty
   fv (Case e cases) = foldl' (<>) (fv e) $ map (fv . snd) cases
   fv (Cast e t1 t2) = fv e
   fv (Succ e) = fv e
@@ -231,6 +236,8 @@ instance Substitution Exp where
     sb (New t) = New t
     sb (Send e1) = Send (sb e1)
     sb (Recv e1) = Recv (sb e1)
+    sb (Connect e0 t e1 e2) = Connect (sb e0) t (sb e1) (sb e2)
+    sb (Accept e1 t) = Accept (sb e1) t
     sb (Succ e1) = Succ (sb e1)
     sb (NatRec e ez y t z tyz es) =
       NatRec (sb e) (sb ez) y t z (subst x exp tyz) (if x /= y && x /= z then sb es else es)

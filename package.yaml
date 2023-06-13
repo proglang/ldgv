@@ -5,12 +5,13 @@ synopsis:            Frontend, interpreter and C backend for LDGV/LDST
 license:             BSD3
 license-file:        LICENSE
 author:
-- Thomas Leyh (CCLDLC implementation)
-- Nils Hagner (web frontend, interpreter)
-- Janek Spaderna (command line fronted, C backend)
-- Peter Thiemann (parser, typechecker)
+- "Leon Läufer (LDGVNW implementation)"
+- "Thomas Leyh (CCLDLC implementation)"
+- "Nils Hagner (web frontend, interpreter)"
+- "Janek Spaderna (command line fronted, C backend)"
+- "Peter Thiemann (parser, typechecker)"
 maintainer:          "thiemann@informatik.uni-freiburg.de"
-copyright:           "2019-2021 Chair of Programming Languages, Uni Freiburg"
+copyright:           "2019-2023 Chair of Programming Languages, Uni Freiburg"
 
 ghc-options:
 - -Wall
@@ -60,6 +61,11 @@ library:
   - transformers
   - typed-process
   - validation-selective
+  - network
+  - network-run
+  - random
+  - SafeSemaphore >=0.10.1
+  - directory
 
 tests:
   ldgv-test:

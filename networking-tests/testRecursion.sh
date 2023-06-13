@@ -1,0 +1,2 @@
+clear; echo "Recursion"; (trap 'kill 0' SIGINT; stack run ldgv -- interpret < ../networking-examples/recursion/server.ldgvnw & stack run ldgv -- interpret < ../networking-examples/recursion/client.ldgvnw & wait);
+exit;

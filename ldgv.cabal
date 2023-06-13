@@ -1,6 +1,6 @@
 cabal-version: 1.18
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -9,12 +9,13 @@ version:        0.0.1
 synopsis:       Frontend, interpreter and C backend for LDGV/LDST
 homepage:       https://github.com/proglang/ldgv#readme
 bug-reports:    https://github.com/proglang/ldgv/issues
-author:         Thomas Leyh (CCLDLC implementation),
+author:         Leon Läufer (LDGVNW implementation),
+                Thomas Leyh (CCLDLC implementation),
                 Nils Hagner (web frontend, interpreter),
                 Janek Spaderna (command line fronted, C backend),
                 Peter Thiemann (parser, typechecker)
 maintainer:     thiemann@informatik.uni-freiburg.de
-copyright:      2019-2021 Chair of Programming Languages, Uni Freiburg
+copyright:      2019-2023 Chair of Programming Languages, Uni Freiburg
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -66,12 +67,29 @@ library
       Examples
       Interpreter
       Kinds
+      Networking.Assert
+      Networking.Buffer
+      Networking.Common
+      Networking.Incoming
+      Networking.Messages
+      Networking.NetworkBuffer
+      Networking.NetworkConnection
+      Networking.NetworkingMethod.Fast
+      Networking.NetworkingMethod.NetworkingMethodCommon
+      Networking.NetworkingMethod.Stateless
+      Networking.Outgoing
+      Networking.RandomID
+      Networking.Serialize
+      Networking.Tests
       Parsing
       Parsing.Grammar
       Parsing.Tokens
       ProcessEnvironment
+      ProcessEnvironmentTypes
       Syntax
       Typechecker
+      ValueParsing.ValueGrammar
+      ValueParsing.ValueTokens
   other-modules:
       PrettySyntax
       TCSubtyping
@@ -87,15 +105,20 @@ library
       alex
     , happy
   build-depends:
-      array
+      SafeSemaphore >=0.10.1
+    , array
     , base >=4.12 && <5
     , bytestring
     , containers
+    , directory
     , file-embed
     , filepath
     , lens
     , mtl
+    , network
+    , network-run
     , prettyprinter
+    , random
     , text
     , transformers
     , typed-process

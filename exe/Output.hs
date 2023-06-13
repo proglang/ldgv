@@ -46,6 +46,7 @@ stderrColumns = liftIO $ fmap Terminal.width <$!> size
 data MsgLevel
   = MsgError
   | MsgWarning
+  | MsgInfo
 
 msgWarning :: (MonadReader TerminalSize m, MonadIO m) => String -> m ()
 msgWarning = formatMsg MsgWarning Nothing
@@ -53,12 +54,16 @@ msgWarning = formatMsg MsgWarning Nothing
 msgFatal :: (MonadReader TerminalSize m, MonadIO m) => String -> m a
 msgFatal msg = formatMsg MsgError Nothing msg >> liftIO exitFailure
 
+msgInfo :: (MonadReader TerminalSize m, MonadIO m) => String -> m ()
+msgInfo = formatMsg MsgInfo Nothing
+
 formatMsg :: (MonadIO m, MonadReader TerminalSize m) => MsgLevel -> Maybe FilePath -> String -> m ()
 formatMsg level mfile msg = do
   let levelDoc =
         let (levelString, color) = case level of
               MsgError -> ("error", Terminal.Red)
               MsgWarning -> ("warning", Terminal.Yellow)
+              MsgInfo -> ("info", Terminal.White)
          in annotate (Terminal.color color) $ levelString <> ": "
 
   let fileDoc = flip foldMap mfile \file ->

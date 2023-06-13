@@ -1,0 +1,9 @@
+type SendString : ! ~ssn = !String. ?String. Unit
+
+val main : String
+val main =
+    let con = (accept 4242 (dualof SendString)) in
+    let <hello, con2> = recv con in
+    let con3 = (send con2) "world" in
+    (hello)
+    

@@ -25,3 +25,6 @@ cabal.project.local~
 *.swp
 stack.yaml.lock
 result
+exclude
+result*
+.vscode

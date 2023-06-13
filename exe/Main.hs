@@ -2,7 +2,6 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 module Main (main) where
@@ -25,7 +24,7 @@ import Parsing
 import qualified C.Compile as C
 import qualified C.Generate as C
 import qualified Interpreter as I
-import qualified ProcessEnvironment as P
+import qualified ProcessEnvironmentTypes as P
 import qualified Syntax
 import qualified Typechecker as T
 
@@ -161,6 +160,7 @@ actionParserInfo :: Opts.ParserInfo (Action ())
 actionParserInfo = Opts.info (actionParser <**> Opts.helper) $ mconcat
   [ Opts.progDesc "An implementation of Label Dependent Session Types (LDST)."
   , Opts.footer "Authors: \
+      \Leon Läufer (LDGVNW implementation), \
       \Thomas Leyh (CCLDLC implementation), \
       \Nils Hagner (interpreter, web frontend), \
       \Janek Spaderna (C backend, command line frontend), \
@@ -190,6 +190,7 @@ interpret Interpreter{ interpreterInputs = inputs, interpreterGradual = gradual 
       Right a -> pure a
       Left err -> fail $ "Error: " ++ err
     liftIO $ I.interpret decls
+    -- For testing a small wait here, so all communications can come to a close
   liftIO $ putStrLn $ either
     (\v -> "Error: " ++ show v)
     (\v -> "Result: " ++ show v)
@@ -252,6 +253,9 @@ parseFile mpath = do
   (name, src) <- liftIO $ case mpath of
     Nothing -> ("<stdin>",) <$> getContents
     Just fp -> (fp,) <$> readFile fp
+    
+  -- Print declarations for debug
+  -- msgInfo . show $ parseDecls src
 
   case parseDecls src of
     Left err -> Nothing <$ formatMsg MsgError (Just name) err
