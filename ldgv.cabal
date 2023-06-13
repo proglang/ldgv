@@ -9,7 +9,7 @@ version:        0.0.1
 synopsis:       Frontend, interpreter and C backend for LDGV/LDST
 homepage:       https://github.com/proglang/ldgv#readme
 bug-reports:    https://github.com/proglang/ldgv/issues
-author:         Leon Läufer (LDGVNW: Networking capability for Channels),
+author:         Leon Läufer (LDGVNW implementation),
                 Thomas Leyh (CCLDLC implementation),
                 Nils Hagner (web frontend, interpreter),
                 Janek Spaderna (command line fronted, C backend),
