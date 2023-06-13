@@ -5,7 +5,7 @@ synopsis:            Frontend, interpreter and C backend for LDGV/LDST
 license:             BSD3
 license-file:        LICENSE
 author:
-- "Leon Läufer (LDGVNW: networking capability for Channels)"
+- "Leon Läufer (LDGVNW: Networking capability for Channels)"
 - "Thomas Leyh (CCLDLC implementation)"
 - "Nils Hagner (web frontend, interpreter)"
 - "Janek Spaderna (command line fronted, C backend)"
