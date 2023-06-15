@@ -52,8 +52,8 @@ kiSynth te (TRecv x ty1 ty2) = do
   m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
   return (Kssn, MOne)
 kiSynth te (TCase e1 cases) = do
-  -- alternative: synthesize the type of e1 and only check the cases arising from this type
-  let tlabs = TLab (map fst cases)
+  -- synthesize the type of e1 and only check the cases arising from this type
+  (tlabs, te') <- tySynth te e1
   _ <- tyCheck te e1 tlabs
   ks <- mapM (\(lab, elab) ->
               kiSynth (("*kis*", (Many, TEqn e1 (Lit $ LLab lab) tlabs)) : te) elab)
@@ -79,7 +79,7 @@ kiCheck te ty ki = do
   (k1, m1) <- kiSynth te ty
   if klub ki k1 == ki
      then return ()
-     else TC.mfail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1)
+     else TC.mfail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1) 
 
 -- unrestricted strengthening of top entry + expanding singleton in return type if needed
 strengthen :: Exp -> (Type, TEnv) -> TCM (Type, TEnv)
@@ -250,10 +250,10 @@ tySynth te e =
       TDyn -> do
         TC.failUnlessGradual ("Send expected, but got " ++ pshow ts ++ " (" ++ pshow tsu ++ ")")
         return (TFun MOne "d" TDyn TDyn, te1)
-      _ ->
+      _ -> 
         TC.mfail ("Send expected, but got " ++ pshow ts ++ " (" ++ pshow tsu ++ ")")
   Recv e1 -> do
-    (tr, te1) <- tySynth te e1
+    (tr, te1) <- tySynth te e1 
     tru <- unfold te1 tr
     case tru of
       TRecv x ty1 ty2 ->
@@ -272,7 +272,7 @@ tySynth te e =
       TC.failUnlessGradual "case on value with dynamic type bound not allowed - implementation restriction"
     mEquiv <- valueEquivM (demoteTE te) e1
     case mEquiv of
-      Just (Lit (LLab lab), TLab labels) -> do
+      Just (Lit (LLab lab), _) -> do
         elab <- maybe (TC.mfail ("No case for label " ++ show lab)) return $ lookup lab cases
         tySynth te elab
       Nothing -> do
@@ -346,7 +346,9 @@ tySynth te e =
   _ -> TC.mfail ("Unhandled expression: " ++ pshow e)
 
 tySynthCast :: TEnv -> Exp -> Type -> Type -> TCM (Type, TEnv)
-tySynthCast te e t1 t2 = (,) t2 <$> tyCheck te e t1
+tySynthCast te e t1 t2 = do
+  ki <- subtype te t1 t2
+  (,) t2 <$> tyCheck te e t1
 
 tySynthMath :: TEnv -> MathOp Exp -> TCM (Type, TEnv)
 tySynthMath te m = do

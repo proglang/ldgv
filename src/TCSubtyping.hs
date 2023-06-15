@@ -145,7 +145,20 @@ valueEquivM' tenv = \case
                _ <- subtype tenv (TLab [lab]) tout
                pure $ Just (e', tout)
              _ ->
-               pure $ Nothing
+              pure $ Nothing
+  (Cast e tname tout) ->
+    case e of 
+       (Cast (e'@(Lit (LLab lab))) tname' tout')  -> do 
+          _ <- eqvtype' tenv tout' tname
+          _ <- subtype tenv (TLab [lab]) tout
+          _ <- subtype tenv tname' tout
+          pure $ Just (e', tout)
+       (Lit (LLab lab)) -> do 
+          _ <- subtype tenv (TLab [lab]) tout
+          _ <- subtype tenv tname tout
+          pure $ Just (e, tout) 
+       _ -> pure $ Nothing 
+  e@_ -> pure $ Nothing
 
 valueEquivM :: TEnv -> Exp -> TCM (Maybe (Exp, Type))
 valueEquivM tenv exp = do
@@ -238,7 +251,7 @@ unfold tenv (TCase val cases)
       unfold tenv ty
 unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
   let caselabels = map fst cases
-  -- only consider reachable cases
+  -- only consider reachable cases 
   tvalUnfolded <- unfold tenv tval
   let checkedLabels = case tvalUnfolded of
         TLab labels -> filter (`elem` labels) caselabels -- sequence in caselabels must be preserved
@@ -272,6 +285,16 @@ unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
       return TDyn           -- all cases dynamic - eta reduce the case
     _ ->
       TC.mfail "unfold dynamic: type mismatch"
+
+unfold tenv t0@(TCase (Cast val t1 t2) cases) = do
+  valEquiv <- valueEquivM tenv val 
+  _ <- subtype tenv t1 t2    -- check if cast is type correct  
+  case valEquiv of 
+    Just (Lit (LLab lll), tout) -> do 
+      _ <- eqvtype' tenv tout t1    -- check if cast is type correct 
+      ty <- lablookup lll cases
+      unfold tenv ty  
+    Nothing -> TC.mfail "cast mismatch"
 
 unfold tenv t0@(TCase val@(Var x) cases) = do
   let caselabels = map fst cases
@@ -716,7 +739,7 @@ subtype'caser tenv tyy1 (TCase (Cast x t1 (TName _ tv)) cases) =
 -- subtyping for casts with case on the right side: A <: case (x:D=>L) {...}
 subtype'caser tenv tyy1 (TCase (Cast (Var x) t1 (TLab ls2)) cases) =
   case lookup x tenv of
-    Just (_,TLab [l]) -> do
+    Just (_,TLab [l]) -> do 
       t <- lablookup l cases
       subtype tenv tyy1 t
     _ -> do
