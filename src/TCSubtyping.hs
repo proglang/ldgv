@@ -135,6 +135,31 @@ valueEquivM' tenv = \case
         f m y = fmap (m <|>) $ valueEquivM tenv (Var y)
     in  foldM f mEqn lInd
       -- TODO: treat singletons
+  --resolve typename
+  e@(Cast (Var name) tname tout@(TName b tn)) ->
+    let mEqn = findEqn name tenv
+        lInd = findInd name tenv
+        f m y = fmap (m <|>) $ valueEquivM tenv (Var y)
+    in  do results <- foldM f mEqn lInd
+           case results of
+             Just (Cast (e'@(Lit (LLab lab))) _ _, _) -> do
+               _ <- subtype tenv (TLab [lab]) tout
+               kentry <- kindLookup tn
+               pure $ Just (e', cdualof b $ keType kentry)
+             _ ->
+              pure $ Nothing
+  e@(Cast (Var name) tname@(TName b tn) tout) ->
+    let mEqn = findEqn name tenv
+        lInd = findInd name tenv
+        f m y = fmap (m <|>) $ valueEquivM tenv (Var y)
+    in  do results <- foldM f mEqn lInd
+           case results of
+             Just (Cast (e'@(Lit (LLab lab))) _ _, _) -> do
+               _ <- subtype tenv (TLab [lab]) tout
+               kentry <- kindLookup tn
+               pure $ Just (e', cdualof b $ keType kentry)
+             _ ->
+              pure $ Nothing
   e@(Cast (Var name) tname tout) ->
     let mEqn = findEqn name tenv
         lInd = findInd name tenv
@@ -223,8 +248,9 @@ tyBound te = \case
     tyBound te $ cdualof b $ keType kentry
   TLab lbs ->
     pure $ TLab lbs
-  TCase val cases ->
-    case valueEquiv te val of
+  TCase val cases -> do
+    mVal <- valueEquivM te val
+    case mVal of
       Just (Lit (LLab lll), TLab _) -> do
         ty <- lablookup lll cases
         tyBound te ty

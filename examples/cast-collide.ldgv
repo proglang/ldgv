@@ -1,0 +1,2 @@
+type Bool : ~un = {'T, 'F}
+val f1 =  case (( 'T : Bool => *) : * =>  Int ) { 'T : 5 , 'F : 'T }
