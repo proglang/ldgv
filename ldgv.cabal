@@ -1,6 +1,6 @@
 cabal-version: 1.18
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -23,7 +23,11 @@ extra-doc-files:
     examples/case-singleton.ldgv
     examples/casesub.ldgv
     examples/casetest.ldgv
+    examples/cast-bot.ldgv
+    examples/cast-collide.ldgv
+    examples/cast-fail.ldgv
     examples/depsum.ldgv
+    examples/gradualtest.ldgv
     examples/natsum.ldgv
     examples/natsum2-new.ldgv
     examples/natsum2-rec.ldgv
