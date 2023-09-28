@@ -56,7 +56,8 @@ exec tcOptions seendIds tenv kenv (cmd:cmds) = execCmd cmd
       traceM ("--- type checking: " ++ f ++ " ---")
       let buildFunction c = foldr (\(m, v, ty) -> c m v ty)
           buildty = buildFunction G.TFun
-          e' = buildFunction G.Lam e binds
+          eAlpha = G.alphaConversion e
+          e' = buildFunction G.Lam eAlpha binds
       (tenv', cmds') <- case (Map.lookup f seendIds, mty) of
         (Nothing, Nothing) -> do
           -- Synthesize the type of the definition.

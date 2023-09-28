@@ -1,6 +1,6 @@
 module TCXMonad (
   M, runM,
-  mget, mstate, mupdate, mfail, tell, listen, censor
+  mget, mstate, mupdate, mfail, tell, listen, censor, catchError
   ) where
 
 import Control.Monad.Reader

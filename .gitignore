@@ -21,7 +21,7 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 *~
-
+.DS_Store
 *.swp
 stack.yaml.lock
 result

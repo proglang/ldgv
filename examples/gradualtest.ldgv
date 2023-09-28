@@ -1,0 +1,29 @@
+type Bool : ~un = {'T, 'F}
+
+val not : (b: Bool) -> Bool
+val not   (b: Bool) = (case b {'T: 'F, 'F: 'T})
+
+val f (x : *)
+      ( y : case ( x : * => Bool) of { 'T : Int , 'F : { 'T , 'F } } )
+= (case (x : * => Bool) of { 'T : 42 + y , 'F : (case y of {'T : "a" , 'F : 4 }) })
+
+-- fails unless gradual
+--val f' = f 'T 1
+
+val f'' = f ( 'F : Bool => *) ('T)
+
+val f''' = f ( 'T : { 'T } => *) 1
+
+val f1 = case (( 'T : Bool => *) : * => Bool) of {'T : 22 , 'F : "a" }
+
+--val f2 = case (( 'T : Int => *) : * => Bool) of {'T : 22 , 'F : "a" } fails 
+
+--val f3 = case (( 'T : Bool => *) : * => Int) of {'T : 22 , 'F : "a" } fails
+
+--val f4 = case (( 'T : Bool => Int) : * => Bool) of {'T : 22 , 'F : "a" } fails
+
+val f5 = fn (x: *)
+          fn (y: case (x: * => Bool) {'T: Int, 'F: { 'T , 'F } })
+	       case (x: * => Bool) {'T: 17+y, 'F: not y}
+
+-- val f5' = f5 (1: Int => *) (2: Int => *)  fails
