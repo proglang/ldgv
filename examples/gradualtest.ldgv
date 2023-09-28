@@ -7,7 +7,8 @@ val f (x : *)
       ( y : case ( x : * => Bool) of { 'T : Int , 'F : { 'T , 'F } } )
 = (case (x : * => Bool) of { 'T : 42 + y , 'F : (case y of {'T : "a" , 'F : 4 }) })
 
-val f' = f 'T 1
+-- fails unless gradual
+--val f' = f 'T 1
 
 val f'' = f ( 'F : Bool => *) ('T)
 
