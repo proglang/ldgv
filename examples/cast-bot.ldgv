@@ -1,0 +1,2 @@
+type Bool : ~un = {'T, 'F}
+val f1 = case ('T : Bool => _|_) of {'T : 22 , 'F : "a" }

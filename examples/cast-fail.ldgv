@@ -1,0 +1,12 @@
+type Bool : ~un = {'T, 'F}
+
+val not : (b: Bool) -> Bool
+val not   (b: Bool) = (case b {'T: 'F, 'F: 'T})
+
+-- val f1 = case ('T : Bool => Int) of {'T : 22 , 'F : "a" } -- fails
+
+val f2 = ('T : {'T, 'F, 'N} => Bool)
+
+val f3 = fn (x: *)
+          fn (y: case (x: * => Bool) {'T: Int, 'F: { 'T , 'F } })
+	       case (x: * => Bool) {'T: 17+y, 'F: not y}

@@ -135,6 +135,31 @@ valueEquivM' tenv = \case
         f m y = fmap (m <|>) $ valueEquivM tenv (Var y)
     in  foldM f mEqn lInd
       -- TODO: treat singletons
+  --resolve typename
+  e@(Cast (Var name) tname tout@(TName b tn)) ->
+    let mEqn = findEqn name tenv
+        lInd = findInd name tenv
+        f m y = fmap (m <|>) $ valueEquivM tenv (Var y)
+    in  do results <- foldM f mEqn lInd
+           case results of
+             Just (Cast (e'@(Lit (LLab lab))) _ _, _) -> do
+               _ <- subtypeMark ("VE1 " ++ pshow e) tenv (TLab [lab]) tout
+               kentry <- kindLookup tn
+               pure $ Just (e', cdualof b $ keType kentry)
+             _ ->
+              pure $ Nothing
+  e@(Cast (Var name) tname@(TName b tn) tout) ->
+    let mEqn = findEqn name tenv
+        lInd = findInd name tenv
+        f m y = fmap (m <|>) $ valueEquivM tenv (Var y)
+    in  do results <- foldM f mEqn lInd
+           case results of
+             Just (Cast (e'@(Lit (LLab lab))) _ _, _) -> do
+               _ <- subtypeMark ("VE2 " ++ pshow e) tenv (TLab [lab]) tout
+               kentry <- kindLookup tn
+               pure $ Just (e', cdualof b $ keType kentry)
+             _ ->
+              pure $ Nothing
   e@(Cast (Var name) tname tout) ->
     let mEqn = findEqn name tenv
         lInd = findInd name tenv
@@ -142,10 +167,26 @@ valueEquivM' tenv = \case
     in  do results <- foldM f mEqn lInd
            case results of
              Just (Cast (e'@(Lit (LLab lab))) _ _, _) -> do
-               _ <- subtype tenv (TLab [lab]) tout
+               _ <- subtypeMark ("VE3 " ++ pshow e) tenv (TLab [lab]) tout
                pure $ Just (e', tout)
              _ ->
-               pure $ Nothing
+              pure $ Nothing
+  e0@(Cast e tname tout) ->
+    case e of
+       (Cast (e'@(Lit (LLab lab))) tname' tout')  -> do 
+          -- _ <- eqvtype' tenv tout' tname
+          _ <- subtypeMark ("VE4 " ++ pshow e0) tenv (TLab [lab]) tout
+          -- _ <- subtype tenv tname' tout
+          pure $ Just (e', tout)
+       (Lit (LLab lab)) -> do
+          _ <- subtypeMark ("VE5 " ++ pshow e0) tenv (TLab [lab]) tout
+          -- _ <- subtype tenv tname tout
+          pure $ Just (e, tout)
+       _ -> pure $ Nothing
+    `TC.catchError` \ _ -> do
+      D.traceOnlyM "valueEquiv" "failed"
+      pure $ Nothing
+  e@_ -> pure $ Nothing
 
 valueEquivM :: TEnv -> Exp -> TCM (Maybe (Exp, Type))
 valueEquivM tenv exp = do
@@ -210,8 +251,9 @@ tyBound te = \case
     tyBound te $ cdualof b $ keType kentry
   TLab lbs ->
     pure $ TLab lbs
-  TCase val cases ->
-    case valueEquiv te val of
+  TCase val cases -> do
+    mVal <- valueEquivM te val
+    case mVal of
       Just (Lit (LLab lll), TLab _) -> do
         ty <- lablookup lll cases
         tyBound te ty
@@ -223,6 +265,8 @@ tyBound te = \case
   TSingle x -> do
     (_, tyx) <- varlookup x te
     tyBound te tyx
+  TBot ->
+    pure TBot
   _ ->
     pure TDyn
 
@@ -232,11 +276,30 @@ unfold :: TEnv -> Type -> TCM Type
 unfold tenv (TName b tn) = do
   kentry <- kindLookup tn
   unfold tenv $ cdualof b $ keType kentry -- was: return $
-unfold tenv (TCase val cases)
-  | Just (Lit (LLab lll), TLab _) <- valueEquiv tenv val = do
+unfold tenv t0@(TCase val cases) = do
+  ve <- valueEquivM tenv val
+  case ve of
+    Just (Lit (LLab lll), TLab _) -> do
       ty <- lablookup lll cases
       unfold tenv ty
-unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
+    _ -> do
+      unfold' tenv t0
+
+unfold tenv (TNatRec e1 tz1 tv1 ts1)
+  | Just (v, TNat) <- valueEquiv tenv e1 =
+      case v of
+        Lit (LNat 0) ->
+          unfold tenv tz1
+        Lit (LNat n) | n > 0 ->
+          unfold tenv (tsubst tv1 (TNatRec (Lit $ LNat (n-1)) tz1 tv1 ts1) ts1)
+        Succ var ->
+          unfold tenv (tsubst tv1 (TNatRec var tz1 tv1 ts1) ts1)
+        _ ->
+          TC.mfail "eqvtype: type mismatch"
+unfold tenv ty =
+  return ty
+
+unfold' tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
   let caselabels = map fst cases
   -- only consider reachable cases
   tvalUnfolded <- unfold tenv tval
@@ -245,8 +308,8 @@ unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
         _ -> caselabels
   -- check if cast is type correct
   (_, tyx) <- varlookup x tenv
-  kx <- subtype tenv tyx tvar
-  kl <- subtype tenv tval (TLab caselabels)
+  kx <- subtypeMark "unfold-x" tenv tyx tvar
+  kl <- subtypeMark "unfold-l" tenv tval (TLab caselabels)
   results <- mapM (\(lll, tyl) -> unfold (("*unfold*", (Many, TEqn val (Cast (Lit $ LLab lll) (TLab caselabels) tvar) tvar)) : tenv) tyl) (filter ((`elem` checkedLabels) . fst) cases)
 
   case commonGrounds results of
@@ -273,7 +336,7 @@ unfold tenv t0@(TCase (Cast val@(Var x) tvar tval) cases) = do
     _ ->
       TC.mfail "unfold dynamic: type mismatch"
 
-unfold tenv t0@(TCase val@(Var x) cases) = do
+unfold' tenv t0@(TCase val@(Var x) cases) = do
   let caselabels = map fst cases
   tyx <- varlookupUnfolding x tenv
   results <- case tyx of
@@ -311,19 +374,14 @@ unfold tenv t0@(TCase val@(Var x) cases) = do
     _ ->
       TC.mfail "unfold dynamic: type mismatch"
 
-unfold tenv (TNatRec e1 tz1 tv1 ts1)
-  | Just (v, TNat) <- valueEquiv tenv e1 =
-      case v of
-        Lit (LNat 0) ->
-          unfold tenv tz1
-        Lit (LNat n) | n > 0 ->
-          unfold tenv (tsubst tv1 (TNatRec (Lit $ LNat (n-1)) tz1 tv1 ts1) ts1)
-        Succ var ->
-          unfold tenv (tsubst tv1 (TNatRec var tz1 tv1 ts1) ts1)
-        _ ->
-          TC.mfail "eqvtype: type mismatch"
-unfold tenv ty =
-  return ty
+unfold' tenv t0@(TCase e cases) = do
+  valEquiv <- valueEquivM tenv e
+  case valEquiv of
+    Just (Lit (LLab lll), tout) -> do
+      -- _ <- eqvtype' tenv tout t1    -- check if cast is type correct
+      ty <- lablookup lll cases
+      unfold tenv ty
+    Nothing -> TC.mfail ("cast mismatch-1 " ++ pshow t0)
 
 data GHead = GDyn | GLab | GUnit | GInt | GNat | GDouble | GString | GFun Multiplicity | GPair | GSend | GRecv
   deriving (Eq)
@@ -518,6 +576,8 @@ complete xs [] ty =
 
 -- subtyping
 subtype' :: TEnv -> Type -> Type -> TCM Kind
+subtype' tenv TBot ty2 =
+  return Kunit
 subtype' tenv ty1 ty2@(TVar b tv) = do
   kentry <- kindLookup tv
   D.traceOnlyM "Subtype constraint" (pshow ty1 ++ " <: " ++ pshow ty2)
@@ -528,8 +588,13 @@ subtype' tenv ty1@(TVar b tv) ty2 = do
   D.traceOnlyM "Subtype constraint" (pshow ty1 ++ " <: " ++ pshow ty2)
   TC.tell [ty1 :<: ty2]
   return (keKind kentry)
-subtype' tenv TDyn _ = return Kunit
-subtype' tenv _ TDyn = return Kunit
+subtype' tenv TDyn TDyn = return Kunit
+subtype' tenv TDyn t = do
+  failUnlessGradual ("subtype: * <: " ++ pshow t)
+  return Kunit
+subtype' tenv t TDyn = do
+  failUnlessGradual ("subtype: " ++ pshow t ++ " <: *")
+  return Kunit
 subtype' tenv TUnit TUnit = return Kunit
 subtype' tenv TInt TInt = return Kunit
 subtype' tenv TDouble TDouble = return Kunit
@@ -716,7 +781,7 @@ subtype'caser tenv tyy1 (TCase (Cast x t1 (TName _ tv)) cases) =
 -- subtyping for casts with case on the right side: A <: case (x:D=>L) {...}
 subtype'caser tenv tyy1 (TCase (Cast (Var x) t1 (TLab ls2)) cases) =
   case lookup x tenv of
-    Just (_,TLab [l]) -> do
+    Just (_,TLab [l]) -> do 
       t <- lablookup l cases
       subtype tenv tyy1 t
     _ -> do
@@ -740,6 +805,11 @@ subtype'caser tenv ty1 (TCase val@(Var x) cases) =
 subtype'caser tenv ty1 ty2 =
   TC.mfail ("Subtyping (case right) fails to establish " ++ pshow ty1 ++ " <: " ++ pshow ty2)
 
+subtypeMark :: String -> TEnv -> Type -> Type -> TCM Kind
+subtypeMark mark tenv t1 t2 = do
+  D.traceOnlyM "subtype" mark
+  subtype tenv t1 t2
+
 subtype :: TEnv -> Type -> Type -> TCM Kind
 subtype tenv t1 t2 = do
   D.traceOnlyM "subtype" ("Entering " ++ pshow tenv ++ " (" ++ pshow t1 ++ ") (" ++ pshow t2 ++ ")")
@@ -756,6 +826,7 @@ tcase e tye sts = TCase e sts
 
 -- same beast, but checks branch types for equivalence
 tcaseM :: TEnv -> Exp -> Type -> [(String, Type)] -> TCM Type
+tcaseM te e tye [] = return TBot
 tcaseM te e tye allcases@((_, t) : cases) =
   ap (return (\t -> D.trace ("tcaseM returns " ++ pshow t) t)) $
   D.trace ("tcaseM " ++ pshow (te, e, allcases)) $ (do

@@ -52,8 +52,8 @@ kiSynth te (TRecv x ty1 ty2) = do
   m2 <- kiCheck ((x, (demote m1, ty1)) : te) ty2 Kssn
   return (Kssn, MOne)
 kiSynth te (TCase e1 cases) = do
-  -- alternative: synthesize the type of e1 and only check the cases arising from this type
-  let tlabs = TLab (map fst cases)
+  -- synthesize the type of e1 and only check the cases arising from this type
+  (tlabs, te') <- tySynth te e1
   _ <- tyCheck te e1 tlabs
   ks <- mapM (\(lab, elab) ->
               kiSynth (("*kis*", (Many, TEqn e1 (Lit $ LLab lab) tlabs)) : te) elab)
@@ -79,7 +79,7 @@ kiCheck te ty ki = do
   (k1, m1) <- kiSynth te ty
   if klub ki k1 == ki
      then return ()
-     else TC.mfail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1)
+     else TC.mfail ("Kind " ++ show ki ++ " expected for type " ++ show ty ++ ", but got " ++ show k1) 
 
 -- unrestricted strengthening of top entry + expanding singleton in return type if needed
 strengthen :: Exp -> (Type, TEnv) -> TCM (Type, TEnv)
@@ -131,7 +131,7 @@ tySynth te e =
       (TLab labs, True) -> do -- insert an implicit case
         ty_te_s <- mapM (\lab -> tySynth (("*lam*", (Many, TEqn (Var x) (Lit $ LLab lab) tyxBound)) : tebody) e1 >>= strengthen e1) labs
         ty' <- tcaseM (demoteTE tebody) (Var x) tyxBound (zip labs $ map fst ty_te_s)
-        te' <- tenvJoinN (map snd ty_te_s)
+        te' <- tenvJoinN te (map snd ty_te_s)
         strengthen e (TFun mm x tyx ty', te')
       _ -> do
         (ty, te1) <- tySynth tebody e1
@@ -250,10 +250,10 @@ tySynth te e =
       TDyn -> do
         TC.failUnlessGradual ("Send expected, but got " ++ pshow ts ++ " (" ++ pshow tsu ++ ")")
         return (TFun MOne "d" TDyn TDyn, te1)
-      _ ->
+      _ -> 
         TC.mfail ("Send expected, but got " ++ pshow ts ++ " (" ++ pshow tsu ++ ")")
   Recv e1 -> do
-    (tr, te1) <- tySynth te e1
+    (tr, te1) <- tySynth te e1 
     tru <- unfold te1 tr
     case tru of
       TRecv x ty1 ty2 ->
@@ -264,7 +264,7 @@ tySynth te e =
       _ ->
         TC.mfail ("Recv expected, but got " ++ pshow tr ++ " (" ++ pshow tru ++ ")")
 
-  Case e1 cases -> do
+  e0@(Case e1 cases) -> do
     D.traceOnlyM "tysynth" (pshow e)
     (t1, te1) <- tySynth te e1
     tbound <- tyBound (demoteTE te) t1
@@ -272,7 +272,7 @@ tySynth te e =
       TC.failUnlessGradual "case on value with dynamic type bound not allowed - implementation restriction"
     mEquiv <- valueEquivM (demoteTE te) e1
     case mEquiv of
-      Just (Lit (LLab lab), TLab labels) -> do
+      Just (Lit (LLab lab), _) -> do
         elab <- maybe (TC.mfail ("No case for label " ++ show lab)) return $ lookup lab cases
         tySynth te elab
       Nothing -> do
@@ -281,20 +281,22 @@ tySynth te e =
             tlabels = TLab labels
             checked = case tbound of
               TLab labs -> labs
+              TBot -> []
               _ -> labels
             tChecked = TLab checked
-        _ <- subtype (demoteTE te) t1 tlabels
+        _ <- subtypeMark ("Case-Nothing " ++ pshow e0) (demoteTE te) t1 tlabels
         mkEqn <- case e1 of
-              Var x ->                 return $ \lab -> TEqn (Var x) (Lit $ LLab lab) tChecked
-              (Cast (Var x) t1 _t2) -> return $ \lab -> TEqn (Var x) (Cast (Lit (LLab lab)) tChecked t1) t1
-              _ -> TC.mfail ("case header must be variable or cast, but got " ++ pshow e1)
+              Var x ->                  return $ \lab -> TEqn (Var x) (Lit $ LLab lab) tChecked
+              (Cast (Var x) t1 _t2) ->  return $ \lab -> TEqn (Var x) (Cast (Lit (LLab lab)) tChecked t1) t1
+              _ -> if null checked then return $ \lab -> TEqn (Lit $ LLab lab) (Lit $ LLab lab) tChecked
+                                   else TC.mfail ("case header must be variable or cast, but got " ++ pshow e1)
         let flab (lab, elab) = do
               (tylab, teq_telab) <- tySynth (("*lab-e2*", (Many, mkEqn lab)) : te) elab
               return ((lab, tylab), tail teq_telab)
         ty_te_s <- mapM flab (filter ((`elem` checked) . fst) cases)
         ty' <- tcaseM te e1 tChecked (map fst ty_te_s)
         -- let ty' = tcase e1 (map fst ty_te_s)
-        te' <- tenvJoinN (map snd ty_te_s)
+        te' <- tenvJoinN te (map snd ty_te_s)
         return (ty', te')
 
   NatRec e1 ez n1 tv y tyy es -> do
@@ -346,7 +348,10 @@ tySynth te e =
   _ -> TC.mfail ("Unhandled expression: " ++ pshow e)
 
 tySynthCast :: TEnv -> Exp -> Type -> Type -> TCM (Type, TEnv)
-tySynthCast te e t1 t2 = (,) t2 <$> tyCheck te e t1
+tySynthCast te e t1 t2 = do
+  -- check for consistency, not subtyping!
+  -- ki <- subtype te t1 t2
+  (,) t2 <$> tyCheck te e t1
 
 tySynthMath :: TEnv -> MathOp Exp -> TCM (Type, TEnv)
 tySynthMath te m = do
@@ -356,14 +361,15 @@ tySynthMath te m = do
 tyCheck :: TEnv -> Exp -> Type -> TCM TEnv
 tyCheck te e ty = do
   (tysyn, te') <- tySynth te e
-  ki <- subtype (demoteTE te) tysyn ty
+  ki <- subtypeMark ("tycheck " ++ pshow e) (demoteTE te) tysyn ty
   return te'
 
-tenvJoinN :: [TEnv] -> TCM TEnv
-tenvJoinN [te] = return te
-tenvJoinN (te1:te2:tes) = do
-  te12 <- tenvJoin te1 te1
-  tenvJoinN (te12:tes)
+tenvJoinN :: TEnv -> [TEnv] -> TCM TEnv
+tenvJoinN te0 [] = return te0
+tenvJoinN te0 [te] = return te
+tenvJoinN te0 (te1:te2:tes) = do
+  te12 <- tenvJoin te1 te2
+  tenvJoinN te0 (te12:tes)
 
 tenvJoin :: TEnv -> TEnv -> TCM TEnv
 tenvJoin = zipWithM tenvEntryJoin

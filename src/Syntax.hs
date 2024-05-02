@@ -34,6 +34,76 @@ data Exp = Let Ident Exp Exp
          | Cast Exp Type Type
   deriving (Show,Eq)
 
+alphaConversion :: Exp -> Exp
+alphaConversion e = fst (substBoundedVar e 0 (fv e))
+
+substBoundedVar :: Exp -> Integer -> Set Ident -> (Exp, Integer)
+substBoundedVar (Case e1 xs) n fs =
+  let (e1', n') = substBoundedVar e1 n fs
+      xs' = map(\e -> (fst e, substBoundedVar (snd e) n' fs)) xs
+      (ys, n'') = (foldr ((:) . ( \(s, (exp, int)) -> (s, exp))) [] xs', foldr (max . (snd . snd)) 0 xs') in
+        (Case e1' ys, n'')
+
+substBoundedVar (Let x e1 e2) n fs =
+  let y = (x ++ "$" ++ show n) 
+      (e1', n') = substBoundedVar e1 (n+1) fs
+      (e2', n'') = substBoundedVar (subst x (Var y) e2) n' fs in
+        (Let y e1' e2', n'')
+
+substBoundedVar (Succ e) n fs =
+  let (e', n') = substBoundedVar e n fs in
+    (Succ e', n')
+
+substBoundedVar (App e1 e2) n fs =
+  let (e1', n') = substBoundedVar e1 n fs
+      (e2', n'') = substBoundedVar e2 n' fs in
+        (App e1' e2' , n'' )
+
+substBoundedVar (LetPair x y e1 e2) n fs =
+  let x' = (x ++ "$" ++ show n) 
+      y' = (y ++ "$" ++ show (n+1))
+      (e1', n') = substBoundedVar e1 (n+2) fs
+      (e2', n'') =
+        substBoundedVar (subst x (Var x') (subst y (Var y') e2)) n' fs in
+          (LetPair x' y' e1' e2', n'')
+
+substBoundedVar (Fst e) n fs =
+  let (e', n') = substBoundedVar e n fs in
+    (Fst e', n')
+
+substBoundedVar (Snd e) n fs =
+  let (e', n') = substBoundedVar e n fs in
+    (Snd e', n')
+
+substBoundedVar (Fork e) n fs =
+  let (e', n') = substBoundedVar e n fs in
+    (Fork e', n')
+
+substBoundedVar (Send e) n fs =
+  let (e', n') = substBoundedVar e n fs in
+    (Send e', n')
+
+substBoundedVar (Recv e) n fs =
+  let (e', n') = substBoundedVar e n fs in
+    (Recv e', n')
+
+substBoundedVar (Var x) n fs = if elem '$' x || elem x fs
+  then (Var x, n)
+  else (Var (x ++ "$" ++ show n), n+1)
+
+substBoundedVar (Pair m x e1 e2) n fs =
+  let y = (x ++ "$" ++ show n)
+      (e1', n') = substBoundedVar e1 (n+1) fs
+      (e2', n'') = substBoundedVar (subst x (Var y) e2) n' fs in
+        (Pair m y e1' e2',  n'')
+
+substBoundedVar (Lam m x t e) n fs =
+  let y = (x ++ "$" ++ show n)
+      (e', n') = substBoundedVar (subst x (Var y) e) (n+1) fs in
+        (Lam m y t e', n')
+
+substBoundedVar x n fs = (x, n)
+
 data MathOp e
   = Add e e
   | Sub e e
@@ -221,7 +291,7 @@ instance Substitution Exp where
       | otherwise = Lam m y (subst x exp ty) e1
     sb (Rec f y e1 e0) = Rec f y (if x /= y then subst x exp e1 else e1) (subst x exp e0)
     sb (Case e1 cases) = Case (sb e1) [(lll, sb e) | (lll, e) <- cases]
-    sb orig@(Cast e t1 t2) = Cast (sb e) t1 t2
+    sb orig@(Cast e t1 t2) = Cast (sb e) t1 t2 
     sb (App e1 e2) = App (sb e1) (sb e2)
     sb (Pair m y e1 e2) = Pair m y (sb e1) (if x /= y then sb e2 else e2)
     sb (Fst e1) = Fst (sb e1)
